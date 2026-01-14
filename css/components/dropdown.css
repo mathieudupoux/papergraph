@@ -13,7 +13,7 @@
     border-radius: 14px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    overflow: hidden;
+    overflow: visible;
 }
 
 .logo-menu-btn-extended:hover {
@@ -78,7 +78,7 @@
     cursor: text;
     padding: 10px 16px 10px 16px;
     min-width: 120px;
-    max-width: 400px;
+    max-width: 600px;
     width: auto;
     white-space: nowrap;
     overflow: visible;

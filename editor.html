@@ -1227,12 +1227,27 @@
             
             // Set initial title from localStorage or default
             if (projectTitleInput) {
+                // Helper function to resize input based on content
+                const resizeInput = (input) => {
+                    const span = document.createElement('span');
+                    span.style.visibility = 'hidden';
+                    span.style.position = 'absolute';
+                    span.style.whiteSpace = 'nowrap';
+                    span.style.fontFamily = window.getComputedStyle(input).fontFamily;
+                    span.style.fontSize = window.getComputedStyle(input).fontSize;
+                    span.style.fontWeight = window.getComputedStyle(input).fontWeight;
+                    span.textContent = input.value || input.placeholder;
+                    document.body.appendChild(span);
+                    const width = Math.max(120, Math.min(600, span.offsetWidth + 40)); // +40 for padding
+                    document.body.removeChild(span);
+                    input.style.width = width + 'px';
+                };
+                
                 const savedTitle = localStorage.getItem('currentProjectTitle');
                 if (savedTitle) {
                     console.log('✓ Setting saved title:', savedTitle);
                     projectTitleInput.value = savedTitle;
-                    // Auto-adjust input width based on content (narrower range)
-                    projectTitleInput.style.width = `${Math.max(120, Math.min(250, savedTitle.length * 10))}px`;
+                    resizeInput(projectTitleInput);
                 } else {
                     console.log('✓ Setting default title');
                     // Default title for new projects
@@ -1254,8 +1269,8 @@
                             return;
                         }
                         
-                        // Auto-adjust input width (narrower range)
-                        projectTitleInput.style.width = `${Math.max(120, Math.min(250, newTitle.length * 10))}px`;
+                        // Auto-adjust input width
+                        resizeInput(projectTitleInput);
                         
                         // Save to localStorage
                         localStorage.setItem('currentProjectTitle', newTitle);
@@ -1275,6 +1290,7 @@
                     
                     // Debounced save on input
                     projectTitleInput.addEventListener('input', () => {
+                        resizeInput(projectTitleInput);
                         clearTimeout(saveTimeout);
                         saveTimeout = setTimeout(saveTitle, 1000);
                     });
