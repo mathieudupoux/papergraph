@@ -30,6 +30,9 @@
     <!-- External Libraries -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css">
     
+    <!-- Driver.js for Interactive Tutorial -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
+    
     <!-- Cursors - MUST BE LAST to override everything -->
     <link rel="stylesheet" href="css/base/cursors.css">
     <link rel="icon" type="image/svg+xml" href="assets/logo-papergraph.svg">
@@ -1480,6 +1483,104 @@
         window.closeNewProjectModal = closeNewProjectModal;
         window.openNewProjectModal = openNewProjectModal;
         window.handleCreateNewProject = handleCreateNewProject;
+        
+        // ===== INTERACTIVE TOUR (Driver.js) =====
+        function startInteractiveTour() {
+            console.log('Starting interactive tour...');
+            
+            // Load Driver.js
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js';
+            script.onload = () => {
+                console.log('Driver.js script loaded');
+                // Wait a bit for the library to initialize
+                setTimeout(() => {
+                    console.log('window.driver available:', typeof window.driver);
+                    if (typeof window.driver === 'undefined') {
+                        console.error('Driver.js not found on window object. Available keys:', Object.keys(window).filter(k => k.includes('driver') || k.includes('Driver')));
+                        return;
+                    }
+                    initializeTour();
+                }, 100);
+            };
+            script.onerror = () => {
+                console.error('Failed to load Driver.js');
+            };
+            document.head.appendChild(script);
+        }
+
+        function initializeTour() {
+            try {
+                const driverObj = window.driver.js.driver({
+                    showProgress: true,
+                    showButtons: ['next', 'previous', 'close'],
+                    steps: [
+                        {
+                            element: '#addArticleBtn',
+                            popover: {
+                                title: '📝 Add articles',
+                                description: 'Click here to add new research articles. You can also drop PDF/BibTeX files directly onto the canvas or paste a DOI link.',
+                                side: 'top',
+                                align: 'center'
+                            }
+                        },
+                        {
+                            popover: {
+                                title: '🔗 Connect nodes',
+                                description: '<div style="text-align: left;"><p>To connect articles:</p><ol style="margin: 8px 0 0 20px;"><li>Click a node to select it</li><li>Click the Link icon in the radial menu</li><li>Click another node to create a connection</li></ol><img src="assets/demo-connect-ideas.gif" style="width: 100%; margin-top: 12px; border-radius: 8px; border: 1px solid #ddd;"></div>'
+                            }
+                        },
+                        {
+                            popover: {
+                                title: '🏷️ Create tag zones',
+                                description: '<div style="text-align: left;"><p>Organize your research by creating visual zones:</p><ul style="margin: 8px 0 0 20px;"><li>Click and drag to draw a zone</li><li>Label it to group related articles by topic</li></ul><img src="assets/demo-organize-tags.gif" style="width: 100%; margin-top: 12px; border-radius: 8px; border: 1px solid #ddd;"></div>'
+                            }
+                        },
+                        {
+                            element: '.toolbar-view-toggle',
+                            popover: {
+                                title: '👁️ Switch views',
+                                description: 'Toggle between Graph View for visual mapping and List View for a structured overview of your research.',
+                                side: 'top',
+                                align: 'center'
+                            }
+                        },
+                        {
+                            element: '#logoMenuBtn',
+                            popover: {
+                                title: '📁 Import & export',
+                                description: 'Click here to access the menu where you can:<br>• Import projects and BibTeX files<br>• Export your work in multiple formats (JSON, BibTeX, PDF, PNG)',
+                                side: 'bottom',
+                                align: 'start'
+                            }
+                        }
+                    ],
+                    onDestroyStarted: () => {
+                        driverObj.destroy();
+                        localStorage.setItem('papergraph_hide_tutorial', 'true');
+                    }
+                });
+                
+                console.log('Starting driver tour');
+                driverObj.drive();
+            } catch (error) {
+                console.error('Error initializing tour:', error);
+            }
+        }
+
+        // Make function global
+        window.startInteractiveTour = startInteractiveTour;
+
+        // Auto-start tour on first visit
+        window.addEventListener('load', () => {
+            const isHidden = localStorage.getItem('papergraph_hide_tutorial');
+            console.log('Page loaded. Tour hidden:', isHidden, 'Read-only mode:', window.isReadOnlyMode);
+            
+            if (!isHidden && !window.isReadOnlyMode) {
+                console.log('Auto-starting tour in 1.5 seconds...');
+                setTimeout(() => startInteractiveTour(), 1500);
+            }
+        });
         
         // ===== READ-ONLY MODE SETUP =====
         if (window.isReadOnlyMode) {
