@@ -1080,10 +1080,41 @@ function generateLatexDocument() {
         });
     }
     
-    // Add bibliography using BibTeX
-    if (appData.articles && appData.articles.length > 0 && appData.articles.some(a => a.bibtexId)) {
-        latex += '\\bibliographystyle{plain}\n';
-        latex += '\\bibliography{references}\n\n';
+    // Add bibliography directly as thebibliography environment for YtoTech compatibility
+    if (appData.articles && appData.articles.length > 0) {
+        latex += '\\begin{thebibliography}{99}\n\n';
+
+        appData.articles.forEach(article => {
+            if (article.bibtexId) {
+                latex += `\\bibitem{${article.bibtexId}}\n`;
+
+                if (article.authors) {
+                    latex += escapeLatex(article.authors) + '. ';
+                }
+                if (article.title) {
+                    latex += `\\textit{${escapeLatex(article.title)}}. `;
+                }
+                if (article.journal) {
+                    latex += escapeLatex(article.journal);
+                    if (article.volume) {
+                        latex += `, ${escapeLatex(article.volume)}`;
+                    }
+                    if (article.number) {
+                        latex += `(${escapeLatex(article.number)})`;
+                    }
+                    if (article.pages) {
+                        latex += `, pp. ${escapeLatex(article.pages)}`;
+                    }
+                    latex += '. ';
+                }
+                if (article.year) {
+                    latex += escapeLatex(article.year) + '.';
+                }
+                latex += '\n\n';
+            }
+        });
+
+        latex += '\\end{thebibliography}\n\n';
     }
     
     // Add footer
@@ -1147,23 +1178,41 @@ function processLatexContent(text) {
 }
 
 /**
- * Export project to PDF using online LaTeX compiler with proper BibTeX support
+ * Export project to PDF using online LaTeX compiler
  */
 async function exportToPDF() {
     try {
-        showNotification('Generating LaTeX document with bibliography...', 'info');
+        showNotification('Generating LaTeX document...', 'info');
 
-        // Generate LaTeX and BibTeX content
-        const { latex, bibtex } = generateLatexWithBibtex(appData, appData.articles);
+        const latexContent = generateLatexDocument();
 
         // Show notification
         showNotification('Compiling to PDF... This may take a few seconds.', 'info');
 
-        // Use online LaTeX compilation service (LaTeX.Online with YtoTech fallback)
-        const pdfBlob = await compileLatexOnline(latex, bibtex, {
-            compiler: 'pdflatex',
-            onProgress: (msg) => console.log('Compilation progress:', msg)
+        // Use YtoTech LaTeX API with inline bibliography
+        const response = await fetch('https://latex.ytotech.com/builds/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                compiler: 'pdflatex',
+                resources: [
+                    {
+                        content: latexContent,
+                        main: true
+                    }
+                ]
+            })
         });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`LaTeX compilation failed: ${response.status} - ${errorText}`);
+        }
+
+        // Get PDF blob
+        const pdfBlob = await response.blob();
 
         // Download PDF
         const url = URL.createObjectURL(pdfBlob);

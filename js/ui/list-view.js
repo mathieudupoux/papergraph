@@ -266,7 +266,7 @@ function addPreviewToggle() {
     compileBtn.className = 'compile-pdf-btn';
     compileBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>';
     compileBtn.title = 'Compile to PDF Preview';
-    compileBtn.style.cssText = 'background: #0d6efd; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 12px;';
+    compileBtn.style.cssText = 'background: #4a90e2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 12px;';
 
     const compileText = document.createElement('span');
     compileText.textContent = 'Compile PDF';
@@ -311,7 +311,7 @@ async function compileToPDFPreview() {
     const contentEl = document.getElementById('noteContent');
     if (!contentEl) return;
 
-    const latexContent = contentEl.textContent || '';
+    let latexContent = contentEl.textContent || '';
     if (!latexContent.trim()) {
         showNotification('No content to compile', 'warning');
         return;
@@ -331,18 +331,66 @@ async function compileToPDFPreview() {
     previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">Compiling LaTeX to PDF...</div>';
 
     try {
-        // Generate BibTeX content from articles
-        let bibtexContent = '';
-        if (appData.articles && appData.articles.length > 0) {
-            appData.articles.forEach(article => {
-                if (article.bibtexId) {
-                    bibtexContent += articleToBibTeX(article) + '\n';
-                }
-            });
+        // Add minimal document wrapper if not present
+        if (!latexContent.includes('\\documentclass')) {
+            let preamble = `\\documentclass[11pt,a4paper]{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage[margin=1in]{geometry}
+\\usepackage{amsmath}
+\\usepackage{amssymb}
+\\usepackage{hyperref}
+
+\\begin{document}
+`;
+            // Add inline bibliography if there are citations
+            let bibliography = '';
+            if (appData.articles && appData.articles.length > 0 && latexContent.includes('\\cite{')) {
+                bibliography = '\n\n\\begin{thebibliography}{99}\n\n';
+                appData.articles.forEach(article => {
+                    if (article.bibtexId) {
+                        bibliography += `\\bibitem{${article.bibtexId}}\n`;
+                        if (article.authors) bibliography += article.authors + '. ';
+                        if (article.title) bibliography += `\\textit{${article.title}}. `;
+                        if (article.journal) {
+                            bibliography += article.journal;
+                            if (article.volume) bibliography += `, ${article.volume}`;
+                            if (article.number) bibliography += `(${article.number})`;
+                            if (article.pages) bibliography += `, pp. ${article.pages}`;
+                            bibliography += '. ';
+                        }
+                        if (article.year) bibliography += article.year + '.';
+                        bibliography += '\n\n';
+                    }
+                });
+                bibliography += '\\end{thebibliography}\n';
+            }
+
+            latexContent = preamble + latexContent + bibliography + '\n\\end{document}';
         }
 
-        // Compile using online service
-        const pdfBlob = await generateLatexPreviewPDF(latexContent, bibtexContent);
+        // Compile using YtoTech API
+        const response = await fetch('https://latex.ytotech.com/builds/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                compiler: 'pdflatex',
+                resources: [
+                    {
+                        content: latexContent,
+                        main: true
+                    }
+                ]
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`LaTeX compilation failed: ${response.status}`);
+        }
+
+        const pdfBlob = await response.blob();
 
         // Render PDF using PDF.js
         await renderPDFInContainer(pdfBlob, previewContainer);
@@ -351,16 +399,18 @@ async function compileToPDFPreview() {
     } catch (error) {
         console.error('PDF compilation error:', error);
         previewContainer.innerHTML = `
-            <div style="padding: 20px; text-align: center; color: #dc3545;">
+            <div style="padding: 20px; text-align: center; color: #ef5350;">
                 <strong>Compilation Error:</strong><br>
                 <span style="font-size: 14px;">${escapeHtml(error.message)}</span><br>
                 <div style="margin-top: 12px; font-size: 13px; color: #6c757d;">
-                    The HTML preview is still shown below.
+                    Falling back to HTML preview.
                 </div>
             </div>
         `;
         // Fall back to HTML preview
-        renderLatexPreview(latexContent, 'latexPreview');
+        setTimeout(() => {
+            renderLatexPreview(contentEl.textContent, 'latexPreview');
+        }, 2000);
     } finally {
         // Restore button state
         if (compileBtn) {
@@ -592,7 +642,7 @@ function renderAuthorsList() {
         removeBtn.type = 'button';
         removeBtn.className = 'btn-remove-author';
         removeBtn.innerHTML = '×';
-        removeBtn.style.cssText = 'width: 28px; height: 28px; border: none; background: #dc3545; color: white; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; padding: 0;';
+        removeBtn.style.cssText = 'width: 28px; height: 28px; border: none; background: #ef5350; color: white; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; padding: 0;';
         removeBtn.onclick = () => {
             appData.projectReviewMeta.authorsData.splice(authorIdx, 1);
             if (appData.projectReviewMeta.authorsData.length === 0) {
@@ -629,7 +679,7 @@ function renderAuthorsList() {
 
             // Visual validation
             const isValid = /^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]$/.test(value);
-            orcidInput.style.borderColor = value && !isValid ? '#dc3545' : '#dee2e6';
+            orcidInput.style.borderColor = value && !isValid ? '#ef5350' : '#dee2e6';
         };
 
         orcidRow.appendChild(orcidLabel);
@@ -659,8 +709,8 @@ function renderAuthorsList() {
                 cursor: pointer;
                 user-select: none;
                 transition: all 0.2s;
-                border: 2px solid ${isChecked ? '#0d6efd' : '#dee2e6'};
-                background: ${isChecked ? '#0d6efd' : 'white'};
+                border: 2px solid ${isChecked ? '#4a90e2' : '#dee2e6'};
+                background: ${isChecked ? '#4a90e2' : 'white'};
                 color: ${isChecked ? 'white' : '#495057'};
             `;
 
@@ -724,7 +774,7 @@ function renderAffiliationsList() {
         const numberBadge = document.createElement('span');
         numberBadge.className = 'affiliation-number-badge';
         numberBadge.textContent = `${affilIdx + 1}`;
-        numberBadge.style.cssText = 'min-width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; background: #0d6efd; color: white; border-radius: 6px; font-weight: 600; font-size: 13px;';
+        numberBadge.style.cssText = 'min-width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; background: #4a90e2; color: white; border-radius: 6px; font-weight: 600; font-size: 13px;';
 
         // Affiliation text input
         const textInput = document.createElement('input');
@@ -744,7 +794,7 @@ function renderAffiliationsList() {
         removeBtn.type = 'button';
         removeBtn.className = 'btn-remove-author';
         removeBtn.innerHTML = '×';
-        removeBtn.style.cssText = 'width: 28px; height: 28px; border: none; background: #dc3545; color: white; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; padding: 0;';
+        removeBtn.style.cssText = 'width: 28px; height: 28px; border: none; background: #ef5350; color: white; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; padding: 0;';
         removeBtn.onclick = () => {
             // Remove this affiliation
             appData.projectReviewMeta.affiliationsData.splice(affilIdx, 1);
@@ -792,7 +842,7 @@ function updateAuthorPreview() {
 
         previewContainer = document.createElement('div');
         previewContainer.id = 'authorsPreviewContainer';
-        previewContainer.style.cssText = 'margin-top: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 3px solid #0d6efd;';
+        previewContainer.style.cssText = 'margin-top: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 3px solid #4a90e2;';
 
         const previewLabel = document.createElement('div');
         previewLabel.textContent = 'LaTeX Preview:';

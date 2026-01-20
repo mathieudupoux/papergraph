@@ -341,8 +341,8 @@
 }
 
 .author-name-input:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
 }
 
 .author-orcid-input {
@@ -357,8 +357,8 @@
 }
 
 .author-orcid-input:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
 }
 
 /* Affiliation Badge (checkbox style) */
@@ -400,7 +400,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: #0d6efd;
+    background: #4a90e2;
     color: white;
     border-radius: 6px;
     font-weight: 600;
@@ -418,8 +418,8 @@
 }
 
 .affiliation-text-input:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
 }
 
 /* Author/Affiliation legacy styles */
@@ -443,7 +443,7 @@
     padding: 12px;
     background: #f8f9fa;
     border-radius: 8px;
-    border-left: 3px solid #0d6efd;
+    border-left: 3px solid #4a90e2;
     animation: fadeIn 0.3s ease-in-out;
 }
 
@@ -491,14 +491,13 @@
 
 .btn-add-author {
     padding: 6px 12px;
-    background: #0d6efd;
-    border: 1px solid #0d6efd;
+    background: #f0f0f0;
+    border: 1px solid #ddd;
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.85rem;
-    color: #fff;
+    color: #666;
     transition: all 0.2s;
-    font-weight: 500;
     transition: all 0.2s;
 }
 
@@ -618,9 +617,9 @@
     align-items: center;
 }
 
-/* Compile PDF Button - Modern blue accent */
+/* Compile PDF Button */
 .compile-pdf-btn {
-    background: #0d6efd;
+    background: #4a90e2;
     color: white;
     border: none;
     padding: 6px 12px;
@@ -635,7 +634,7 @@
 }
 
 .compile-pdf-btn:hover {
-    background: #0b5ed7;
+    background: #357abd;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
