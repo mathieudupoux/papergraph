@@ -411,14 +411,19 @@ async function compileToPDFPreview() {
         // Store the latex content for download
         window.lastCompiledLatex = latexContent;
 
-        // Compile using LaTeX.Online API - it automatically handles multiple passes
-        const formData = new FormData();
-        const texBlob = new Blob([latexContent], { type: 'text/plain' });
-        formData.append('file', texBlob, 'main.tex');
-
-        const response = await fetch('https://latexonline.cc/compile', {
+        // Compile using YtoTech API
+        const response = await fetch('https://latex.ytotech.com/builds/sync', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                compiler: 'pdflatex',
+                resources: [{
+                    content: latexContent,
+                    main: true
+                }]
+            })
         });
 
         if (!response.ok) {

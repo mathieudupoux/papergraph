@@ -990,8 +990,8 @@ function generateLatexDocument() {
 
                 // Add ORCID logo and link if provided
                 if (author.orcid && author.orcid.trim()) {
-                    // ORCID logo using green circle with iD
-                    latex += `\\textsuperscript{\\href{https://orcid.org/${escapeLatex(author.orcid)}}{\\textcolor{green!70!black}{\\textbf{\\textsf{iD}}}}}`;
+                    // ORCID logo as clickable green iD badge
+                    latex += `\\,\\href{https://orcid.org/${escapeLatex(author.orcid)}}{\\textcolor{green}{\\scriptsize\\textbf{iD}}}`;
                 }
 
                 // Add separator between authors - use comma for multi-author
@@ -1191,17 +1191,26 @@ async function exportToPDF() {
 
         const latexContent = generateLatexDocument();
 
+        // Debug: log a portion of the LaTeX to help diagnose issues
+        console.log('Generated LaTeX (first 500 chars):', latexContent.substring(0, 500));
+        console.log('Bibliography section:', latexContent.match(/\\begin{thebibliography}[\s\S]*?\\end{thebibliography}/)?.[0]?.substring(0, 300) || 'No bibliography found');
+
         // Show notification
         showNotification('Compiling to PDF... This may take a few seconds.', 'info');
 
-        // Use LaTeX.Online API - it automatically handles multiple passes
-        const formData = new FormData();
-        const texBlob = new Blob([latexContent], { type: 'text/plain' });
-        formData.append('file', texBlob, 'main.tex');
-
-        const response = await fetch('https://latexonline.cc/compile', {
+        // Use YtoTech LaTeX API with proper resource structure
+        const response = await fetch('https://latex.ytotech.com/builds/sync', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                compiler: 'pdflatex',
+                resources: [{
+                    content: latexContent,
+                    main: true
+                }]
+            })
         });
 
         if (!response.ok) {
