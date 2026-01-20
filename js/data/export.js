@@ -858,6 +858,7 @@ function getLatexStyle() {
     return `\\documentclass[11pt,a4paper]{article}
 \\usepackage[utf8]{inputenc}
 \\usepackage[margin=1in]{geometry}
+\\usepackage{xcolor}
 \\usepackage{hyperref}
 \\usepackage{graphicx}
 \\usepackage{amsmath}
@@ -986,9 +987,10 @@ function generateLatexDocument() {
                     latex += superscripts;
                 }
 
-                // Add ORCID if provided
+                // Add ORCID logo and link if provided
                 if (author.orcid && author.orcid.trim()) {
-                    latex += `\\thanks{ORCID: \\url{https://orcid.org/${escapeLatex(author.orcid)}}}`;
+                    // ORCID logo in LaTeX using a small icon representation
+                    latex += `\\textsuperscript{\\href{https://orcid.org/${escapeLatex(author.orcid)}}{\\color{green}\\textbf{iD}}}`;
                 }
 
                 // Add separator between authors (except for last one)

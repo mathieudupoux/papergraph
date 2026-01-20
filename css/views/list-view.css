@@ -292,15 +292,41 @@
 }
 
 .authors-section {
+    margin-top: 16px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 12px;
+    background: #fafbfc;
+}
+
+.authors-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 4px 0;
+    user-select: none;
+}
+
+.authors-header label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #2c3e50;
+    margin: 0;
+}
+
+.authors-content {
     margin-top: 12px;
 }
 
-.authors-section > label {
+.authors-content > label {
     font-weight: 600;
-    font-size: 0.9rem;
-    color: #2c3e50;
+    font-size: 0.85rem;
+    color: #6c757d;
     display: block;
     margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .authors-list {
@@ -318,16 +344,18 @@
 
 /* Author Card - Modern minimalist design */
 .author-card {
-    background: #f8f9fa;
-    border-radius: 8px;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
     padding: 12px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     position: relative;
     transition: all 0.2s;
 }
 
 .author-card:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border-color: #dee2e6;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 
 .author-name-input {
@@ -383,15 +411,17 @@
     display: flex;
     gap: 8px;
     align-items: center;
-    background: #f8f9fa;
-    border-radius: 8px;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
     padding: 10px 12px;
     margin-bottom: 8px;
     transition: all 0.2s;
 }
 
 .affiliation-card:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border-color: #dee2e6;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 
 .affiliation-number-badge {
@@ -480,13 +510,24 @@
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 18px;
-    padding: 0 5px;
-    transition: transform 0.2s;
+    font-size: 14px;
+    padding: 4px 8px;
+    color: #6c757d;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-collapse:hover {
+    background: #e9ecef;
+    color: #495057;
 }
 
 .btn-collapse.collapsed {
     transform: rotate(-90deg);
+}
+
+.authors-content.collapsed {
+    display: none;
 }
 
 .btn-add-author {

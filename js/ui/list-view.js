@@ -165,14 +165,19 @@ function loadArticleToEditor(id) {
         linksContainer.appendChild(pdfBtn);
     }
 
-    // Content & LaTeX
+    // Content - no automatic preview
     const contentEl = document.getElementById('noteContent');
     contentEl.textContent = article.text || '';
-    renderLatexPreview(article.text || '', 'latexPreview');
+
+    // Show instruction in preview
+    const previewContainer = document.getElementById('latexPreview');
+    if (previewContainer) {
+        previewContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #999; font-size: 14px;">Click "Compile PDF" to preview your LaTeX document</div>';
+    }
 
     // Debounce timer for auto-save
     let saveTimer = null;
-    
+
     // Prevent Enter from creating <div> or <br>, insert plain newline
     contentEl.onkeydown = (e) => {
         if (e.key === 'Enter') {
@@ -186,9 +191,8 @@ function loadArticleToEditor(id) {
             range.setEndAfter(textNode);
             selection.removeAllRanges();
             selection.addRange(range);
-            
-            // Trigger save and preview update
-            renderLatexPreview(contentEl.textContent, 'latexPreview');
+
+            // Trigger save
             clearTimeout(saveTimer);
             saveTimer = setTimeout(() => {
                 if(article.text !== contentEl.textContent) {
@@ -198,11 +202,9 @@ function loadArticleToEditor(id) {
             }, 1000);
         }
     };
-    
-    // Real-time Preview + Auto-save on keyup
+
+    // Auto-save on keyup (removed preview update)
     contentEl.onkeyup = () => {
-        renderLatexPreview(contentEl.textContent, 'latexPreview');
-        
         // Auto-save after 1 second of no typing
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
@@ -246,64 +248,31 @@ function loadArticleToEditor(id) {
     addPreviewToggle();
 }
 
-// Toggle preview pane visibility and add PDF compile button
+// Add PDF compile button to preview pane
 function addPreviewToggle() {
     const previewLabel = document.querySelector('.preview-pane .pane-label');
     if (!previewLabel) return;
 
-    // Remove existing buttons if any
-    const existingToggle = previewLabel.querySelector('.toggle-preview-btn');
-    if (existingToggle) existingToggle.remove();
+    // Remove existing compile button if any
     const existingCompile = previewLabel.querySelector('.compile-pdf-btn');
     if (existingCompile) existingCompile.remove();
-
-    // Create button container
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.cssText = 'display: flex; gap: 8px; align-items: center;';
 
     // PDF Compile button
     const compileBtn = document.createElement('button');
     compileBtn.className = 'compile-pdf-btn';
     compileBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>';
     compileBtn.title = 'Compile to PDF Preview';
-    compileBtn.style.cssText = 'background: #4a90e2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 12px;';
+    compileBtn.style.cssText = 'background: #4a90e2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500;';
 
     const compileText = document.createElement('span');
     compileText.textContent = 'Compile PDF';
-    compileText.style.cssText = 'font-weight: 500;';
     compileBtn.appendChild(compileText);
 
     compileBtn.onclick = async () => {
         await compileToPDFPreview();
     };
 
-    // Toggle visibility button
-    const toggleBtn = document.createElement('button');
-    toggleBtn.className = 'toggle-preview-btn';
-    toggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
-    toggleBtn.title = 'Hide Preview';
-    toggleBtn.style.cssText = 'background: none; border: none; cursor: pointer; padding: 4px; color: #6c757d;';
-
-    toggleBtn.onclick = () => {
-        const previewPane = document.querySelector('.preview-pane');
-        const sourcePane = document.querySelector('.source-pane');
-
-        if (previewPane.classList.contains('hidden')) {
-            previewPane.classList.remove('hidden');
-            sourcePane.classList.remove('full-width');
-            toggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
-            toggleBtn.title = 'Hide Preview';
-        } else {
-            previewPane.classList.add('hidden');
-            sourcePane.classList.add('full-width');
-            toggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
-            toggleBtn.title = 'Show Preview';
-        }
-    };
-
-    buttonContainer.appendChild(compileBtn);
-    buttonContainer.appendChild(toggleBtn);
-    previewLabel.appendChild(buttonContainer);
+    previewLabel.appendChild(compileBtn);
 }
 
 // Compile current content to PDF and display in preview
@@ -403,14 +372,11 @@ async function compileToPDFPreview() {
                 <strong>Compilation Error:</strong><br>
                 <span style="font-size: 14px;">${escapeHtml(error.message)}</span><br>
                 <div style="margin-top: 12px; font-size: 13px; color: #6c757d;">
-                    Falling back to HTML preview.
+                    Please check your LaTeX syntax and try again.
                 </div>
             </div>
         `;
-        // Fall back to HTML preview
-        setTimeout(() => {
-            renderLatexPreview(contentEl.textContent, 'latexPreview');
-        }, 2000);
+        showNotification('LaTeX compilation failed: ' + error.message, 'error');
     } finally {
         // Restore button state
         if (compileBtn) {
@@ -554,14 +520,19 @@ function loadReviewToEditor() {
     const metadataLinks = document.getElementById('metadataLinks');
     if (metadataLinks) metadataLinks.innerHTML = '';
 
-    // Content & LaTeX
+    // Content - no automatic preview
     const contentEl = document.getElementById('noteContent');
     contentEl.textContent = appData.projectReview || '';
-    renderLatexPreview(appData.projectReview || '', 'latexPreview');
+
+    // Show instruction in preview
+    const previewContainer = document.getElementById('latexPreview');
+    if (previewContainer) {
+        previewContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #999; font-size: 14px;">Click "Compile PDF" to preview your LaTeX document</div>';
+    }
 
     // Debounce timer for auto-save
     let saveTimer = null;
-    
+
     // Prevent Enter from creating <div> or <br>, insert plain newline
     contentEl.onkeydown = (e) => {
         if (e.key === 'Enter') {
@@ -575,9 +546,8 @@ function loadReviewToEditor() {
             range.setEndAfter(textNode);
             selection.removeAllRanges();
             selection.addRange(range);
-            
-            // Trigger save and preview update
-            renderLatexPreview(contentEl.textContent, 'latexPreview');
+
+            // Trigger save
             clearTimeout(saveTimer);
             saveTimer = setTimeout(() => {
                 appData.projectReview = contentEl.textContent;
@@ -587,8 +557,6 @@ function loadReviewToEditor() {
     };
 
     contentEl.onkeyup = () => {
-        renderLatexPreview(contentEl.textContent, 'latexPreview');
-        
         // Auto-save after 1 second of no typing
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
@@ -657,13 +625,14 @@ function renderAuthorsList() {
         topRow.appendChild(removeBtn);
         authorCard.appendChild(topRow);
 
-        // ORCID row
+        // ORCID row with logo
         const orcidRow = document.createElement('div');
         orcidRow.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px; align-items: center;';
 
-        const orcidLabel = document.createElement('span');
-        orcidLabel.textContent = 'ORCID:';
-        orcidLabel.style.cssText = 'font-size: 12px; color: #6c757d; min-width: 50px;';
+        // ORCID logo (green iD badge)
+        const orcidLogo = document.createElement('span');
+        orcidLogo.innerHTML = '<svg width="16" height="16" viewBox="0 0 256 256" style="vertical-align: middle;"><rect width="256" height="256" fill="#A6CE39" rx="128"/><g><path fill="#fff" d="M86.3 186.2H70.9V79.1h15.4v107.1zM108.9 79.1h41.6c39.6 0 57 28.3 57 53.6 0 27.5-21.5 53.6-56.8 53.6h-41.8V79.1zm15.4 93.3h24.5c34.9 0 42.9-26.5 42.9-39.7C191.7 111.2 178 93 148 93h-23.7v79.4zM88.7 56.8c0 5.5-4.5 10.1-10.1 10.1s-10.1-4.6-10.1-10.1c0-5.6 4.5-10.1 10.1-10.1s10.1 4.6 10.1 10.1z"/></g></svg>';
+        orcidLogo.style.cssText = 'min-width: 16px;';
 
         const orcidInput = document.createElement('input');
         orcidInput.type = 'text';
@@ -676,13 +645,14 @@ function renderAuthorsList() {
             let value = orcidInput.value.replace(/[^0-9X-]/g, '');
             appData.projectReviewMeta.authorsData[authorIdx].orcid = value;
             saveToLocalStorage(true);
+            updateAuthorPreview();
 
             // Visual validation
             const isValid = /^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]$/.test(value);
             orcidInput.style.borderColor = value && !isValid ? '#ef5350' : '#dee2e6';
         };
 
-        orcidRow.appendChild(orcidLabel);
+        orcidRow.appendChild(orcidLogo);
         orcidRow.appendChild(orcidInput);
         authorCard.appendChild(orcidRow);
 
@@ -866,7 +836,7 @@ function updateAuthorPreview() {
 
     let html = '';
 
-    // Authors with superscript affiliation numbers
+    // Authors with superscript affiliation numbers and ORCID
     if (authorsData.length > 0) {
         const authorStrings = authorsData.map(author => {
             if (!author.name || !author.name.trim()) return '';
@@ -877,6 +847,11 @@ function updateAuthorPreview() {
             if (author.affiliationNumbers && author.affiliationNumbers.length > 0) {
                 const superscripts = author.affiliationNumbers.map(n => `<sup>${n}</sup>`).join(',');
                 authorHtml += superscripts;
+            }
+
+            // Add ORCID logo if provided
+            if (author.orcid && author.orcid.trim()) {
+                authorHtml += `<sup><a href="https://orcid.org/${escapeHtml(author.orcid)}" target="_blank" style="text-decoration: none;"><svg width="12" height="12" viewBox="0 0 256 256" style="vertical-align: baseline; margin-left: 2px;"><rect width="256" height="256" fill="#A6CE39" rx="128"/><g><path fill="#fff" d="M86.3 186.2H70.9V79.1h15.4v107.1zM108.9 79.1h41.6c39.6 0 57 28.3 57 53.6 0 27.5-21.5 53.6-56.8 53.6h-41.8V79.1zm15.4 93.3h24.5c34.9 0 42.9-26.5 42.9-39.7C191.7 111.2 178 93 148 93h-23.7v79.4zM88.7 56.8c0 5.5-4.5 10.1-10.1 10.1s-10.1-4.6-10.1-10.1c0-5.6 4.5-10.1 10.1-10.1s10.1 4.6 10.1 10.1z"/></g></svg></a></sup>`;
             }
 
             return authorHtml;
@@ -1362,3 +1337,24 @@ function getContrastColor(hexcolor) {
     const yiq = ((r*299)+(g*587)+(b*114))/1000;
     return (yiq >= 128) ? '#000' : '#fff';
 }
+
+// Toggle authors and affiliations section
+function toggleAuthorsContent() {
+    const content = document.getElementById('authorsContent');
+    const btn = document.getElementById('authorsCollapseBtn');
+
+    if (!content || !btn) return;
+
+    if (content.classList.contains('collapsed')) {
+        content.classList.remove('collapsed');
+        btn.classList.remove('collapsed');
+        btn.textContent = '▼';
+    } else {
+        content.classList.add('collapsed');
+        btn.classList.add('collapsed');
+        btn.textContent = '▶';
+    }
+}
+
+// Make function globally available
+window.toggleAuthorsContent = toggleAuthorsContent;
