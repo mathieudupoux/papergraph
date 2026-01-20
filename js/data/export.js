@@ -990,8 +990,8 @@ function generateLatexDocument() {
 
                 // Add ORCID logo and link if provided
                 if (author.orcid && author.orcid.trim()) {
-                    // ORCID logo in LaTeX using a small icon representation
-                    latex += `\\textsuperscript{\\href{https://orcid.org/${escapeLatex(author.orcid)}}{\\color{green}\\textbf{iD}}}`;
+                    // ORCID logo using green circle with iD
+                    latex += `\\textsuperscript{\\href{https://orcid.org/${escapeLatex(author.orcid)}}{\\textcolor{green!70!black}{\\textbf{\\textsf{iD}}}}}`;
                 }
 
                 // Add separator between authors - use comma for multi-author
@@ -1194,24 +1194,14 @@ async function exportToPDF() {
         // Show notification
         showNotification('Compiling to PDF... This may take a few seconds.', 'info');
 
-        // Use YtoTech LaTeX API with inline bibliography
-        // YtoTech automatically runs pdflatex multiple times to resolve citations
-        const response = await fetch('https://latex.ytotech.com/builds/sync', {
+        // Use LaTeX.Online API - it automatically handles multiple passes
+        const formData = new FormData();
+        const texBlob = new Blob([latexContent], { type: 'text/plain' });
+        formData.append('file', texBlob, 'main.tex');
+
+        const response = await fetch('https://latexonline.cc/compile', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                compiler: 'pdflatex',
-                resources: [
-                    {
-                        content: latexContent,
-                        main: true
-                    }
-                ],
-                // Force multiple passes for citation resolution
-                command: 'pdflatex -interaction=nonstopmode main.tex && pdflatex -interaction=nonstopmode main.tex'
-            })
+            body: formData
         });
 
         if (!response.ok) {

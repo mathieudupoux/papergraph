@@ -411,23 +411,14 @@ async function compileToPDFPreview() {
         // Store the latex content for download
         window.lastCompiledLatex = latexContent;
 
-        // Compile using YtoTech API with multiple passes for citations
-        const response = await fetch('https://latex.ytotech.com/builds/sync', {
+        // Compile using LaTeX.Online API - it automatically handles multiple passes
+        const formData = new FormData();
+        const texBlob = new Blob([latexContent], { type: 'text/plain' });
+        formData.append('file', texBlob, 'main.tex');
+
+        const response = await fetch('https://latexonline.cc/compile', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                compiler: 'pdflatex',
-                resources: [
-                    {
-                        content: latexContent,
-                        main: true
-                    }
-                ],
-                // Force multiple passes for citation resolution
-                command: 'pdflatex -interaction=nonstopmode main.tex && pdflatex -interaction=nonstopmode main.tex'
-            })
+            body: formData
         });
 
         if (!response.ok) {
