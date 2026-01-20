@@ -316,8 +316,115 @@
     align-items: center;
 }
 
-.author-name-input,
+/* Author Card - Modern minimalist design */
+.author-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.author-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.author-name-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.author-name-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+}
+
+.author-orcid-input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.author-orcid-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+}
+
+/* Affiliation Badge (checkbox style) */
+.affiliation-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s;
+}
+
+.affiliation-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Affiliation Card - Minimalist design */
+.affiliation-card {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    transition: all 0.2s;
+}
+
+.affiliation-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.affiliation-number-badge {
+    min-width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #0d6efd;
+    color: white;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.affiliation-text-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 13px;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.affiliation-text-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+}
+
+/* Author/Affiliation legacy styles */
 .author-affil-input {
+    flex: 1;
     padding: 6px 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
@@ -326,45 +433,93 @@
     transition: border-color 0.2s;
 }
 
-.author-name-input {
-    flex: 0 0 200px;
-}
-
-.author-affil-input {
-    flex: 1;
-}
-
-.author-name-input:focus,
 .author-affil-input:focus {
     border-color: #4a90e2;
 }
 
+/* Authors Preview Container - Live LaTeX Preview */
+#authorsPreviewContainer {
+    margin-top: 16px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 3px solid #0d6efd;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+#authorsPreviewContent {
+    font-family: Georgia, serif;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Authors Content Collapsible */
+.authors-content {
+    transition: all 0.3s ease-in-out;
+    overflow: hidden;
+}
+
+.authors-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+}
+
+.btn-collapse {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0 5px;
+    transition: transform 0.2s;
+}
+
+.btn-collapse.collapsed {
+    transform: rotate(-90deg);
+}
+
 .btn-add-author {
     padding: 6px 12px;
-    background: #f0f0f0;
-    border: 1px solid #ddd;
+    background: #0d6efd;
+    border: 1px solid #0d6efd;
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.85rem;
-    color: #666;
+    color: #fff;
+    transition: all 0.2s;
+    font-weight: 500;
     transition: all 0.2s;
 }
 
 .btn-add-author:hover {
-    background: #e3f2fd;
-    border-color: #4a90e2;
-    color: #4a90e2;
+    background: #0b5ed7;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
 }
 
 .btn-remove-author {
     width: 28px;
     height: 28px;
-    background: #ffebee;
-    border: 1px solid #ef9a9a;
-    border-radius: 50%;
-    color: #c62828;
-    font-size: 1.2rem;
+    border: none;
+    background: #dc3545;
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
     line-height: 1;
+    padding: 0;
+    transition: all 0.2s;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
@@ -374,9 +529,9 @@
 }
 
 .btn-remove-author:hover {
-    background: #ef5350;
-    border-color: #c62828;
-    color: white;
+    background: #bb2d3b;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transform: scale(1.05);
 }
 
 .metadata-links {
@@ -463,32 +618,59 @@
     align-items: center;
 }
 
+/* Compile PDF Button - Modern blue accent */
+.compile-pdf-btn {
+    background: #0d6efd;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.compile-pdf-btn:hover {
+    background: #0b5ed7;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.compile-pdf-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.compile-pdf-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Toggle Preview Button */
 .toggle-preview-btn {
     background: transparent;
     border: none;
-    color: #5f6368;
+    color: #6c757d;
     cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 0.7rem;
+    padding: 4px;
+    border-radius: 4px;
     transition: all 0.2s;
     display: flex;
     align-items: center;
-    gap: 4px;
 }
 
 .toggle-preview-btn:hover {
-    background: #e8eaed;
-    color: #202124;
+    background: #e9ecef;
+    color: #495057;
 }
 
 .toggle-preview-btn svg {
-    stroke: #5f6368;
+    stroke: currentColor;
     transition: stroke 0.2s;
-}
-
-.toggle-preview-btn:hover svg {
-    stroke: #202124;
 }
 
 .preview-pane.hidden {

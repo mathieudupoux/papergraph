@@ -972,18 +972,25 @@ function generateLatexDocument() {
     
     latex += `\\title{${escapeLatex(projectTitle)}}\n`;
     
-    // Handle authors with superscript affiliation numbers
+    // Handle authors with superscript affiliation numbers and ORCID
     latex += '\\author{';
     if (authorsData && authorsData.length > 0) {
         authorsData.forEach((author, idx) => {
             if (author.name && author.name.trim()) {
+                latex += escapeLatex(author.name);
+
+                // Add affiliation superscripts
                 const affilNums = author.affiliationNumbers || [];
                 if (affilNums && affilNums.length > 0) {
                     const superscripts = affilNums.map(num => `\\textsuperscript{${num}}`).join(',');
-                    latex += `${escapeLatex(author.name)}${superscripts}`;
-                } else {
-                    latex += escapeLatex(author.name);
+                    latex += superscripts;
                 }
+
+                // Add ORCID if provided
+                if (author.orcid && author.orcid.trim()) {
+                    latex += `\\thanks{ORCID: \\url{https://orcid.org/${escapeLatex(author.orcid)}}}`;
+                }
+
                 // Add separator between authors (except for last one)
                 if (idx < authorsData.length - 1) {
                     latex += ' \\and ';
@@ -991,7 +998,7 @@ function generateLatexDocument() {
             }
         });
     }
-    latex += '}\\n';
+    latex += '}\n';
     
     // Output affiliations below authors as separate block using \\date{} or custom command
     if (affiliationsData && affiliationsData.length > 0) {
@@ -1073,41 +1080,10 @@ function generateLatexDocument() {
         });
     }
     
-    // Add bibliography directly as thebibliography environment
-    if (appData.articles && appData.articles.length > 0) {
-        latex += '\\begin{thebibliography}{99}\n\n';
-        
-        appData.articles.forEach(article => {
-            if (article.bibtexId) {
-                latex += `\\bibitem{${article.bibtexId}}\n`;
-                
-                if (article.authors) {
-                    latex += escapeLatex(article.authors) + '. ';
-                }
-                if (article.title) {
-                    latex += `\\textit{${escapeLatex(article.title)}}. `;
-                }
-                if (article.journal) {
-                    latex += escapeLatex(article.journal);
-                    if (article.volume) {
-                        latex += `, ${escapeLatex(article.volume)}`;
-                    }
-                    if (article.number) {
-                        latex += `(${escapeLatex(article.number)})`;
-                    }
-                    if (article.pages) {
-                        latex += `, pp. ${escapeLatex(article.pages)}`;
-                    }
-                    latex += '. ';
-                }
-                if (article.year) {
-                    latex += escapeLatex(article.year) + '.';
-                }
-                latex += '\n\n';
-            }
-        });
-        
-        latex += '\\end{thebibliography}\n\n';
+    // Add bibliography using BibTeX
+    if (appData.articles && appData.articles.length > 0 && appData.articles.some(a => a.bibtexId)) {
+        latex += '\\bibliographystyle{plain}\n';
+        latex += '\\bibliography{references}\n\n';
     }
     
     // Add footer
@@ -1171,42 +1147,24 @@ function processLatexContent(text) {
 }
 
 /**
- * Export project to PDF using online LaTeX compiler
+ * Export project to PDF using online LaTeX compiler with proper BibTeX support
  */
 async function exportToPDF() {
     try {
-        showNotification('Generating LaTeX document...', 'info');
-        
-        const latexContent = generateLatexDocument();
-        
+        showNotification('Generating LaTeX document with bibliography...', 'info');
+
+        // Generate LaTeX and BibTeX content
+        const { latex, bibtex } = generateLatexWithBibtex(appData, appData.articles);
+
         // Show notification
         showNotification('Compiling to PDF... This may take a few seconds.', 'info');
-        
-        // Use YtoTech LaTeX API - BibTeX is now embedded in the .tex file
-        const response = await fetch('https://latex.ytotech.com/builds/sync', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                compiler: 'pdflatex',
-                resources: [
-                    {
-                        content: latexContent,
-                        main: true
-                    }
-                ]
-            })
+
+        // Use online LaTeX compilation service (LaTeX.Online with YtoTech fallback)
+        const pdfBlob = await compileLatexOnline(latex, bibtex, {
+            compiler: 'pdflatex',
+            onProgress: (msg) => console.log('Compilation progress:', msg)
         });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`LaTeX compilation failed: ${response.status} - ${errorText}`);
-        }
-        
-        // Get PDF blob
-        const pdfBlob = await response.blob();
-        
+
         // Download PDF
         const url = URL.createObjectURL(pdfBlob);
         const a = document.createElement('a');
@@ -1214,7 +1172,7 @@ async function exportToPDF() {
         a.download = getExportFilename('pdf');
         a.click();
         URL.revokeObjectURL(url);
-        
+
         showNotification('PDF exported successfully!', 'success');
     } catch (error) {
         console.error('PDF export error:', error);

@@ -246,24 +246,48 @@ function loadArticleToEditor(id) {
     addPreviewToggle();
 }
 
-// Toggle preview pane visibility
+// Toggle preview pane visibility and add PDF compile button
 function addPreviewToggle() {
-    const sourceLabel = document.querySelector('.source-pane .pane-label');
-    if (!sourceLabel) return;
-    
-    // Remove existing button if any
-    const existingBtn = sourceLabel.querySelector('.toggle-preview-btn');
-    if (existingBtn) existingBtn.remove();
-    
+    const previewLabel = document.querySelector('.preview-pane .pane-label');
+    if (!previewLabel) return;
+
+    // Remove existing buttons if any
+    const existingToggle = previewLabel.querySelector('.toggle-preview-btn');
+    if (existingToggle) existingToggle.remove();
+    const existingCompile = previewLabel.querySelector('.compile-pdf-btn');
+    if (existingCompile) existingCompile.remove();
+
+    // Create button container
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = 'display: flex; gap: 8px; align-items: center;';
+
+    // PDF Compile button
+    const compileBtn = document.createElement('button');
+    compileBtn.className = 'compile-pdf-btn';
+    compileBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>';
+    compileBtn.title = 'Compile to PDF Preview';
+    compileBtn.style.cssText = 'background: #0d6efd; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 12px;';
+
+    const compileText = document.createElement('span');
+    compileText.textContent = 'Compile PDF';
+    compileText.style.cssText = 'font-weight: 500;';
+    compileBtn.appendChild(compileText);
+
+    compileBtn.onclick = async () => {
+        await compileToPDFPreview();
+    };
+
+    // Toggle visibility button
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'toggle-preview-btn';
     toggleBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
     toggleBtn.title = 'Hide Preview';
-    
+    toggleBtn.style.cssText = 'background: none; border: none; cursor: pointer; padding: 4px; color: #6c757d;';
+
     toggleBtn.onclick = () => {
         const previewPane = document.querySelector('.preview-pane');
         const sourcePane = document.querySelector('.source-pane');
-        
+
         if (previewPane.classList.contains('hidden')) {
             previewPane.classList.remove('hidden');
             sourcePane.classList.remove('full-width');
@@ -276,8 +300,117 @@ function addPreviewToggle() {
             toggleBtn.title = 'Show Preview';
         }
     };
-    
-    sourceLabel.appendChild(toggleBtn);
+
+    buttonContainer.appendChild(compileBtn);
+    buttonContainer.appendChild(toggleBtn);
+    previewLabel.appendChild(buttonContainer);
+}
+
+// Compile current content to PDF and display in preview
+async function compileToPDFPreview() {
+    const contentEl = document.getElementById('noteContent');
+    if (!contentEl) return;
+
+    const latexContent = contentEl.textContent || '';
+    if (!latexContent.trim()) {
+        showNotification('No content to compile', 'warning');
+        return;
+    }
+
+    const previewContainer = document.getElementById('latexPreview');
+    if (!previewContainer) return;
+
+    // Show loading state
+    const compileBtn = document.querySelector('.compile-pdf-btn');
+    if (compileBtn) {
+        compileBtn.disabled = true;
+        const btnText = compileBtn.querySelector('span');
+        if (btnText) btnText.textContent = 'Compiling...';
+    }
+
+    previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">Compiling LaTeX to PDF...</div>';
+
+    try {
+        // Generate BibTeX content from articles
+        let bibtexContent = '';
+        if (appData.articles && appData.articles.length > 0) {
+            appData.articles.forEach(article => {
+                if (article.bibtexId) {
+                    bibtexContent += articleToBibTeX(article) + '\n';
+                }
+            });
+        }
+
+        // Compile using online service
+        const pdfBlob = await generateLatexPreviewPDF(latexContent, bibtexContent);
+
+        // Render PDF using PDF.js
+        await renderPDFInContainer(pdfBlob, previewContainer);
+
+        showNotification('PDF compiled successfully!', 'success');
+    } catch (error) {
+        console.error('PDF compilation error:', error);
+        previewContainer.innerHTML = `
+            <div style="padding: 20px; text-align: center; color: #dc3545;">
+                <strong>Compilation Error:</strong><br>
+                <span style="font-size: 14px;">${escapeHtml(error.message)}</span><br>
+                <div style="margin-top: 12px; font-size: 13px; color: #6c757d;">
+                    The HTML preview is still shown below.
+                </div>
+            </div>
+        `;
+        // Fall back to HTML preview
+        renderLatexPreview(latexContent, 'latexPreview');
+    } finally {
+        // Restore button state
+        if (compileBtn) {
+            compileBtn.disabled = false;
+            const btnText = compileBtn.querySelector('span');
+            if (btnText) btnText.textContent = 'Compile PDF';
+        }
+    }
+}
+
+// Render PDF blob in a container using PDF.js
+async function renderPDFInContainer(pdfBlob, container) {
+    if (!window.pdfjsLib) {
+        throw new Error('PDF.js library not loaded');
+    }
+
+    // Clear container
+    container.innerHTML = '';
+    container.style.cssText = 'overflow-y: auto; background: #525252; padding: 20px;';
+
+    // Convert blob to array buffer
+    const arrayBuffer = await pdfBlob.arrayBuffer();
+
+    // Load PDF document
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+
+    // Render each page
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+
+        // Create canvas for this page
+        const canvas = document.createElement('canvas');
+        canvas.style.cssText = 'display: block; margin: 0 auto 20px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);';
+
+        const context = canvas.getContext('2d');
+
+        // Set scale for good quality (2x for retina displays)
+        const viewport = page.getViewport({ scale: 1.5 });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        // Render page
+        await page.render({
+            canvasContext: context,
+            viewport: viewport
+        }).promise;
+
+        container.appendChild(canvas);
+    }
 }
 
 function loadReviewToEditor() {
@@ -424,116 +557,308 @@ function loadReviewToEditor() {
     addPreviewToggle();
 }
 
-// Render authors list with affiliations
+// Render authors list with affiliations (modern minimalist interface)
 function renderAuthorsList() {
     const authorsList = document.getElementById('authorsList');
     if (!authorsList) return;
-    
+
     const authorsData = appData.projectReviewMeta.authorsData || [];
-    const affiliationsCount = (appData.projectReviewMeta.affiliationsData || []).length;
-    
+    const affiliationsData = appData.projectReviewMeta.affiliationsData || [];
+
     authorsList.innerHTML = '';
-    
+
     authorsData.forEach((author, authorIdx) => {
-        const authorRow = document.createElement('div');
-        authorRow.className = 'author-row';
-        
-        // Author name input
+        const authorCard = document.createElement('div');
+        authorCard.className = 'author-card';
+        authorCard.style.cssText = 'background: #f8f9fa; border-radius: 8px; padding: 12px; margin-bottom: 12px; position: relative;';
+
+        // Top row: Name input + Remove button
+        const topRow = document.createElement('div');
+        topRow.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px; align-items: center;';
+
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
         nameInput.className = 'author-name-input';
         nameInput.placeholder = 'Author name';
         nameInput.value = author.name || '';
-        nameInput.style.flex = '2';
-        nameInput.onchange = () => {
+        nameInput.style.cssText = 'flex: 1; padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 14px;';
+        nameInput.oninput = () => {
             appData.projectReviewMeta.authorsData[authorIdx].name = nameInput.value.trim();
             saveToLocalStorage(true);
+            updateAuthorPreview();
         };
-        
-        // Affiliation numbers input (superscript numbers, comma-separated)
-        const affilNumInput = document.createElement('input');
-        affilNumInput.type = 'text';
-        affilNumInput.className = 'author-affil-input';
-        affilNumInput.placeholder = 'Affiliation #s (e.g., 1,2)';
-        affilNumInput.style.flex = '1';
-        affilNumInput.value = (author.affiliationNumbers || []).join(',');
-        affilNumInput.onchange = () => {
-            const numbers = affilNumInput.value.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0 && n <= affiliationsCount);
-            appData.projectReviewMeta.authorsData[authorIdx].affiliationNumbers = numbers;
-            saveToLocalStorage(true);
-        };
-        
-        // Remove button
+
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.className = 'btn-remove-author';
-        removeBtn.textContent = '×';
+        removeBtn.innerHTML = '×';
+        removeBtn.style.cssText = 'width: 28px; height: 28px; border: none; background: #dc3545; color: white; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; padding: 0;';
         removeBtn.onclick = () => {
             appData.projectReviewMeta.authorsData.splice(authorIdx, 1);
             if (appData.projectReviewMeta.authorsData.length === 0) {
-                appData.projectReviewMeta.authorsData = [{name: "", affiliationNumbers: []}];
+                appData.projectReviewMeta.authorsData = [{name: "", affiliationNumbers: [], orcid: ""}];
             }
             renderAuthorsList();
             saveToLocalStorage(true);
+            updateAuthorPreview();
         };
-        
-        authorRow.appendChild(nameInput);
-        authorRow.appendChild(affilNumInput);
-        authorRow.appendChild(removeBtn);
-        authorsList.appendChild(authorRow);
+
+        topRow.appendChild(nameInput);
+        topRow.appendChild(removeBtn);
+        authorCard.appendChild(topRow);
+
+        // ORCID row
+        const orcidRow = document.createElement('div');
+        orcidRow.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px; align-items: center;';
+
+        const orcidLabel = document.createElement('span');
+        orcidLabel.textContent = 'ORCID:';
+        orcidLabel.style.cssText = 'font-size: 12px; color: #6c757d; min-width: 50px;';
+
+        const orcidInput = document.createElement('input');
+        orcidInput.type = 'text';
+        orcidInput.className = 'author-orcid-input';
+        orcidInput.placeholder = '0000-0000-0000-0000';
+        orcidInput.value = author.orcid || '';
+        orcidInput.style.cssText = 'flex: 1; padding: 6px 10px; border: 1px solid #dee2e6; border-radius: 4px; font-size: 12px; font-family: monospace;';
+        orcidInput.oninput = () => {
+            // Validate ORCID format (XXXX-XXXX-XXXX-XXXX)
+            let value = orcidInput.value.replace(/[^0-9X-]/g, '');
+            appData.projectReviewMeta.authorsData[authorIdx].orcid = value;
+            saveToLocalStorage(true);
+
+            // Visual validation
+            const isValid = /^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]$/.test(value);
+            orcidInput.style.borderColor = value && !isValid ? '#dc3545' : '#dee2e6';
+        };
+
+        orcidRow.appendChild(orcidLabel);
+        orcidRow.appendChild(orcidInput);
+        authorCard.appendChild(orcidRow);
+
+        // Affiliations row with checkbox badges
+        const affiliationsRow = document.createElement('div');
+        affiliationsRow.style.cssText = 'display: flex; gap: 6px; flex-wrap: wrap; align-items: center;';
+
+        const affiliationsLabel = document.createElement('span');
+        affiliationsLabel.textContent = 'Affiliations:';
+        affiliationsLabel.style.cssText = 'font-size: 12px; color: #6c757d; min-width: 80px;';
+        affiliationsRow.appendChild(affiliationsLabel);
+
+        // Create checkbox badges for each affiliation
+        affiliationsData.forEach((affil, affilIdx) => {
+            const badge = document.createElement('label');
+            badge.className = 'affiliation-badge';
+            const isChecked = (author.affiliationNumbers || []).includes(affilIdx + 1);
+            badge.style.cssText = `
+                display: inline-flex;
+                align-items: center;
+                padding: 4px 10px;
+                border-radius: 12px;
+                font-size: 12px;
+                cursor: pointer;
+                user-select: none;
+                transition: all 0.2s;
+                border: 2px solid ${isChecked ? '#0d6efd' : '#dee2e6'};
+                background: ${isChecked ? '#0d6efd' : 'white'};
+                color: ${isChecked ? 'white' : '#495057'};
+            `;
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = isChecked;
+            checkbox.style.cssText = 'display: none;';
+            checkbox.onchange = () => {
+                let affiliationNumbers = author.affiliationNumbers || [];
+                const affilNum = affilIdx + 1;
+
+                if (checkbox.checked) {
+                    if (!affiliationNumbers.includes(affilNum)) {
+                        affiliationNumbers.push(affilNum);
+                        affiliationNumbers.sort((a, b) => a - b);
+                    }
+                } else {
+                    affiliationNumbers = affiliationNumbers.filter(n => n !== affilNum);
+                }
+
+                appData.projectReviewMeta.authorsData[authorIdx].affiliationNumbers = affiliationNumbers;
+                saveToLocalStorage(true);
+                renderAuthorsList(); // Re-render to update badge styles
+                updateAuthorPreview();
+            };
+
+            badge.appendChild(checkbox);
+
+            const badgeText = document.createElement('span');
+            badgeText.textContent = `${affilIdx + 1}`;
+            badge.appendChild(badgeText);
+
+            badge.onclick = () => checkbox.click();
+
+            affiliationsRow.appendChild(badge);
+        });
+
+        authorCard.appendChild(affiliationsRow);
+        authorsList.appendChild(authorCard);
     });
+
+    // Update author preview after rendering
+    updateAuthorPreview();
 }
 
+// Render affiliations list (minimalist style)
 function renderAffiliationsList() {
     const affiliationsList = document.getElementById('affiliationsList');
     if (!affiliationsList) return;
-    
+
     const affiliationsData = appData.projectReviewMeta.affiliationsData || [];
-    
+
     affiliationsList.innerHTML = '';
-    
+
     affiliationsData.forEach((affiliation, affilIdx) => {
-        const affilRow = document.createElement('div');
-        affilRow.className = 'affiliation-row';
-        
-        // Affiliation number label
-        const numberLabel = document.createElement('span');
-        numberLabel.className = 'affiliation-number';
-        numberLabel.textContent = `${affilIdx + 1}.`;
-        numberLabel.style.cssText = 'font-weight: bold; min-width: 25px; display: inline-block;';
-        
+        const affilCard = document.createElement('div');
+        affilCard.className = 'affiliation-card';
+        affilCard.style.cssText = 'display: flex; gap: 8px; align-items: center; background: #f8f9fa; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;';
+
+        // Affiliation number badge
+        const numberBadge = document.createElement('span');
+        numberBadge.className = 'affiliation-number-badge';
+        numberBadge.textContent = `${affilIdx + 1}`;
+        numberBadge.style.cssText = 'min-width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; background: #0d6efd; color: white; border-radius: 6px; font-weight: 600; font-size: 13px;';
+
         // Affiliation text input
         const textInput = document.createElement('input');
         textInput.type = 'text';
         textInput.className = 'affiliation-text-input';
-        textInput.placeholder = 'Affiliation text (e.g., University Name, Department)';
+        textInput.placeholder = 'University Name, Department, Country';
         textInput.value = affiliation.text || '';
-        textInput.style.flex = '1';
-        textInput.onchange = () => {
+        textInput.style.cssText = 'flex: 1; padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 13px;';
+        textInput.oninput = () => {
             appData.projectReviewMeta.affiliationsData[affilIdx].text = textInput.value.trim();
             saveToLocalStorage(true);
+            updateAuthorPreview();
         };
-        
+
         // Remove button
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.className = 'btn-remove-author';
-        removeBtn.textContent = '×';
+        removeBtn.innerHTML = '×';
+        removeBtn.style.cssText = 'width: 28px; height: 28px; border: none; background: #dc3545; color: white; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; padding: 0;';
         removeBtn.onclick = () => {
+            // Remove this affiliation
             appData.projectReviewMeta.affiliationsData.splice(affilIdx, 1);
             if (appData.projectReviewMeta.affiliationsData.length === 0) {
                 appData.projectReviewMeta.affiliationsData = [{text: ""}];
             }
+
+            // Update author affiliation numbers
+            appData.projectReviewMeta.authorsData.forEach(author => {
+                if (author.affiliationNumbers) {
+                    // Remove this affiliation number and adjust higher numbers
+                    author.affiliationNumbers = author.affiliationNumbers
+                        .filter(n => n !== affilIdx + 1)
+                        .map(n => n > affilIdx + 1 ? n - 1 : n);
+                }
+            });
+
             renderAffiliationsList();
             renderAuthorsList(); // Update authors to reflect new affiliation count
             saveToLocalStorage(true);
+            updateAuthorPreview();
         };
-        
-        affilRow.appendChild(numberLabel);
-        affilRow.appendChild(textInput);
-        affilRow.appendChild(removeBtn);
-        affiliationsList.appendChild(affilRow);
+
+        affilCard.appendChild(numberBadge);
+        affilCard.appendChild(textInput);
+        affilCard.appendChild(removeBtn);
+        affiliationsList.appendChild(affilCard);
     });
+
+    // Update author preview after rendering
+    updateAuthorPreview();
+}
+
+// Live LaTeX preview for authors and affiliations
+function updateAuthorPreview() {
+    // Check if we're in the review editor
+    if (activeNoteId !== 'review') return;
+
+    // Find or create the preview container
+    let previewContainer = document.getElementById('authorsPreviewContainer');
+    if (!previewContainer) {
+        // Create preview container after the affiliations list
+        const affiliationsSection = document.getElementById('affiliationsList');
+        if (!affiliationsSection || !affiliationsSection.parentNode) return;
+
+        previewContainer = document.createElement('div');
+        previewContainer.id = 'authorsPreviewContainer';
+        previewContainer.style.cssText = 'margin-top: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 3px solid #0d6efd;';
+
+        const previewLabel = document.createElement('div');
+        previewLabel.textContent = 'LaTeX Preview:';
+        previewLabel.style.cssText = 'font-size: 12px; color: #6c757d; margin-bottom: 8px; font-weight: 600;';
+        previewContainer.appendChild(previewLabel);
+
+        const previewContent = document.createElement('div');
+        previewContent.id = 'authorsPreviewContent';
+        previewContent.style.cssText = 'font-family: Georgia, serif; font-size: 14px; line-height: 1.6;';
+        previewContainer.appendChild(previewContent);
+
+        affiliationsSection.parentNode.appendChild(previewContainer);
+    }
+
+    const previewContent = document.getElementById('authorsPreviewContent');
+    if (!previewContent) return;
+
+    // Generate preview HTML
+    const authorsData = appData.projectReviewMeta.authorsData || [];
+    const affiliationsData = appData.projectReviewMeta.affiliationsData || [];
+
+    let html = '';
+
+    // Authors with superscript affiliation numbers
+    if (authorsData.length > 0) {
+        const authorStrings = authorsData.map(author => {
+            if (!author.name || !author.name.trim()) return '';
+
+            let authorHtml = `<span style="font-weight: 500;">${escapeHtml(author.name)}</span>`;
+
+            // Add affiliation superscripts
+            if (author.affiliationNumbers && author.affiliationNumbers.length > 0) {
+                const superscripts = author.affiliationNumbers.map(n => `<sup>${n}</sup>`).join(',');
+                authorHtml += superscripts;
+            }
+
+            return authorHtml;
+        }).filter(s => s);
+
+        if (authorStrings.length > 0) {
+            html += '<div style="text-align: center; margin-bottom: 8px;">';
+            html += authorStrings.join(', ');
+            html += '</div>';
+        }
+    }
+
+    // Affiliations
+    if (affiliationsData.length > 0) {
+        html += '<div style="font-size: 12px; text-align: center; color: #6c757d; font-style: italic;">';
+        affiliationsData.forEach((affil, idx) => {
+            if (affil.text && affil.text.trim()) {
+                html += `<div style="margin: 2px 0;"><sup>${idx + 1}</sup>${escapeHtml(affil.text)}</div>`;
+            }
+        });
+        html += '</div>';
+    }
+
+    previewContent.innerHTML = html || '<span style="color: #adb5bd; font-style: italic;">No authors or affiliations yet</span>';
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 function renderLatexPreview(text, containerId) {
