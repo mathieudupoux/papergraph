@@ -248,31 +248,87 @@ function loadArticleToEditor(id) {
     addPreviewToggle();
 }
 
-// Add PDF compile button to preview pane
+// Add PDF compile and download buttons to preview pane
 function addPreviewToggle() {
     const previewLabel = document.querySelector('.preview-pane .pane-label');
     if (!previewLabel) return;
 
-    // Remove existing compile button if any
+    // Remove existing buttons if any
     const existingCompile = previewLabel.querySelector('.compile-pdf-btn');
     if (existingCompile) existingCompile.remove();
+    const existingTex = previewLabel.querySelector('.download-tex-btn');
+    if (existingTex) existingTex.remove();
+    const existingPdf = previewLabel.querySelector('.download-pdf-btn');
+    if (existingPdf) existingPdf.remove();
+
+    // Create button container
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = 'display: flex; gap: 8px; align-items: center;';
 
     // PDF Compile button
     const compileBtn = document.createElement('button');
     compileBtn.className = 'compile-pdf-btn';
-    compileBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>';
-    compileBtn.title = 'Compile to PDF Preview';
-    compileBtn.style.cssText = 'background: #4a90e2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500;';
+    compileBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v6m0 0l-3-3m3 3l3-3M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17"/></svg>';
+    compileBtn.title = 'Compile LaTeX to PDF';
+    compileBtn.style.cssText = 'background: #4a90e2; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500;';
 
     const compileText = document.createElement('span');
-    compileText.textContent = 'Compile PDF';
+    compileText.textContent = 'Compile';
     compileBtn.appendChild(compileText);
 
     compileBtn.onclick = async () => {
         await compileToPDFPreview();
     };
 
-    previewLabel.appendChild(compileBtn);
+    // Download .tex button
+    const downloadTexBtn = document.createElement('button');
+    downloadTexBtn.className = 'download-tex-btn';
+    downloadTexBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>';
+    downloadTexBtn.title = 'Download LaTeX source (.tex)';
+    downloadTexBtn.style.cssText = 'background: #6c757d; color: white; border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; font-size: 12px;';
+
+    downloadTexBtn.onclick = () => {
+        if (!window.lastCompiledLatex) {
+            showNotification('Please compile first', 'warning');
+            return;
+        }
+
+        const blob = new Blob([window.lastCompiledLatex], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = getExportFilename('tex');
+        a.click();
+        URL.revokeObjectURL(url);
+        showNotification('LaTeX source downloaded!', 'success');
+    };
+
+    // Download .pdf button
+    const downloadPdfBtn = document.createElement('button');
+    downloadPdfBtn.className = 'download-pdf-btn';
+    downloadPdfBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>';
+    downloadPdfBtn.title = 'Download compiled PDF';
+    downloadPdfBtn.style.cssText = 'background: #28a745; color: white; border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; font-size: 12px;';
+
+    downloadPdfBtn.onclick = () => {
+        if (!window.lastCompiledPdf) {
+            showNotification('Please compile first', 'warning');
+            return;
+        }
+
+        const url = URL.createObjectURL(window.lastCompiledPdf);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = getExportFilename('pdf');
+        a.click();
+        URL.revokeObjectURL(url);
+        showNotification('PDF downloaded!', 'success');
+    };
+
+    buttonContainer.appendChild(compileBtn);
+    buttonContainer.appendChild(downloadTexBtn);
+    buttonContainer.appendChild(downloadPdfBtn);
+    previewLabel.appendChild(buttonContainer);
 }
 
 // Compile current content to PDF and display in preview
@@ -280,29 +336,43 @@ async function compileToPDFPreview() {
     const contentEl = document.getElementById('noteContent');
     if (!contentEl) return;
 
-    let latexContent = contentEl.textContent || '';
-    if (!latexContent.trim()) {
-        showNotification('No content to compile', 'warning');
-        return;
-    }
-
     const previewContainer = document.getElementById('latexPreview');
     if (!previewContainer) return;
 
     // Show loading state
     const compileBtn = document.querySelector('.compile-pdf-btn');
+    const downloadTexBtn = document.querySelector('.download-tex-btn');
+    const downloadPdfBtn = document.querySelector('.download-pdf-btn');
+
     if (compileBtn) {
         compileBtn.disabled = true;
         const btnText = compileBtn.querySelector('span');
         if (btnText) btnText.textContent = 'Compiling...';
     }
+    if (downloadTexBtn) downloadTexBtn.disabled = true;
+    if (downloadPdfBtn) downloadPdfBtn.disabled = true;
 
     previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">Compiling LaTeX to PDF...</div>';
 
     try {
-        // Add minimal document wrapper if not present
-        if (!latexContent.includes('\\documentclass')) {
-            let preamble = `\\documentclass[11pt,a4paper]{article}
+        let latexContent;
+
+        // Check if we're in review mode - compile full document
+        if (activeNoteId === 'review') {
+            // Use the full document generator from export.js
+            latexContent = generateLatexDocument();
+        } else {
+            // For individual articles, compile just that content
+            latexContent = contentEl.textContent || '';
+
+            if (!latexContent.trim()) {
+                showNotification('No content to compile', 'warning');
+                return;
+            }
+
+            // Add minimal document wrapper if not present
+            if (!latexContent.includes('\\documentclass')) {
+                let preamble = `\\documentclass[11pt,a4paper]{article}
 \\usepackage[utf8]{inputenc}
 \\usepackage[margin=1in]{geometry}
 \\usepackage{amsmath}
@@ -311,31 +381,35 @@ async function compileToPDFPreview() {
 
 \\begin{document}
 `;
-            // Add inline bibliography if there are citations
-            let bibliography = '';
-            if (appData.articles && appData.articles.length > 0 && latexContent.includes('\\cite{')) {
-                bibliography = '\n\n\\begin{thebibliography}{99}\n\n';
-                appData.articles.forEach(article => {
-                    if (article.bibtexId) {
-                        bibliography += `\\bibitem{${article.bibtexId}}\n`;
-                        if (article.authors) bibliography += article.authors + '. ';
-                        if (article.title) bibliography += `\\textit{${article.title}}. `;
-                        if (article.journal) {
-                            bibliography += article.journal;
-                            if (article.volume) bibliography += `, ${article.volume}`;
-                            if (article.number) bibliography += `(${article.number})`;
-                            if (article.pages) bibliography += `, pp. ${article.pages}`;
-                            bibliography += '. ';
+                // Add inline bibliography if there are citations
+                let bibliography = '';
+                if (appData.articles && appData.articles.length > 0 && latexContent.includes('\\cite{')) {
+                    bibliography = '\n\n\\begin{thebibliography}{99}\n\n';
+                    appData.articles.forEach(article => {
+                        if (article.bibtexId) {
+                            bibliography += `\\bibitem{${article.bibtexId}}\n`;
+                            if (article.authors) bibliography += article.authors + '. ';
+                            if (article.title) bibliography += `\\textit{${article.title}}. `;
+                            if (article.journal) {
+                                bibliography += article.journal;
+                                if (article.volume) bibliography += `, ${article.volume}`;
+                                if (article.number) bibliography += `(${article.number})`;
+                                if (article.pages) bibliography += `, pp. ${article.pages}`;
+                                bibliography += '. ';
+                            }
+                            if (article.year) bibliography += article.year + '.';
+                            bibliography += '\n\n';
                         }
-                        if (article.year) bibliography += article.year + '.';
-                        bibliography += '\n\n';
-                    }
-                });
-                bibliography += '\\end{thebibliography}\n';
-            }
+                    });
+                    bibliography += '\\end{thebibliography}\n';
+                }
 
-            latexContent = preamble + latexContent + bibliography + '\n\\end{document}';
+                latexContent = preamble + latexContent + bibliography + '\n\\end{document}';
+            }
         }
+
+        // Store the latex content for download
+        window.lastCompiledLatex = latexContent;
 
         // Compile using YtoTech API
         const response = await fetch('https://latex.ytotech.com/builds/sync', {
@@ -361,6 +435,9 @@ async function compileToPDFPreview() {
 
         const pdfBlob = await response.blob();
 
+        // Store the PDF for download
+        window.lastCompiledPdf = pdfBlob;
+
         // Render PDF using PDF.js
         await renderPDFInContainer(pdfBlob, previewContainer);
 
@@ -382,8 +459,10 @@ async function compileToPDFPreview() {
         if (compileBtn) {
             compileBtn.disabled = false;
             const btnText = compileBtn.querySelector('span');
-            if (btnText) btnText.textContent = 'Compile PDF';
+            if (btnText) btnText.textContent = 'Compile';
         }
+        if (downloadTexBtn) downloadTexBtn.disabled = false;
+        if (downloadPdfBtn) downloadPdfBtn.disabled = false;
     }
 }
 
@@ -404,25 +483,32 @@ async function renderPDFInContainer(pdfBlob, container) {
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
 
+    // Calculate scale based on container width
+    const containerWidth = container.clientWidth - 40; // Subtract padding
+    const firstPage = await pdf.getPage(1);
+    const viewport = firstPage.getViewport({ scale: 1.0 });
+    const scale = Math.min(containerWidth / viewport.width, 2.0); // Max 2x for quality
+
     // Render each page
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
 
         // Create canvas for this page
         const canvas = document.createElement('canvas');
-        canvas.style.cssText = 'display: block; margin: 0 auto 20px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);';
+        canvas.className = 'pdf-page-canvas';
+        canvas.style.cssText = 'display: block; margin: 0 auto 20px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); max-width: 100%;';
 
         const context = canvas.getContext('2d');
 
-        // Set scale for good quality (2x for retina displays)
-        const viewport = page.getViewport({ scale: 1.5 });
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        // Set scale based on container width
+        const pageViewport = page.getViewport({ scale: scale });
+        canvas.width = pageViewport.width;
+        canvas.height = pageViewport.height;
 
         // Render page
         await page.render({
             canvasContext: context,
-            viewport: viewport
+            viewport: pageViewport
         }).promise;
 
         container.appendChild(canvas);
