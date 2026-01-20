@@ -980,11 +980,12 @@ function generateLatexDocument() {
             if (author.name && author.name.trim()) {
                 latex += escapeLatex(author.name);
 
-                // Add affiliation superscripts
+                // Add affiliation superscripts (no comma between numbers, just consecutive)
                 const affilNums = author.affiliationNumbers || [];
                 if (affilNums && affilNums.length > 0) {
-                    const superscripts = affilNums.map(num => `\\textsuperscript{${num}}`).join(',');
-                    latex += superscripts;
+                    affilNums.forEach(num => {
+                        latex += `\\textsuperscript{${num}}`;
+                    });
                 }
 
                 // Add ORCID logo and link if provided
@@ -993,9 +994,9 @@ function generateLatexDocument() {
                     latex += `\\textsuperscript{\\href{https://orcid.org/${escapeLatex(author.orcid)}}{\\color{green}\\textbf{iD}}}`;
                 }
 
-                // Add separator between authors (except for last one)
+                // Add separator between authors - use comma for multi-author
                 if (idx < authorsData.length - 1) {
-                    latex += ' \\and ';
+                    latex += ', ';
                 }
             }
         });
@@ -1004,24 +1005,24 @@ function generateLatexDocument() {
     
     // Output affiliations below authors as separate block using \\date{} or custom command
     if (affiliationsData && affiliationsData.length > 0) {
-        latex += '\\n';
+        latex += '\n';
         latex += '\\date{';
-        latex += '\\vspace{0.5em}\\\\\\n';  // Positive spacing to push affiliations down
-        latex += '{\\small\\n';  // Smaller font for affiliations
-        latex += '\\begin{tabular}{@{}c@{}}\\n';
+        latex += '\\vspace{0.5em}\\\\\n';  // Positive spacing to push affiliations down
+        latex += '{\\small\\itshape\n';  // Smaller font and italic for affiliations
+        latex += '\\begin{tabular}{@{}c@{}}\n';
         affiliationsData.forEach((affil, idx) => {
             if (affil.text && affil.text.trim()) {
                 latex += `\\textsuperscript{${idx + 1}}${escapeLatex(affil.text)}`;
                 if (idx < affiliationsData.length - 1) {
-                    latex += ' \\\\\\n';
+                    latex += ' \\\\\n';
                 }
             }
         });
-        latex += '\\n\\end{tabular}}';  // Close small font
-        latex += '\\\\[1.5em]\\n';  // More spacing before date
-        latex += '\\today}\\n';
+        latex += '\n\\end{tabular}}';  // Close small font
+        latex += '\\\\[1.5em]\n';  // More spacing before date
+        latex += '\\today}\n';
     } else {
-        latex += `\\date{\\today}\\n`;
+        latex += `\\date{\\today}\n`;
     }
     
     latex += '\\n\\n';
@@ -1083,37 +1084,39 @@ function generateLatexDocument() {
     }
     
     // Add bibliography directly as thebibliography environment for YtoTech compatibility
-    if (appData.articles && appData.articles.length > 0) {
+    // Only include articles that have a bibtexId to avoid empty bibliography entries
+    const articlesWithBibtex = appData.articles ? appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
+
+    if (articlesWithBibtex.length > 0) {
         latex += '\\begin{thebibliography}{99}\n\n';
 
-        appData.articles.forEach(article => {
-            if (article.bibtexId) {
-                latex += `\\bibitem{${article.bibtexId}}\n`;
+        articlesWithBibtex.forEach((article, index) => {
+            // Use the article's bibtexId as the citation key
+            latex += `\\bibitem{${article.bibtexId}}\n`;
 
-                if (article.authors) {
-                    latex += escapeLatex(article.authors) + '. ';
-                }
-                if (article.title) {
-                    latex += `\\textit{${escapeLatex(article.title)}}. `;
-                }
-                if (article.journal) {
-                    latex += escapeLatex(article.journal);
-                    if (article.volume) {
-                        latex += `, ${escapeLatex(article.volume)}`;
-                    }
-                    if (article.number) {
-                        latex += `(${escapeLatex(article.number)})`;
-                    }
-                    if (article.pages) {
-                        latex += `, pp. ${escapeLatex(article.pages)}`;
-                    }
-                    latex += '. ';
-                }
-                if (article.year) {
-                    latex += escapeLatex(article.year) + '.';
-                }
-                latex += '\n\n';
+            if (article.authors) {
+                latex += escapeLatex(article.authors) + '. ';
             }
+            if (article.title) {
+                latex += `\\textit{${escapeLatex(article.title)}}. `;
+            }
+            if (article.journal) {
+                latex += escapeLatex(article.journal);
+                if (article.volume) {
+                    latex += `, ${escapeLatex(article.volume)}`;
+                }
+                if (article.number) {
+                    latex += `(${escapeLatex(article.number)})`;
+                }
+                if (article.pages) {
+                    latex += `, pp. ${escapeLatex(article.pages)}`;
+                }
+                latex += '. ';
+            }
+            if (article.year) {
+                latex += escapeLatex(article.year) + '.';
+            }
+            latex += '\n\n';
         });
 
         latex += '\\end{thebibliography}\n\n';
@@ -1192,6 +1195,7 @@ async function exportToPDF() {
         showNotification('Compiling to PDF... This may take a few seconds.', 'info');
 
         // Use YtoTech LaTeX API with inline bibliography
+        // YtoTech automatically runs pdflatex multiple times to resolve citations
         const response = await fetch('https://latex.ytotech.com/builds/sync', {
             method: 'POST',
             headers: {
@@ -1204,7 +1208,9 @@ async function exportToPDF() {
                         content: latexContent,
                         main: true
                     }
-                ]
+                ],
+                // Force multiple passes for citation resolution
+                command: 'pdflatex -interaction=nonstopmode main.tex && pdflatex -interaction=nonstopmode main.tex'
             })
         });
 

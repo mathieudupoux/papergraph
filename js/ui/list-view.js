@@ -411,7 +411,7 @@ async function compileToPDFPreview() {
         // Store the latex content for download
         window.lastCompiledLatex = latexContent;
 
-        // Compile using YtoTech API
+        // Compile using YtoTech API with multiple passes for citations
         const response = await fetch('https://latex.ytotech.com/builds/sync', {
             method: 'POST',
             headers: {
@@ -424,7 +424,9 @@ async function compileToPDFPreview() {
                         content: latexContent,
                         main: true
                     }
-                ]
+                ],
+                // Force multiple passes for citation resolution
+                command: 'pdflatex -interaction=nonstopmode main.tex && pdflatex -interaction=nonstopmode main.tex'
             })
         });
 
