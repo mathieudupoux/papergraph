@@ -2,7 +2,7 @@
 /**
  * Online LaTeX compilation module
  * Supports:
- * - texlive.net API (primary)
+ * - University of Halle LaTeX service (primary)
  * - YtoTech API (fallback)
  * - PDF preview generation
  * - Inline bibliography support
@@ -11,25 +11,25 @@
 /**
  * Compile LaTeX document to PDF using online services
  * @param {string} latexContent - Main LaTeX document content
- * @param {string} bibtexContent - BibTeX bibliography content (optional, not used by texlive.net)
+ * @param {string} bibtexContent - BibTeX bibliography content (optional)
  * @param {object} options - Compilation options
  * @returns {Promise<Blob>} - PDF blob
  */
 async function compileLatexOnline(latexContent, bibtexContent = '', options = {}) {
     const {
         compiler = 'pdflatex',
-        service = 'auto', // 'auto', 'texlive', 'ytotech'
+        service = 'auto', // 'auto', 'halle', 'ytotech'
         onProgress = null
     } = options;
 
-    // Try texlive.net first if auto or explicitly requested
-    if (service === 'auto' || service === 'texlive') {
+    // Try University of Halle first if auto or explicitly requested
+    if (service === 'auto' || service === 'halle') {
         try {
-            if (onProgress) onProgress('Compiling with texlive.net...');
-            return await compileWithTexliveNet(latexContent, bibtexContent, compiler);
+            if (onProgress) onProgress('Compiling with University of Halle...');
+            return await compileWithUnivHalle(latexContent, bibtexContent, compiler);
         } catch (error) {
-            console.warn('texlive.net failed:', error);
-            if (service === 'texlive') throw error; // Don't fallback if explicitly requested
+            console.warn('University of Halle failed:', error);
+            if (service === 'halle') throw error; // Don't fallback if explicitly requested
         }
     }
 
@@ -39,32 +39,70 @@ async function compileLatexOnline(latexContent, bibtexContent = '', options = {}
 }
 
 /**
- * Compile using texlive.net via Supabase Edge Function proxy
- * This avoids CORS issues when calling texlive.net directly from the browser
+ * Compile using University of Halle LaTeX Online service
+ * https://latex.informatik.uni-halle.de/latex-online/
  */
-async function compileWithTexliveNet(latexContent, bibtexContent, compiler) {
-    // Use Supabase Edge Function proxy to avoid CORS issues
-    const latexApiUrl = window.LATEX_COMPILE_URL || 'https://lqbcatqdfsgvbwenqupq.supabase.co/functions/v1/compile-latex';
+async function compileWithUnivHalle(latexContent, bibtexContent, compiler) {
+    console.log('Compiling LaTeX document with University of Halle service...');
 
-    const response = await fetch(latexApiUrl, {
+    // Step 1: Submit the LaTeX content as form data
+    const formData = new FormData();
+    formData.append('filecontents[]', latexContent);
+    formData.append('filename[]', 'main.tex');
+    formData.append('engine', compiler || 'pdflatex');
+    formData.append('return', 'pdf');
+
+    const response = await fetch('https://latex.informatik.uni-halle.de/latex-online/latex.php', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-            filecontents: latexContent,
-            filename: 'main.tex',
-            engine: compiler || 'pdflatex',
-            return: 'pdf'
-        })
+        body: formData
     });
 
     if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`LaTeX compilation failed: ${response.status} - ${errorText}`);
+        throw new Error(`LaTeX compilation request failed: ${response.status}`);
     }
 
-    return await response.blob();
+    // Step 2: Parse the HTML response to find the PDF download link
+    const htmlResponse = await response.text();
+    console.log('Received HTML response, parsing for PDF link...');
+
+    // Look for PDF download link in the response
+    const pdfLinkMatch = htmlResponse.match(/href=["']([^"']*\.pdf)["']/i);
+
+    if (!pdfLinkMatch) {
+        // Try alternative patterns
+        const alternativeMatch = htmlResponse.match(/location\.href\s*=\s*["']([^"']*\.pdf)["']/i);
+        if (!alternativeMatch) {
+            console.error('HTML Response:', htmlResponse.substring(0, 1000));
+            throw new Error('Could not find PDF download link in response');
+        }
+    }
+
+    let pdfUrl = pdfLinkMatch ? pdfLinkMatch[1] : null;
+
+    if (!pdfUrl) {
+        throw new Error('PDF URL not found in response');
+    }
+
+    // Make URL absolute if it's relative
+    if (pdfUrl.startsWith('/')) {
+        pdfUrl = 'https://latex.informatik.uni-halle.de' + pdfUrl;
+    } else if (!pdfUrl.startsWith('http')) {
+        pdfUrl = 'https://latex.informatik.uni-halle.de/latex-online/' + pdfUrl;
+    }
+
+    console.log('Found PDF URL:', pdfUrl);
+
+    // Step 3: Fetch the actual PDF
+    const pdfResponse = await fetch(pdfUrl);
+
+    if (!pdfResponse.ok) {
+        throw new Error(`Failed to download PDF: ${pdfResponse.status}`);
+    }
+
+    const pdfBlob = await pdfResponse.blob();
+    console.log('PDF downloaded successfully, size:', pdfBlob.size, 'bytes');
+
+    return pdfBlob;
 }
 
 /**

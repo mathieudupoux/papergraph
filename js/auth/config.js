@@ -48,12 +48,6 @@ const basePath = getBasePath();
 // Initialize Supabase client
 export const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// LaTeX compilation endpoint (Supabase Edge Function proxy to avoid CORS)
-export const LATEX_COMPILE_URL = `${SUPABASE_URL}/functions/v1/compile-latex`;
-
-// Make LaTeX compile URL available globally for non-module scripts
-window.LATEX_COMPILE_URL = LATEX_COMPILE_URL;
-
 // Configuration constants
 export const config = {
     baseUrl: BASE_URL,

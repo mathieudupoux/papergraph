@@ -411,27 +411,66 @@ async function compileToPDFPreview() {
         // Store the latex content for download
         window.lastCompiledLatex = latexContent;
 
-        // Use Supabase Edge Function proxy to avoid CORS issues
-        const latexApiUrl = window.LATEX_COMPILE_URL || 'https://lqbcatqdfsgvbwenqupq.supabase.co/functions/v1/compile-latex';
-        const response = await fetch(latexApiUrl, {
+        // Use University of Halle LaTeX online service
+        console.log('Compiling LaTeX document with University of Halle service...');
+
+        // Step 1: Submit the LaTeX content as form data
+        const formData = new FormData();
+        formData.append('filecontents[]', latexContent);
+        formData.append('filename[]', 'main.tex');
+        formData.append('engine', 'pdflatex');
+        formData.append('return', 'pdf');
+
+        const response = await fetch('https://latex.informatik.uni-halle.de/latex-online/latex.php', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                filecontents: latexContent,
-                filename: 'main.tex',
-                engine: 'pdflatex',
-                return: 'pdf'
-            })
+            body: formData
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`LaTeX compilation failed: ${response.status}`);
+            throw new Error(`LaTeX compilation request failed: ${response.status}`);
         }
 
-        const pdfBlob = await response.blob();
+        // Step 2: Parse the HTML response to find the PDF download link
+        const htmlResponse = await response.text();
+        console.log('Received HTML response, parsing for PDF link...');
+
+        // Look for PDF download link in the response
+        // The service typically returns an HTML page with a download link
+        const pdfLinkMatch = htmlResponse.match(/href=["']([^"']*\.pdf)["']/i);
+
+        if (!pdfLinkMatch) {
+            // Try alternative patterns
+            const alternativeMatch = htmlResponse.match(/location\.href\s*=\s*["']([^"']*\.pdf)["']/i);
+            if (!alternativeMatch) {
+                console.error('HTML Response:', htmlResponse.substring(0, 1000));
+                throw new Error('Could not find PDF download link in response');
+            }
+        }
+
+        let pdfUrl = pdfLinkMatch ? pdfLinkMatch[1] : null;
+
+        if (!pdfUrl) {
+            throw new Error('PDF URL not found in response');
+        }
+
+        // Make URL absolute if it's relative
+        if (pdfUrl.startsWith('/')) {
+            pdfUrl = 'https://latex.informatik.uni-halle.de' + pdfUrl;
+        } else if (!pdfUrl.startsWith('http')) {
+            pdfUrl = 'https://latex.informatik.uni-halle.de/latex-online/' + pdfUrl;
+        }
+
+        console.log('Found PDF URL:', pdfUrl);
+
+        // Step 3: Fetch the actual PDF
+        const pdfResponse = await fetch(pdfUrl);
+
+        if (!pdfResponse.ok) {
+            throw new Error(`Failed to download PDF: ${pdfResponse.status}`);
+        }
+
+        const pdfBlob = await pdfResponse.blob();
+        console.log('PDF downloaded successfully, size:', pdfBlob.size, 'bytes');
 
         // Store the PDF for download
         window.lastCompiledPdf = pdfBlob;
