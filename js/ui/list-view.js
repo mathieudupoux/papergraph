@@ -411,8 +411,9 @@ async function compileToPDFPreview() {
         // Store the latex content for download
         window.lastCompiledLatex = latexContent;
 
-        // Compile using texlive.net API
-        const response = await fetch('https://texlive.net/cgi-bin/latexcgi', {
+        // Use Supabase Edge Function proxy to avoid CORS issues
+        const latexApiUrl = window.LATEX_COMPILE_URL || 'https://lqbcatqdfsgvbwenqupq.supabase.co/functions/v1/compile-latex';
+        const response = await fetch(latexApiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

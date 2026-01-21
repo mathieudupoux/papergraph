@@ -1239,8 +1239,9 @@ async function exportToPDF() {
         // Show notification
         showNotification('Compiling to PDF... This may take a few seconds.', 'info');
 
-        // Use texlive.net API for LaTeX compilation
-        const response = await fetch('https://texlive.net/cgi-bin/latexcgi', {
+        // Use Supabase Edge Function proxy to avoid CORS issues
+        const latexApiUrl = window.LATEX_COMPILE_URL || 'https://lqbcatqdfsgvbwenqupq.supabase.co/functions/v1/compile-latex';
+        const response = await fetch(latexApiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

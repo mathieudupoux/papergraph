@@ -39,14 +39,14 @@ async function compileLatexOnline(latexContent, bibtexContent = '', options = {}
 }
 
 /**
- * Compile using texlive.net (https://texlive.net/)
- * Free LaTeX compilation service with good CORS support
+ * Compile using texlive.net via Supabase Edge Function proxy
+ * This avoids CORS issues when calling texlive.net directly from the browser
  */
 async function compileWithTexliveNet(latexContent, bibtexContent, compiler) {
-    // texlive.net uses application/x-www-form-urlencoded
-    // It only accepts a single .tex file with inline bibliography
+    // Use Supabase Edge Function proxy to avoid CORS issues
+    const latexApiUrl = window.LATEX_COMPILE_URL || 'https://lqbcatqdfsgvbwenqupq.supabase.co/functions/v1/compile-latex';
 
-    const response = await fetch('https://texlive.net/cgi-bin/latexcgi', {
+    const response = await fetch(latexApiUrl, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -61,7 +61,7 @@ async function compileWithTexliveNet(latexContent, bibtexContent, compiler) {
 
     if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`texlive.net compilation failed: ${response.status} - ${errorText}`);
+        throw new Error(`LaTeX compilation failed: ${response.status} - ${errorText}`);
     }
 
     return await response.blob();
