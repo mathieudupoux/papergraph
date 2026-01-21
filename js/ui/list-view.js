@@ -411,18 +411,17 @@ async function compileToPDFPreview() {
         // Store the latex content for download
         window.lastCompiledLatex = latexContent;
 
-        // Compile using YtoTech API
-        const response = await fetch('https://latex.ytotech.com/builds/sync', {
+        // Compile using texlive.net API
+        const response = await fetch('https://texlive.net/cgi-bin/latexcgi', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: JSON.stringify({
-                compiler: 'pdflatex',
-                resources: [{
-                    content: latexContent,
-                    main: true
-                }]
+            body: new URLSearchParams({
+                filecontents: latexContent,
+                filename: 'main.tex',
+                engine: 'pdflatex',
+                return: 'pdf'
             })
         });
 

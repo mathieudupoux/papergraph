@@ -2,34 +2,34 @@
 /**
  * Online LaTeX compilation module
  * Supports:
- * - LaTeX.Online API (primary)
+ * - texlive.net API (primary)
  * - YtoTech API (fallback)
  * - PDF preview generation
- * - BibTeX bibliography support
+ * - Inline bibliography support
  */
 
 /**
  * Compile LaTeX document to PDF using online services
  * @param {string} latexContent - Main LaTeX document content
- * @param {string} bibtexContent - BibTeX bibliography content (optional)
+ * @param {string} bibtexContent - BibTeX bibliography content (optional, not used by texlive.net)
  * @param {object} options - Compilation options
  * @returns {Promise<Blob>} - PDF blob
  */
 async function compileLatexOnline(latexContent, bibtexContent = '', options = {}) {
     const {
         compiler = 'pdflatex',
-        service = 'auto', // 'auto', 'latexonline', 'ytotech'
+        service = 'auto', // 'auto', 'texlive', 'ytotech'
         onProgress = null
     } = options;
 
-    // Try LaTeX.Online first if auto or explicitly requested
-    if (service === 'auto' || service === 'latexonline') {
+    // Try texlive.net first if auto or explicitly requested
+    if (service === 'auto' || service === 'texlive') {
         try {
-            if (onProgress) onProgress('Trying LaTeX.Online...');
-            return await compileWithLatexOnline(latexContent, bibtexContent, compiler);
+            if (onProgress) onProgress('Compiling with texlive.net...');
+            return await compileWithTexliveNet(latexContent, bibtexContent, compiler);
         } catch (error) {
-            console.warn('LaTeX.Online failed:', error);
-            if (service === 'latexonline') throw error; // Don't fallback if explicitly requested
+            console.warn('texlive.net failed:', error);
+            if (service === 'texlive') throw error; // Don't fallback if explicitly requested
         }
     }
 
@@ -39,38 +39,29 @@ async function compileLatexOnline(latexContent, bibtexContent = '', options = {}
 }
 
 /**
- * Compile using LaTeX.Online (https://latexonline.cc/)
- * Free, open source, supports git repositories
+ * Compile using texlive.net (https://texlive.net/)
+ * Free LaTeX compilation service with good CORS support
  */
-async function compileWithLatexOnline(latexContent, bibtexContent, compiler) {
-    // LaTeX.Online works by providing files via URL or direct upload
-    // For direct compilation, we use their API with multipart/form-data
+async function compileWithTexliveNet(latexContent, bibtexContent, compiler) {
+    // texlive.net uses application/x-www-form-urlencoded
+    // It only accepts a single .tex file with inline bibliography
 
-    const formData = new FormData();
-
-    // Main .tex file
-    const texBlob = new Blob([latexContent], { type: 'text/plain' });
-    formData.append('fileToUpload', texBlob, 'document.tex');
-
-    // BibTeX file if provided
-    if (bibtexContent && bibtexContent.trim()) {
-        const bibBlob = new Blob([bibtexContent], { type: 'text/plain' });
-        formData.append('fileToUpload', bibBlob, 'references.bib');
-    }
-
-    // LaTeX.Online API endpoint
-    // Note: They support direct compilation via URL parameters
-    // We'll use the compile endpoint with file upload
-    const url = 'https://latexonline.cc/compile';
-
-    const response = await fetch(url, {
+    const response = await fetch('https://texlive.net/cgi-bin/latexcgi', {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            filecontents: latexContent,
+            filename: 'main.tex',
+            engine: compiler || 'pdflatex',
+            return: 'pdf'
+        })
     });
 
     if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`LaTeX.Online compilation failed: ${response.status} - ${errorText}`);
+        throw new Error(`texlive.net compilation failed: ${response.status} - ${errorText}`);
     }
 
     return await response.blob();

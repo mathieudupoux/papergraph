@@ -866,6 +866,13 @@ function getLatexStyle() {
 \\usepackage{titlesec}
 \\usepackage{parskip}
 
+% Custom ORCID iD badge command (green colored iD text)
+\\newcommand{\\orcidlink}[1]{%
+  \\href{https://orcid.org/#1}{%
+    \\textcolor[HTML]{A6CE39}{\\textsuperscript{\\scriptsize\\textbf{[iD]}}}%
+  }%
+}
+
 % Typography
 \\setlength{\\parindent}{0pt}
 \\setlength{\\parskip}{0.8em}
@@ -956,6 +963,19 @@ function escapeLatex(text) {
 }
 
 /**
+ * Sanitize citation keys - remove or replace characters that are problematic in BibTeX keys
+ * BibTeX keys should only contain alphanumeric characters, hyphens, and underscores
+ */
+function sanitizeCitationKey(key) {
+    if (!key) return 'ref';
+    // Replace problematic characters with underscores
+    return String(key)
+        .replace(/[^a-zA-Z0-9\-_]/g, '_')
+        .replace(/^_+|_+$/g, '') // Remove leading/trailing underscores
+        .substring(0, 50); // Limit length
+}
+
+/**
  * Generate complete LaTeX document
  */
 function generateLatexDocument() {
@@ -990,8 +1010,8 @@ function generateLatexDocument() {
 
                 // Add ORCID logo and link if provided
                 if (author.orcid && author.orcid.trim()) {
-                    // ORCID logo as clickable green iD badge
-                    latex += `\\,\\href{https://orcid.org/${escapeLatex(author.orcid)}}{\\textcolor{green}{\\scriptsize\\textbf{iD}}}`;
+                    // ORCID logo using custom command (green circular badge with iD)
+                    latex += `\\,\\orcidlink{${escapeLatex(author.orcid)}}`;
                 }
 
                 // Add separator between authors - use comma for multi-author
@@ -1025,9 +1045,9 @@ function generateLatexDocument() {
         latex += `\\date{\\today}\n`;
     }
     
-    latex += '\\n\\n';
-    
-    latex += `\\begin{document}\\n\\n`;
+    latex += '\n\n';
+
+    latex += `\\begin{document}\n\n`;
     latex += `\\maketitle\n\n`;
     
     // Add abstract if provided
@@ -1049,8 +1069,9 @@ function generateLatexDocument() {
         appData.articles.forEach((article, index) => {
             // Each article is a chapter-like section (no numbering in title)
             latex += `\\section*{${escapeLatex(article.title || 'Untitled')}}`;
-            if (article.bibtexId) {
-                latex += ` \\cite{${article.bibtexId}}`;
+            if (article.bibtexId && article.bibtexId.trim()) {
+                const citationKey = sanitizeCitationKey(article.bibtexId);
+                latex += ` \\cite{${citationKey}}`;
             }
             latex += `\n\n`;
             
@@ -1083,17 +1104,21 @@ function generateLatexDocument() {
         });
     }
     
-    // Add bibliography directly as thebibliography environment for YtoTech compatibility
+    // Add bibliography section
     // Only include articles that have a bibtexId to avoid empty bibliography entries
     const articlesWithBibtex = appData.articles ? appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
 
     if (articlesWithBibtex.length > 0) {
+        // Add references heading
+        latex += '\\section*{References}\n\n';
         latex += '\\begin{thebibliography}{99}\n\n';
 
         articlesWithBibtex.forEach((article, index) => {
-            // Use the article's bibtexId as the citation key
-            latex += `\\bibitem{${article.bibtexId}}\n`;
+            // Use the article's bibtexId as the citation key (sanitized)
+            const citationKey = sanitizeCitationKey(article.bibtexId);
+            latex += `\\bibitem{${citationKey}}\n`;
 
+            // Format: Authors. Title. Journal, Volume(Number), Pages. Year.
             if (article.authors) {
                 latex += escapeLatex(article.authors) + '. ';
             }
@@ -1103,18 +1128,18 @@ function generateLatexDocument() {
             if (article.journal) {
                 latex += escapeLatex(article.journal);
                 if (article.volume) {
-                    latex += `, ${escapeLatex(article.volume)}`;
+                    latex += ` \\textbf{${escapeLatex(article.volume)}}`;
                 }
                 if (article.number) {
                     latex += `(${escapeLatex(article.number)})`;
                 }
                 if (article.pages) {
-                    latex += `, pp. ${escapeLatex(article.pages)}`;
+                    latex += `, ${escapeLatex(article.pages)}`;
                 }
                 latex += '. ';
             }
             if (article.year) {
-                latex += escapeLatex(article.year) + '.';
+                latex += `(${escapeLatex(article.year)}).`;
             }
             latex += '\n\n';
         });
@@ -1191,25 +1216,40 @@ async function exportToPDF() {
 
         const latexContent = generateLatexDocument();
 
-        // Debug: log a portion of the LaTeX to help diagnose issues
-        console.log('Generated LaTeX (first 500 chars):', latexContent.substring(0, 500));
-        console.log('Bibliography section:', latexContent.match(/\\begin{thebibliography}[\s\S]*?\\end{thebibliography}/)?.[0]?.substring(0, 300) || 'No bibliography found');
+        // Debug: log LaTeX document structure
+        console.log('=== LaTeX Compilation Debug ===');
+        console.log('Document length:', latexContent.length, 'characters');
+        console.log('First 500 chars:', latexContent.substring(0, 500));
+
+        // Extract and log all citations
+        const citations = latexContent.match(/\\cite\{([^}]+)\}/g);
+        console.log('Citations found:', citations ? citations.length : 0, citations || 'none');
+
+        // Extract and log all bibliography items
+        const biblioSection = latexContent.match(/\\begin{thebibliography}[\s\S]*?\\end{thebibliography}/);
+        if (biblioSection) {
+            const bibItems = biblioSection[0].match(/\\bibitem\{([^}]+)\}/g);
+            console.log('Bibliography items:', bibItems ? bibItems.length : 0, bibItems || 'none');
+            console.log('Bibliography section (first 500 chars):', biblioSection[0].substring(0, 500));
+        } else {
+            console.log('No bibliography section found');
+        }
+        console.log('==============================');
 
         // Show notification
         showNotification('Compiling to PDF... This may take a few seconds.', 'info');
 
-        // Use YtoTech LaTeX API with proper resource structure
-        const response = await fetch('https://latex.ytotech.com/builds/sync', {
+        // Use texlive.net API for LaTeX compilation
+        const response = await fetch('https://texlive.net/cgi-bin/latexcgi', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: JSON.stringify({
-                compiler: 'pdflatex',
-                resources: [{
-                    content: latexContent,
-                    main: true
-                }]
+            body: new URLSearchParams({
+                filecontents: latexContent,
+                filename: 'main.tex',
+                engine: 'pdflatex',
+                return: 'pdf'
             })
         });
 
