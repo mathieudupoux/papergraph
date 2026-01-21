@@ -57,12 +57,12 @@ serve(async (req) => {
     // ============================================================================
     console.log('🚀 Submitting to University of Halle...');
 
-    // Try multiple FormData configurations (University of Halle uses array notation)
+    // University of Halle expects:
+    // - quellcode: LaTeX source code (textarea name)
+    // - compile2x: Submit button to compile and generate references
     const formData = new FormData();
-    formData.append('filecontents[]', latexContent);
-    formData.append('filename[]', filename);
-    formData.append('engine', compiler);
-    formData.append('return', 'pdf');
+    formData.append('quellcode', latexContent);
+    formData.append('compile2x', 'Compile and generate references');
 
     const response = await fetch(LATEX_API, {
       method: 'POST',
