@@ -1,5 +1,5 @@
 // Supabase Edge Function: compile-latex
-// Proxies LaTeX compilation requests to University of Halle to avoid CORS issues
+// Scrapes/proxies University of Halle LaTeX compiler to avoid CORS issues
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
@@ -32,35 +32,38 @@ serve(async (req) => {
       )
     }
 
-    // Parse the incoming request
+    // ============================================================================
+    // STEP 1: Parse incoming request from frontend
+    // ============================================================================
     const jsonData = await req.json();
     console.log('📝 Received LaTeX compilation request');
     console.log('Parameters:', Object.keys(jsonData));
 
-    // Extract parameters with proper mapping
-    // Frontend sends: content, compiler
-    const latexContent = jsonData.content || jsonData.filecontents || '';
+    // Extract LaTeX content from frontend
+    const latexContent = jsonData.content || jsonData.filecontents || jsonData.code || jsonData.latex || '';
     const compiler = jsonData.compiler || jsonData.engine || 'pdflatex';
     const filename = jsonData.filename || 'main.tex';
 
     if (!latexContent) {
-      throw new Error('Missing LaTeX content (expected "content" or "filecontents" parameter)');
+      throw new Error('Missing LaTeX content');
     }
 
     console.log('Document length:', latexContent.length, 'characters');
     console.log('Compiler:', compiler);
+    console.log('Filename:', filename);
 
-    // Step 1: Prepare form data for University of Halle
-    // Note: Using array notation for filecontents[] and filename[]
+    // ============================================================================
+    // STEP 2: Submit LaTeX content to University of Halle (scrape HTML response)
+    // ============================================================================
+    console.log('🚀 Submitting to University of Halle...');
+
+    // Try multiple FormData configurations (University of Halle uses array notation)
     const formData = new FormData();
     formData.append('filecontents[]', latexContent);
     formData.append('filename[]', filename);
     formData.append('engine', compiler);
     formData.append('return', 'pdf');
 
-    console.log('🚀 Forwarding to University of Halle...');
-
-    // Step 2: Submit to University of Halle
     const response = await fetch(LATEX_API, {
       method: 'POST',
       body: formData
@@ -70,12 +73,12 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ University of Halle request error:', errorText);
+      console.error('❌ University of Halle HTTP error:', errorText.substring(0, 500));
 
       return new Response(
         JSON.stringify({
-          error: 'LaTeX compilation request failed',
-          details: errorText,
+          error: 'LaTeX service returned an error',
+          details: errorText.substring(0, 500),
           status: response.status
         }),
         {
@@ -88,23 +91,39 @@ serve(async (req) => {
       );
     }
 
-    // Step 3: Parse HTML response to find PDF download link
+    // ============================================================================
+    // STEP 3: Parse HTML response to extract PDF download link
+    // ============================================================================
     const htmlResponse = await response.text();
-    console.log('📄 Received HTML response, parsing for PDF link...');
+    console.log('📄 Received HTML response (length:', htmlResponse.length, 'chars)');
+    console.log('First 200 chars:', htmlResponse.substring(0, 200));
 
-    // Look for PDF download link in the response
-    const pdfLinkMatch = htmlResponse.match(/href=["']([^"']*\.pdf)["']/i);
-
+    // Try multiple regex patterns to find PDF link
     let pdfUrl = null;
 
-    if (!pdfLinkMatch) {
-      // Try alternative patterns
-      const alternativeMatch = htmlResponse.match(/location\.href\s*=\s*["']([^"']*\.pdf)["']/i);
-      if (alternativeMatch) {
-        pdfUrl = alternativeMatch[1];
+    // Pattern 1: Look for href="...pdf"
+    const pattern1 = htmlResponse.match(/href=["']([^"']*\.pdf)["']/i);
+    if (pattern1) {
+      pdfUrl = pattern1[1];
+      console.log('✓ Found PDF link (pattern 1):', pdfUrl);
+    }
+
+    // Pattern 2: Look for window.location or location.href redirect
+    if (!pdfUrl) {
+      const pattern2 = htmlResponse.match(/(?:window\.)?location(?:\.href)?\s*=\s*["']([^"']*\.pdf)["']/i);
+      if (pattern2) {
+        pdfUrl = pattern2[1];
+        console.log('✓ Found PDF link (pattern 2):', pdfUrl);
       }
-    } else {
-      pdfUrl = pdfLinkMatch[1];
+    }
+
+    // Pattern 3: Look for any .pdf URL in the HTML
+    if (!pdfUrl) {
+      const pattern3 = htmlResponse.match(/["']((?:https?:)?\/\/[^"']*\.pdf)["']/i);
+      if (pattern3) {
+        pdfUrl = pattern3[1];
+        console.log('✓ Found PDF link (pattern 3):', pdfUrl);
+      }
     }
 
     if (!pdfUrl) {
@@ -113,9 +132,9 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({
-          error: 'PDF link not found in response',
-          details: 'The service returned HTML but no PDF download link was found',
-          htmlSample: htmlResponse.substring(0, 500)
+          error: 'PDF link not found in HTML response',
+          details: 'The LaTeX service returned HTML but no PDF download link was found',
+          htmlSample: htmlResponse.substring(0, 800)
         }),
         {
           status: 500,
@@ -127,25 +146,39 @@ serve(async (req) => {
       );
     }
 
-    // Step 4: Make URL absolute if it's relative
-    if (pdfUrl.startsWith('/')) {
-      pdfUrl = 'https://latex.informatik.uni-halle.de' + pdfUrl;
+    // ============================================================================
+    // STEP 4: Construct absolute URL for PDF download
+    // ============================================================================
+    // Make URL absolute if it's relative
+    let absolutePdfUrl = pdfUrl;
+
+    if (pdfUrl.startsWith('//')) {
+      // Protocol-relative URL
+      absolutePdfUrl = 'https:' + pdfUrl;
+    } else if (pdfUrl.startsWith('/')) {
+      // Absolute path
+      absolutePdfUrl = 'https://latex.informatik.uni-halle.de' + pdfUrl;
     } else if (!pdfUrl.startsWith('http')) {
-      pdfUrl = 'https://latex.informatik.uni-halle.de/latex-online/' + pdfUrl;
+      // Relative path
+      absolutePdfUrl = 'https://latex.informatik.uni-halle.de/latex-online/' + pdfUrl;
     }
 
-    console.log('🔗 Found PDF URL:', pdfUrl);
+    console.log('🔗 Absolute PDF URL:', absolutePdfUrl);
 
-    // Step 5: Fetch the actual PDF
-    const pdfResponse = await fetch(pdfUrl);
+    // ============================================================================
+    // STEP 5: Download the actual PDF file
+    // ============================================================================
+    console.log('⬇️ Downloading PDF...');
+
+    const pdfResponse = await fetch(absolutePdfUrl);
 
     if (!pdfResponse.ok) {
-      console.error('❌ Failed to download PDF');
+      console.error('❌ Failed to download PDF (HTTP', pdfResponse.status, ')');
 
       return new Response(
         JSON.stringify({
           error: 'Failed to download PDF',
-          pdfUrl: pdfUrl,
+          pdfUrl: absolutePdfUrl,
           status: pdfResponse.status
         }),
         {
@@ -162,24 +195,32 @@ serve(async (req) => {
     const pdfData = await pdfResponse.arrayBuffer();
     const uint8Array = new Uint8Array(pdfData);
 
-    // Check if response is actually a PDF (starts with %PDF-)
-    const isPDF = uint8Array[0] === 0x25 && // %
+    // ============================================================================
+    // STEP 6: Validate PDF magic bytes (%PDF-)
+    // ============================================================================
+    const isPDF = uint8Array.length >= 4 &&
+                  uint8Array[0] === 0x25 && // %
                   uint8Array[1] === 0x50 && // P
                   uint8Array[2] === 0x44 && // D
                   uint8Array[3] === 0x46;   // F
 
-    console.log('✅ Response is PDF:', isPDF, 'Size:', pdfData.byteLength, 'bytes');
+    console.log('PDF validation:', {
+      isPDF,
+      size: pdfData.byteLength,
+      firstBytes: Array.from(uint8Array.slice(0, 8)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')
+    });
 
     if (!isPDF) {
-      // Response might be an error page
+      // Downloaded file is not a valid PDF - might be an error page
       const errorText = new TextDecoder().decode(pdfData);
-      console.error('❌ Downloaded file is not a PDF:', errorText.substring(0, 500));
+      console.error('❌ Downloaded file is not a PDF');
+      console.error('Content (first 500 chars):', errorText.substring(0, 500));
 
       return new Response(
         JSON.stringify({
-          error: 'Downloaded file is not a PDF',
-          details: 'The downloaded file does not appear to be a valid PDF',
-          content: errorText.substring(0, 500)
+          error: 'Downloaded file is not a valid PDF',
+          details: 'The file does not start with PDF magic bytes (%PDF-)',
+          possibleError: errorText.substring(0, 500)
         }),
         {
           status: 422,
@@ -191,26 +232,31 @@ serve(async (req) => {
       );
     }
 
-    console.log('✅ PDF generated and downloaded successfully');
+    // ============================================================================
+    // STEP 7: Return PDF to frontend with CORS headers
+    // ============================================================================
+    console.log('✅ PDF successfully compiled and validated');
+    console.log('   Size:', pdfData.byteLength, 'bytes');
 
-    // Return the PDF with proper CORS headers
     return new Response(pdfData, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
         'Access-Control-Allow-Origin': '*',
         'Content-Disposition': 'inline; filename="document.pdf"',
+        'Content-Length': pdfData.byteLength.toString(),
         'Cache-Control': 'no-cache'
       }
     });
 
   } catch (error) {
-    console.error('❌ Proxy error:', error);
+    console.error('❌ Fatal error in Edge Function:', error);
 
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || 'Internal server error'
+        error: error.message || 'Internal server error',
+        stack: error.stack
       }),
       {
         headers: {
