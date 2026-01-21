@@ -352,15 +352,35 @@ async function compileToPDFPreview() {
     if (downloadTexBtn) downloadTexBtn.disabled = true;
     if (downloadPdfBtn) downloadPdfBtn.disabled = true;
 
-    previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">Compiling LaTeX to PDF...</div>';
+    previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">🔄 Compiling LaTeX to PDF with SwiftLaTeX...</div>';
 
     try {
-        let latexContent;
+        // Ensure SwiftLaTeX compiler is loaded
+        if (!window.swiftLatexCompiler) {
+            throw new Error('SwiftLaTeX compiler not loaded. Please refresh the page.');
+        }
 
-        // Check if we're in review mode - compile full document
+        let latexContent;
+        let bibContent = '';
+
+        // Check if we're in review mode - compile full document with all articles
         if (activeNoteId === 'review') {
-            // Use the full document generator from export.js
-            latexContent = generateLatexDocument();
+            console.log('📚 Compiling full document with all articles...');
+
+            // Use document generator to create master document
+            if (!window.DocumentGenerator) {
+                throw new Error('Document Generator not loaded');
+            }
+
+            const projectMeta = appData.projectReviewMeta || {};
+            const articles = appData.articles || [];
+
+            // Generate bibliography
+            bibContent = window.DocumentGenerator.generateBibliography(articles);
+
+            // Generate main document
+            latexContent = window.DocumentGenerator.generateMainDocument(articles, projectMeta);
+
         } else {
             // For individual articles, compile just that content
             latexContent = contentEl.textContent || '';
@@ -378,91 +398,32 @@ async function compileToPDFPreview() {
 \\usepackage{amsmath}
 \\usepackage{amssymb}
 \\usepackage{hyperref}
+\\usepackage{cite}
 
 \\begin{document}
 `;
-                // Add inline bibliography if there are citations
-                let bibliography = '';
+                // Generate inline bibliography if there are citations
                 if (appData.articles && appData.articles.length > 0 && latexContent.includes('\\cite{')) {
-                    bibliography = '\n\n\\begin{thebibliography}{99}\n\n';
-                    appData.articles.forEach(article => {
-                        if (article.bibtexId) {
-                            bibliography += `\\bibitem{${article.bibtexId}}\n`;
-                            if (article.authors) bibliography += article.authors + '. ';
-                            if (article.title) bibliography += `\\textit{${article.title}}. `;
-                            if (article.journal) {
-                                bibliography += article.journal;
-                                if (article.volume) bibliography += `, ${article.volume}`;
-                                if (article.number) bibliography += `(${article.number})`;
-                                if (article.pages) bibliography += `, pp. ${article.pages}`;
-                                bibliography += '. ';
-                            }
-                            if (article.year) bibliography += article.year + '.';
-                            bibliography += '\n\n';
-                        }
-                    });
-                    bibliography += '\\end{thebibliography}\n';
+                    bibContent = window.DocumentGenerator.generateBibliography(appData.articles);
                 }
 
-                latexContent = preamble + latexContent + bibliography + '\n\\end{document}';
+                latexContent = preamble + latexContent + '\n\n\\bibliographystyle{plain}\n\\bibliography{references}\n\n\\end{document}';
             }
         }
 
         // Store the latex content for download
         window.lastCompiledLatex = latexContent;
 
-        // Use Supabase Edge Function to proxy compilation (avoids CORS)
-        console.log('Compiling LaTeX document via Supabase proxy...');
+        // Compile using SwiftLaTeX (client-side WebAssembly)
+        console.log('🚀 Compiling with SwiftLaTeX...');
+        console.log(`   Document: ${latexContent.length} characters`);
+        console.log(`   Bibliography: ${bibContent.length} characters`);
 
-        if (!window.supabaseClient) {
-            throw new Error('Supabase client not initialized');
-        }
-
-        // Invoke the edge function with LaTeX content
-        const { data, error } = await window.supabaseClient.functions.invoke('compile-latex', {
-            body: {
-                content: latexContent,
-                compiler: 'pdflatex',
-                filename: 'main.tex'
-            }
+        const pdfBlob = await window.swiftLatexCompiler.compileToPDF(latexContent, {
+            bibContent: bibContent
         });
 
-        if (error) {
-            console.error('Compilation error:', error);
-            throw new Error(error.message || 'LaTeX compilation failed');
-        }
-
-        // Check if we got a PDF blob or an error
-        let pdfBlob;
-
-        if (data instanceof Blob) {
-            // Direct blob response
-            pdfBlob = data;
-        } else if (data instanceof ArrayBuffer) {
-            // ArrayBuffer response - convert to Blob
-            pdfBlob = new Blob([data], { type: 'application/pdf' });
-        } else {
-            // Unexpected response format
-            console.error('Unexpected response format:', data);
-            throw new Error('Unexpected response format from compilation service');
-        }
-
-        // Verify it's actually a PDF by checking magic bytes
-        const arrayBuffer = await pdfBlob.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        const isPDF = uint8Array[0] === 0x25 && // %
-                      uint8Array[1] === 0x50 && // P
-                      uint8Array[2] === 0x44 && // D
-                      uint8Array[3] === 0x46;   // F
-
-        if (!isPDF) {
-            // Response is not a PDF - might be an error message
-            const text = new TextDecoder().decode(uint8Array);
-            console.error('Response is not a PDF:', text.substring(0, 500));
-            throw new Error('Compilation failed: ' + (text.substring(0, 200) || 'Invalid response'));
-        }
-
-        console.log('PDF downloaded successfully, size:', pdfBlob.size, 'bytes');
+        console.log('✅ PDF generated successfully, size:', pdfBlob.size, 'bytes');
 
         // Store the PDF for download
         window.lastCompiledPdf = pdfBlob;
@@ -471,17 +432,31 @@ async function compileToPDFPreview() {
         await renderPDFInContainer(pdfBlob, previewContainer);
 
         showNotification('PDF compiled successfully!', 'success');
+
     } catch (error) {
         console.error('PDF compilation error:', error);
         previewContainer.innerHTML = `
             <div style="padding: 20px; text-align: center; color: #ef5350;">
-                <strong>Compilation Error:</strong><br>
+                <strong>⚠️ Compilation Error:</strong><br>
                 <span style="font-size: 14px;">${escapeHtml(error.message)}</span><br>
                 <div style="margin-top: 12px; font-size: 13px; color: #6c757d;">
-                    Please check your LaTeX syntax and try again.
+                    Please check your LaTeX syntax and try again.<br>
+                    Check the browser console for detailed error logs.
                 </div>
             </div>
         `;
+        showNotification('LaTeX compilation failed: ' + error.message, 'error');
+    } finally {
+        // Restore button state
+        if (compileBtn) {
+            compileBtn.disabled = false;
+            const btnText = compileBtn.querySelector('span');
+            if (btnText) btnText.textContent = 'Compile';
+        }
+        if (downloadTexBtn) downloadTexBtn.disabled = false;
+        if (downloadPdfBtn) downloadPdfBtn.disabled = false;
+    }
+}
         showNotification('LaTeX compilation failed: ' + error.message, 'error');
     } finally {
         // Restore button state

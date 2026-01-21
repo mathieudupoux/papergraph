@@ -933,6 +933,13 @@
     <!-- Data Layer -->
     <script src="js/data/storage.js"></script>
     <script src="js/data/bibtex-parser.js"></script>
+
+    <!-- NEW: Client-Side LaTeX Compilation (SwiftLaTeX WebAssembly) -->
+    <script type="module" src="js/services/swiftlatex-compiler.js"></script>
+    <script type="module" src="js/services/document-generator.js"></script>
+    <script type="module" src="js/components/latex-editor.js"></script>
+
+    <!-- OLD: Kept for backward compatibility, but will be phased out -->
     <script src="js/data/latex-compiler.js"></script>
     <script src="js/data/export.js"></script>
     <script src="js/data/import.js"></script>
