@@ -38,7 +38,27 @@ class SwiftLaTeXCompiler {
                 this.engine = new PdfTeXEngine();
 
                 // Load engine
+                console.log('📦 Loading WebAssembly engine...');
                 await this.engine.loadEngine();
+                console.log('✅ Engine loaded');
+
+                // Preload format file
+                console.log('📦 Loading format file...');
+                try {
+                    const formatResponse = await fetch('js/lib/swiftlatexpdftex.fmt');
+                    if (!formatResponse.ok) {
+                        console.warn('⚠️ Format file not found, compilation may fail');
+                    } else {
+                        const formatData = await formatResponse.arrayBuffer();
+                        const formatBytes = new Uint8Array(formatData);
+                        console.log(`📝 Format file loaded: ${formatBytes.length} bytes`);
+                        // Write to root of virtual FS where pdfTeX expects it
+                        this.engine.writeMemFSFile('swiftlatexpdftex.fmt', formatBytes);
+                        console.log('✅ Format file written to virtual filesystem');
+                    }
+                } catch (formatError) {
+                    console.warn('⚠️ Could not load format file:', formatError.message);
+                }
 
                 this.isReady = true;
                 this.isLoading = false;
