@@ -322,7 +322,7 @@ async function compileToPDFPreview() {
     if (downloadTexBtn) downloadTexBtn.disabled = true;
     if (downloadPdfBtn) downloadPdfBtn.disabled = true;
 
-    previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">🔄 Compiling LaTeX with SwiftLaTeX...</div>';
+    previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">🔄 Initializing SwiftLaTeX...</div>';
 
     try {
         // Initialize SwiftLaTeX if needed
@@ -330,7 +330,11 @@ async function compileToPDFPreview() {
             throw new Error('SwiftLaTeX compiler not loaded. Please refresh the page.');
         }
 
+        console.log('🔄 Step 1: Initializing SwiftLaTeX engine...');
         await window.swiftLatexCompiler.initialize();
+        console.log('✅ SwiftLaTeX engine ready');
+
+        previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">🔄 Preparing document...</div>';
 
         let latexContent = '';
         let bibContent = '';
@@ -369,8 +373,11 @@ async function compileToPDFPreview() {
         // Store for download
         window.lastCompiledLatex = latexContent;
 
+        // Update status
+        previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">🔄 Compiling LaTeX with SwiftLaTeX...<br><small>This may take 5-30 seconds</small></div>';
+
         // Compile with SwiftLaTeX
-        console.log('🚀 Compiling with SwiftLaTeX...');
+        console.log('🚀 Step 2: Starting compilation...');
         console.log(`   Document: ${latexContent.length} chars`);
         console.log(`   Bibliography: ${bibContent.length} chars`);
 
@@ -383,8 +390,13 @@ async function compileToPDFPreview() {
         // Store for download
         window.lastCompiledPdf = pdfBlob;
 
+        // Update status
+        previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">📄 Rendering PDF preview...</div>';
+
         // Render PDF using PDF.js
+        console.log('🔄 Step 3: Rendering PDF preview...');
         await renderPDFInContainer(pdfBlob, previewContainer);
+        console.log('✅ PDF preview rendered');
 
         showNotification('PDF compiled successfully!', 'success');
 

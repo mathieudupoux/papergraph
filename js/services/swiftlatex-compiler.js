@@ -64,16 +64,18 @@ class SwiftLaTeXCompiler {
      */
     async writeFile(filename, content) {
         if (!this.isReady) {
+            console.log('⚠️ Engine not ready, initializing...');
             await this.initialize();
         }
 
         try {
+            console.log(`📝 Writing to virtual FS: ${filename}...`);
             const contentBytes = typeof content === 'string'
                 ? new TextEncoder().encode(content)
                 : content;
 
             this.engine.writeMemFSFile(filename, contentBytes);
-            console.log(`📝 Written to virtual FS: ${filename} (${contentBytes.length} bytes)`);
+            console.log(`✅ Written to virtual FS: ${filename} (${contentBytes.length} bytes)`);
 
         } catch (error) {
             console.error(`❌ Failed to write ${filename}:`, error);
@@ -91,6 +93,7 @@ class SwiftLaTeXCompiler {
      */
     async compileToPDF(mainTexContent, options = {}) {
         if (!this.isReady) {
+            console.log('⚠️ Engine not ready for compilation, initializing...');
             await this.initialize();
         }
 
@@ -98,43 +101,65 @@ class SwiftLaTeXCompiler {
 
         try {
             console.log('📄 Starting LaTeX compilation...');
-            console.log(`   Document: ${mainTexContent.length} chars`);
+            console.log(`   Document length: ${mainTexContent.length} chars`);
+            console.log(`   First 200 chars: ${mainTexContent.substring(0, 200)}`);
 
             // Write main.tex
+            console.log('📝 Step 1: Writing main.tex to virtual filesystem...');
             await this.writeFile('main.tex', mainTexContent);
 
             // Write bibliography if provided
             if (bibContent && bibContent.trim()) {
-                console.log(`   Bibliography: ${bibContent.length} chars`);
+                console.log(`📝 Step 2: Writing bibliography (${bibContent.length} chars)...`);
                 await this.writeFile('references.bib', bibContent);
+            } else {
+                console.log('📝 Step 2: No bibliography provided, skipping');
             }
 
             // Set main file
+            console.log('📝 Step 3: Setting main file to main.tex...');
             this.engine.setEngineMainFile('main.tex');
+            console.log('✅ Main file set successfully');
 
             // Run pdflatex compilation
-            console.log('🔄 Running pdflatex...');
+            console.log('🔄 Step 4: Starting pdflatex compilation...');
+            console.log('⏳ Waiting for compilation to complete (this may take 5-30 seconds)...');
+
+            const startTime = performance.now();
             let result = await this.engine.compileLaTeX();
+            const endTime = performance.now();
+
+            console.log(`✅ Compilation completed in ${(endTime - startTime).toFixed(2)}ms`);
+            console.log('📊 Compilation result:', {
+                status: result.status,
+                hasPDF: !!result.pdf,
+                pdfSize: result.pdf ? result.pdf.length : 0,
+                logLength: result.log ? result.log.length : 0
+            });
 
             if (result.status !== 0) {
-                console.error('❌ LaTeX errors:', result.log);
+                console.error('❌ LaTeX compilation failed with status:', result.status);
+                console.error('📄 Compilation log:', result.log);
                 throw new Error('LaTeX compilation failed: ' + result.log.substring(0, 500));
             }
 
             // Check if we got a PDF
             if (!result.pdf) {
+                console.error('❌ No PDF generated despite status 0');
                 throw new Error('No PDF generated');
             }
 
             // Convert to Blob
+            console.log('📦 Converting PDF to Blob...');
             const pdfBlob = new Blob([result.pdf], { type: 'application/pdf' });
 
-            console.log(`✅ PDF generated (${pdfBlob.size} bytes)`);
+            console.log(`✅ PDF generated successfully (${pdfBlob.size} bytes)`);
 
             return pdfBlob;
 
         } catch (error) {
-            console.error('❌ Compilation failed:', error);
+            console.error('❌ Compilation failed with error:', error);
+            console.error('❌ Error stack:', error.stack);
             throw new Error(`Compilation failed: ${error.message}`);
         }
     }
