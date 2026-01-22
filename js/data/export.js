@@ -1208,7 +1208,7 @@ function processLatexContent(text) {
 }
 
 /**
- * Export project to PDF using online LaTeX compiler
+ * Export project to PDF using SwiftLaTeX WebAssembly compiler
  */
 async function exportToPDF() {
     try {
@@ -1237,60 +1237,20 @@ async function exportToPDF() {
         console.log('==============================');
 
         // Show notification
-        showNotification('Compiling to PDF... This may take a few seconds.', 'info');
+        showNotification('Compiling to PDF with SwiftLaTeX... This may take a few seconds.', 'info');
 
-        // Use Supabase Edge Function to proxy compilation (avoids CORS)
-        console.log('Compiling LaTeX document via Supabase proxy...');
-
-        if (!window.supabaseClient) {
-            throw new Error('Supabase client not initialized');
+        // Initialize and use SwiftLaTeX WebAssembly compiler
+        if (!window.swiftLatexCompiler) {
+            throw new Error('SwiftLaTeX compiler not loaded. Please refresh the page.');
         }
 
-        // Invoke the edge function with LaTeX content
-        const { data, error } = await window.supabaseClient.functions.invoke('compile-latex', {
-            body: {
-                content: latexContent,
-                compiler: 'pdflatex',
-                filename: 'main.tex'
-            }
-        });
+        console.log('Compiling LaTeX document with SwiftLaTeX...');
+        await window.swiftLatexCompiler.initialize();
 
-        if (error) {
-            console.error('Compilation error:', error);
-            throw new Error(error.message || 'LaTeX compilation failed');
-        }
+        // Compile using SwiftLaTeX (no bibliography file needed since using thebibliography)
+        const pdfBlob = await window.swiftLatexCompiler.compileToPDF(latexContent);
 
-        // Check if we got a PDF blob or an error
-        let pdfBlob;
-
-        if (data instanceof Blob) {
-            // Direct blob response
-            pdfBlob = data;
-        } else if (data instanceof ArrayBuffer) {
-            // ArrayBuffer response - convert to Blob
-            pdfBlob = new Blob([data], { type: 'application/pdf' });
-        } else {
-            // Unexpected response format
-            console.error('Unexpected response format:', data);
-            throw new Error('Unexpected response format from compilation service');
-        }
-
-        // Verify it's actually a PDF by checking magic bytes
-        const arrayBuffer = await pdfBlob.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        const isPDF = uint8Array[0] === 0x25 && // %
-                      uint8Array[1] === 0x50 && // P
-                      uint8Array[2] === 0x44 && // D
-                      uint8Array[3] === 0x46;   // F
-
-        if (!isPDF) {
-            // Response is not a PDF - might be an error message
-            const text = new TextDecoder().decode(uint8Array);
-            console.error('Response is not a PDF:', text.substring(0, 500));
-            throw new Error('Compilation failed: ' + (text.substring(0, 200) || 'Invalid response'));
-        }
-
-        console.log('PDF downloaded successfully, size:', pdfBlob.size, 'bytes');
+        console.log('PDF compiled successfully, size:', pdfBlob.size, 'bytes');
 
         // Download PDF
         const url = URL.createObjectURL(pdfBlob);

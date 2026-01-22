@@ -1,5 +1,8 @@
 // ===== LIST VIEW (NOTEBOOK MODE) =====
 
+// Global editor instance
+let latexEditor = null;
+
 function renderListView(searchTerm = '') {
     const sidebar = document.getElementById('sidebarContent');
     if (!sidebar) return;
@@ -165,9 +168,14 @@ function loadArticleToEditor(id) {
         linksContainer.appendChild(pdfBtn);
     }
 
-    // Content - no automatic preview
+    // Initialize CodeMirror LaTeX Editor
     const contentEl = document.getElementById('noteContent');
-    contentEl.textContent = article.text || '';
+
+    // Destroy previous editor if exists
+    if (latexEditor) {
+        latexEditor.destroy();
+        latexEditor = null;
+    }
 
     // Show instruction in preview
     const previewContainer = document.getElementById('latexPreview');
@@ -175,53 +183,18 @@ function loadArticleToEditor(id) {
         previewContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #999; font-size: 14px;">Click "Compile PDF" to preview your LaTeX document</div>';
     }
 
-    // Debounce timer for auto-save
+    // Initialize editor with auto-save
     let saveTimer = null;
-
-    // Prevent Enter from creating <div> or <br>, insert plain newline
-    contentEl.onkeydown = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const selection = window.getSelection();
-            const range = selection.getRangeAt(0);
-            range.deleteContents();
-            const textNode = document.createTextNode('\n');
-            range.insertNode(textNode);
-            range.setStartAfter(textNode);
-            range.setEndAfter(textNode);
-            selection.removeAllRanges();
-            selection.addRange(range);
-
-            // Trigger save
-            clearTimeout(saveTimer);
-            saveTimer = setTimeout(() => {
-                if(article.text !== contentEl.textContent) {
-                    article.text = contentEl.textContent;
-                    saveToLocalStorage(true);
-                }
-            }, 1000);
-        }
-    };
-
-    // Auto-save on keyup (removed preview update)
-    contentEl.onkeyup = () => {
+    latexEditor = window.initLatexEditor(contentEl, article.text || '', (content) => {
         // Auto-save after 1 second of no typing
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
-            if(article.text !== contentEl.textContent) {
-                article.text = contentEl.textContent;
+            if (article.text !== content) {
+                article.text = content;
                 saveToLocalStorage(true);
             }
         }, 1000);
-    };
-    
-    contentEl.onblur = () => {
-        clearTimeout(saveTimer);
-        if(article.text !== contentEl.textContent) {
-            article.text = contentEl.textContent;
-            saveToLocalStorage(true);
-        }
-    };
+    });
     
     // Render tags
     const tagsContainer = document.getElementById('noteTags');
@@ -333,9 +306,6 @@ function addPreviewToggle() {
 
 // Compile current content to PDF and display in preview
 async function compileToPDFPreview() {
-    const contentEl = document.getElementById('noteContent');
-    if (!contentEl) return;
-
     const previewContainer = document.getElementById('latexPreview');
     if (!previewContainer) return;
 
@@ -352,133 +322,80 @@ async function compileToPDFPreview() {
     if (downloadTexBtn) downloadTexBtn.disabled = true;
     if (downloadPdfBtn) downloadPdfBtn.disabled = true;
 
-    previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">Compiling LaTeX to PDF...</div>';
+    previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">🔄 Compiling LaTeX with SwiftLaTeX...</div>';
 
     try {
-        let latexContent;
+        // Initialize SwiftLaTeX if needed
+        if (!window.swiftLatexCompiler) {
+            throw new Error('SwiftLaTeX compiler not loaded. Please refresh the page.');
+        }
 
-        // Check if we're in review mode - compile full document
-        if (activeNoteId === 'review') {
-            // Use the full document generator from export.js
-            latexContent = generateLatexDocument();
-        } else {
-            // For individual articles, compile just that content
-            latexContent = contentEl.textContent || '';
+        await window.swiftLatexCompiler.initialize();
 
-            if (!latexContent.trim()) {
-                showNotification('No content to compile', 'warning');
-                return;
-            }
+        let latexContent = '';
+        let bibContent = '';
 
-            // Add minimal document wrapper if not present
-            if (!latexContent.includes('\\documentclass')) {
-                let preamble = `\\documentclass[11pt,a4paper]{article}
+        // Get content from editor (not contentEl - now using CodeMirror)
+        if (latexEditor) {
+            latexContent = latexEditor.getValue();
+        }
+
+        if (!latexContent.trim()) {
+            showNotification('No content to compile', 'warning');
+            return;
+        }
+
+        // Add minimal document wrapper if not present
+        if (!latexContent.includes('\\documentclass')) {
+            let preamble = `\\documentclass[11pt,a4paper]{article}
 \\usepackage[utf8]{inputenc}
 \\usepackage[margin=1in]{geometry}
 \\usepackage{amsmath}
 \\usepackage{amssymb}
 \\usepackage{hyperref}
+\\usepackage{cite}
 
 \\begin{document}
 `;
-                // Add inline bibliography if there are citations
-                let bibliography = '';
-                if (appData.articles && appData.articles.length > 0 && latexContent.includes('\\cite{')) {
-                    bibliography = '\n\n\\begin{thebibliography}{99}\n\n';
-                    appData.articles.forEach(article => {
-                        if (article.bibtexId) {
-                            bibliography += `\\bibitem{${article.bibtexId}}\n`;
-                            if (article.authors) bibliography += article.authors + '. ';
-                            if (article.title) bibliography += `\\textit{${article.title}}. `;
-                            if (article.journal) {
-                                bibliography += article.journal;
-                                if (article.volume) bibliography += `, ${article.volume}`;
-                                if (article.number) bibliography += `(${article.number})`;
-                                if (article.pages) bibliography += `, pp. ${article.pages}`;
-                                bibliography += '. ';
-                            }
-                            if (article.year) bibliography += article.year + '.';
-                            bibliography += '\n\n';
-                        }
-                    });
-                    bibliography += '\\end{thebibliography}\n';
-                }
 
-                latexContent = preamble + latexContent + bibliography + '\n\\end{document}';
+            // Generate BibTeX bibliography if there are citations
+            if (appData.articles && appData.articles.length > 0 && latexContent.includes('\\cite')) {
+                bibContent = generateBibliography(appData.articles);
             }
+
+            latexContent = preamble + latexContent + '\n\n\\bibliographystyle{plain}\n\\bibliography{references}\n\n\\end{document}';
         }
 
-        // Store the latex content for download
+        // Store for download
         window.lastCompiledLatex = latexContent;
 
-        // Use Supabase Edge Function to proxy compilation (avoids CORS)
-        console.log('Compiling LaTeX document via Supabase proxy...');
+        // Compile with SwiftLaTeX
+        console.log('🚀 Compiling with SwiftLaTeX...');
+        console.log(`   Document: ${latexContent.length} chars`);
+        console.log(`   Bibliography: ${bibContent.length} chars`);
 
-        if (!window.supabaseClient) {
-            throw new Error('Supabase client not initialized');
-        }
-
-        // Invoke the edge function with LaTeX content
-        const { data, error } = await window.supabaseClient.functions.invoke('compile-latex', {
-            body: {
-                content: latexContent,
-                compiler: 'pdflatex',
-                filename: 'main.tex'
-            }
+        const pdfBlob = await window.swiftLatexCompiler.compileToPDF(latexContent, {
+            bibContent: bibContent
         });
 
-        if (error) {
-            console.error('Compilation error:', error);
-            throw new Error(error.message || 'LaTeX compilation failed');
-        }
+        console.log(`✅ PDF generated (${pdfBlob.size} bytes)`);
 
-        // Check if we got a PDF blob or an error
-        let pdfBlob;
-
-        if (data instanceof Blob) {
-            // Direct blob response
-            pdfBlob = data;
-        } else if (data instanceof ArrayBuffer) {
-            // ArrayBuffer response - convert to Blob
-            pdfBlob = new Blob([data], { type: 'application/pdf' });
-        } else {
-            // Unexpected response format
-            console.error('Unexpected response format:', data);
-            throw new Error('Unexpected response format from compilation service');
-        }
-
-        // Verify it's actually a PDF by checking magic bytes
-        const arrayBuffer = await pdfBlob.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        const isPDF = uint8Array[0] === 0x25 && // %
-                      uint8Array[1] === 0x50 && // P
-                      uint8Array[2] === 0x44 && // D
-                      uint8Array[3] === 0x46;   // F
-
-        if (!isPDF) {
-            // Response is not a PDF - might be an error message
-            const text = new TextDecoder().decode(uint8Array);
-            console.error('Response is not a PDF:', text.substring(0, 500));
-            throw new Error('Compilation failed: ' + (text.substring(0, 200) || 'Invalid response'));
-        }
-
-        console.log('PDF downloaded successfully, size:', pdfBlob.size, 'bytes');
-
-        // Store the PDF for download
+        // Store for download
         window.lastCompiledPdf = pdfBlob;
 
         // Render PDF using PDF.js
         await renderPDFInContainer(pdfBlob, previewContainer);
 
         showNotification('PDF compiled successfully!', 'success');
+
     } catch (error) {
-        console.error('PDF compilation error:', error);
+        console.error('❌ Compilation error:', error);
         previewContainer.innerHTML = `
             <div style="padding: 20px; text-align: center; color: #ef5350;">
-                <strong>Compilation Error:</strong><br>
+                <strong>⚠️ Compilation Error:</strong><br>
                 <span style="font-size: 14px;">${escapeHtml(error.message)}</span><br>
                 <div style="margin-top: 12px; font-size: 13px; color: #6c757d;">
-                    Please check your LaTeX syntax and try again.
+                    Check your LaTeX syntax. See browser console for detailed log.
                 </div>
             </div>
         `;
@@ -493,6 +410,47 @@ async function compileToPDFPreview() {
         if (downloadTexBtn) downloadTexBtn.disabled = false;
         if (downloadPdfBtn) downloadPdfBtn.disabled = false;
     }
+}
+
+/**
+ * Generate BibTeX bibliography from articles
+ */
+function generateBibliography(articles) {
+    if (!articles || articles.length === 0) return '';
+
+    let bib = '% Generated Bibliography\n\n';
+
+    articles.forEach((article, index) => {
+        if (!article.bibtexId) return;
+
+        const key = article.bibtexId;
+        bib += `@article{${key},\n`;
+
+        if (article.authors) bib += `  author = {${escapeBibTeX(article.authors)}},\n`;
+        if (article.title) bib += `  title = {${escapeBibTeX(article.title)}},\n`;
+        if (article.journal) bib += `  journal = {${escapeBibTeX(article.journal)}},\n`;
+        if (article.year) bib += `  year = {${article.year}},\n`;
+        if (article.volume) bib += `  volume = {${article.volume}},\n`;
+        if (article.number) bib += `  number = {${article.number}},\n`;
+        if (article.pages) bib += `  pages = {${article.pages}},\n`;
+        if (article.doi) bib += `  doi = {${article.doi}},\n`;
+
+        bib += `}\n\n`;
+    });
+
+    return bib;
+}
+
+/**
+ * Escape special BibTeX characters
+ */
+function escapeBibTeX(text) {
+    if (!text) return '';
+    return text
+        .replace(/\\/g, '\\\\')
+        .replace(/{/g, '\\{')
+        .replace(/}/g, '\\}')
+        .replace(/%/g, '\\%');
 }
 
 // Render PDF blob in a container using PDF.js

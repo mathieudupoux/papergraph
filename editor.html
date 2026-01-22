@@ -914,6 +914,21 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/dist/vis-network.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- CodeMirror 6 -->
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@6.0.1/dist/index.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@6.0.1/dist/codemirror.min.css">
+
+    <!-- SwiftLaTeX (WebAssembly LaTeX Compiler) -->
+    <script src="https://cdn.jsdelivr.net/npm/swiftlatex@latest/dist/SwiftLaTeX.js"></script>
+
+    <!-- PDF.js for PDF preview rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
     
     <!-- Initialize Supabase Client Globally -->
     <script type="module">
@@ -933,6 +948,12 @@
     <!-- Data Layer -->
     <script src="js/data/storage.js"></script>
     <script src="js/data/bibtex-parser.js"></script>
+
+    <!-- NEW: Client-Side Compilation Services -->
+    <script src="js/services/swiftlatex-compiler.js"></script>
+    <script src="js/utils/codemirror-latex.js"></script>
+
+    <!-- OLD: Keep for backward compatibility -->
     <script src="js/data/latex-compiler.js"></script>
     <script src="js/data/export.js"></script>
     <script src="js/data/import.js"></script>
