@@ -605,9 +605,8 @@ function loadReviewToEditor() {
     const metadataLinks = document.getElementById('metadataLinks');
     if (metadataLinks) metadataLinks.innerHTML = '';
 
-    // Content - no automatic preview
+    // Content - use CodeMirror LaTeX Editor
     const contentEl = document.getElementById('noteContent');
-    contentEl.textContent = appData.projectReview || '';
 
     // Show instruction in preview
     const previewContainer = document.getElementById('latexPreview');
@@ -618,43 +617,23 @@ function loadReviewToEditor() {
     // Debounce timer for auto-save
     let saveTimer = null;
 
-    // Prevent Enter from creating <div> or <br>, insert plain newline
-    contentEl.onkeydown = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const selection = window.getSelection();
-            const range = selection.getRangeAt(0);
-            range.deleteContents();
-            const textNode = document.createTextNode('\n');
-            range.insertNode(textNode);
-            range.setStartAfter(textNode);
-            range.setEndAfter(textNode);
-            selection.removeAllRanges();
-            selection.addRange(range);
+    // Destroy previous editor if exists (when switching between articles and review)
+    if (latexEditor) {
+        latexEditor.destroy();
+        latexEditor = null;
+    }
 
-            // Trigger save
-            clearTimeout(saveTimer);
-            saveTimer = setTimeout(() => {
-                appData.projectReview = contentEl.textContent;
-                saveToLocalStorage(true);
-            }, 1000);
-        }
-    };
-
-    contentEl.onkeyup = () => {
+    // Initialize CodeMirror LaTeX Editor for project review
+    latexEditor = window.initLatexEditor(contentEl, appData.projectReview || '', (content) => {
         // Auto-save after 1 second of no typing
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
-            appData.projectReview = contentEl.textContent;
-            saveToLocalStorage(true);
+            if (appData.projectReview !== content) {
+                appData.projectReview = content;
+                saveToLocalStorage(true);
+            }
         }, 1000);
-    };
-    
-    contentEl.onblur = () => {
-        clearTimeout(saveTimer);
-        appData.projectReview = contentEl.textContent;
-        saveToLocalStorage(true);
-    };
+    });
     
     // Add toggle button to preview pane label
     addPreviewToggle();
