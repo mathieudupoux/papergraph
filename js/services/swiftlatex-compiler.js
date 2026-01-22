@@ -81,23 +81,6 @@ class SwiftLaTeXCompiler {
         }
     }
 
-    /**
-     * Read file from virtual filesystem
-     * @param {string} filename - File name
-     * @returns {Uint8Array} File content
-     */
-    async readFile(filename) {
-        if (!this.isReady) {
-            throw new Error('SwiftLaTeX engine not initialized');
-        }
-
-        try {
-            return this.engine.readMemFSFile(filename);
-        } catch (error) {
-            console.error(`❌ Failed to read ${filename}:`, error);
-            throw error;
-        }
-    }
 
     /**
      * Compile LaTeX to PDF
@@ -129,40 +112,22 @@ class SwiftLaTeXCompiler {
             // Set main file
             this.engine.setEngineMainFile('main.tex');
 
-            // First pass: pdflatex
-            console.log('🔄 Running pdflatex (pass 1)...');
+            // Run pdflatex compilation
+            console.log('🔄 Running pdflatex...');
             let result = await this.engine.compileLaTeX();
 
             if (result.status !== 0) {
-                const log = await this.getLog();
-                console.error('❌ LaTeX errors (pass 1):', log);
-                throw new Error('LaTeX compilation failed. Check console for errors.');
+                console.error('❌ LaTeX errors:', result.log);
+                throw new Error('LaTeX compilation failed: ' + result.log.substring(0, 500));
             }
 
-            // If bibliography exists, run bibtex + 2 more pdflatex passes
-            if (bibContent && bibContent.trim()) {
-                console.log('🔄 Running bibtex...');
-                await this.engine.compileBibtex();
-
-                console.log('🔄 Running pdflatex (pass 2)...');
-                result = await this.engine.compileLaTeX();
-
-                console.log('🔄 Running pdflatex (pass 3 - final)...');
-                result = await this.engine.compileLaTeX();
-
-                if (result.status !== 0) {
-                    const log = await this.getLog();
-                    console.error('❌ LaTeX errors (final pass):', log);
-                    throw new Error('LaTeX compilation failed. Check console for errors.');
-                }
+            // Check if we got a PDF
+            if (!result.pdf) {
+                throw new Error('No PDF generated');
             }
-
-            // Read generated PDF
-            console.log('📥 Reading generated PDF...');
-            const pdfData = await this.readFile('main.pdf');
 
             // Convert to Blob
-            const pdfBlob = new Blob([pdfData], { type: 'application/pdf' });
+            const pdfBlob = new Blob([result.pdf], { type: 'application/pdf' });
 
             console.log(`✅ PDF generated (${pdfBlob.size} bytes)`);
 
@@ -170,32 +135,7 @@ class SwiftLaTeXCompiler {
 
         } catch (error) {
             console.error('❌ Compilation failed:', error);
-
-            // Try to get log
-            try {
-                const log = await this.getLog();
-                if (log) {
-                    console.error('LaTeX log:', log);
-                    throw new Error(`Compilation failed: ${log.substring(0, 500)}`);
-                }
-            } catch (logError) {
-                // Log not available
-            }
-
             throw new Error(`Compilation failed: ${error.message}`);
-        }
-    }
-
-    /**
-     * Get compilation log
-     * @returns {Promise<string>} Log content
-     */
-    async getLog() {
-        try {
-            const logData = await this.readFile('main.log');
-            return new TextDecoder().decode(logData);
-        } catch (error) {
-            return 'Log not available';
         }
     }
 
