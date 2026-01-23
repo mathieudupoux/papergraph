@@ -465,52 +465,218 @@ function escapeBibTeX(text) {
         .replace(/%/g, '\\%');
 }
 
-// Render PDF blob in a container using PDF.js
+// Modern PDF.js viewer with toolbar and controls
 async function renderPDFInContainer(pdfBlob, container) {
     if (!window.pdfjsLib) {
         throw new Error('PDF.js library not loaded');
     }
 
-    // Clear container
+    // Clear container and reset styles
     container.innerHTML = '';
-    container.style.cssText = 'overflow-y: auto; background: #525252; padding: 20px;';
+    container.style.cssText = '';
 
-    // Convert blob to array buffer
-    const arrayBuffer = await pdfBlob.arrayBuffer();
+    // Create viewer structure
+    const viewerContainer = document.createElement('div');
+    viewerContainer.className = 'pdf-viewer-container';
 
-    // Load PDF document
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-    const pdf = await loadingTask.promise;
+    // Create toolbar
+    const toolbar = document.createElement('div');
+    toolbar.className = 'pdf-viewer-toolbar';
+    toolbar.innerHTML = `
+        <div class="pdf-viewer-toolbar-left">
+            <button class="pdf-viewer-btn" id="pdfPrevPage" title="Previous Page">
+                <span class="pdf-viewer-icon-prev"></span> Previous
+            </button>
+            <button class="pdf-viewer-btn" id="pdfNextPage" title="Next Page">
+                Next <span class="pdf-viewer-icon-next"></span>
+            </button>
+        </div>
+        <div class="pdf-viewer-toolbar-center">
+            <div class="pdf-viewer-page-info">
+                <span>Page</span>
+                <input type="number" class="pdf-viewer-page-input" id="pdfPageInput" min="1" value="1">
+                <span>of <span id="pdfPageCount">-</span></span>
+            </div>
+        </div>
+        <div class="pdf-viewer-toolbar-right">
+            <button class="pdf-viewer-btn" id="pdfZoomOut" title="Zoom Out">
+                <span class="pdf-viewer-icon-zoom-out"></span>
+            </button>
+            <select class="pdf-viewer-zoom-select" id="pdfZoomSelect">
+                <option value="0.5">50%</option>
+                <option value="0.75">75%</option>
+                <option value="1.0" selected>100%</option>
+                <option value="1.25">125%</option>
+                <option value="1.5">150%</option>
+                <option value="2.0">200%</option>
+                <option value="auto">Fit Width</option>
+            </select>
+            <button class="pdf-viewer-btn" id="pdfZoomIn" title="Zoom In">
+                <span class="pdf-viewer-icon-zoom-in"></span>
+            </button>
+            <button class="pdf-viewer-btn" id="pdfDownload" title="Download PDF">
+                <span class="pdf-viewer-icon-download"></span> Download
+            </button>
+        </div>
+    `;
 
-    // Calculate scale based on container width
-    const containerWidth = container.clientWidth - 40; // Subtract padding
-    const firstPage = await pdf.getPage(1);
-    const viewport = firstPage.getViewport({ scale: 1.0 });
-    const scale = Math.min(containerWidth / viewport.width, 2.0); // Max 2x for quality
+    // Create content area
+    const content = document.createElement('div');
+    content.className = 'pdf-viewer-content';
 
-    // Render each page
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
+    const pagesContainer = document.createElement('div');
+    pagesContainer.className = 'pdf-viewer-pages';
+    content.appendChild(pagesContainer);
 
-        // Create canvas for this page
-        const canvas = document.createElement('canvas');
-        canvas.className = 'pdf-page-canvas';
-        canvas.style.cssText = 'display: block; margin: 0 auto 20px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); max-width: 100%;';
+    // Assemble viewer
+    viewerContainer.appendChild(toolbar);
+    viewerContainer.appendChild(content);
+    container.appendChild(viewerContainer);
 
-        const context = canvas.getContext('2d');
+    // Show loading
+    pagesContainer.innerHTML = '<div class="pdf-viewer-loading">Loading PDF...</div>';
 
-        // Set scale based on container width
-        const pageViewport = page.getViewport({ scale: scale });
-        canvas.width = pageViewport.width;
-        canvas.height = pageViewport.height;
+    try {
+        // Convert blob to array buffer
+        const arrayBuffer = await pdfBlob.arrayBuffer();
 
-        // Render page
-        await page.render({
-            canvasContext: context,
-            viewport: pageViewport
-        }).promise;
+        // Load PDF document
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
 
-        container.appendChild(canvas);
+        // PDF viewer state
+        const viewerState = {
+            pdf: pdf,
+            currentPage: 1,
+            totalPages: pdf.numPages,
+            scale: 1.0,
+            pagesContainer: pagesContainer,
+            rendering: false,
+            pdfBlob: pdfBlob
+        };
+
+        // Update page count
+        document.getElementById('pdfPageCount').textContent = pdf.numPages;
+
+        // Calculate initial scale for fit width
+        const contentWidth = content.clientWidth - 40;
+        const firstPage = await pdf.getPage(1);
+        const viewport = firstPage.getViewport({ scale: 1.0 });
+        const fitWidthScale = contentWidth / viewport.width;
+
+        // Render current page
+        async function renderPage(pageNum) {
+            if (viewerState.rendering) return;
+            viewerState.rendering = true;
+
+            pagesContainer.innerHTML = '';
+
+            const page = await pdf.getPage(pageNum);
+
+            // Calculate scale
+            let scale = viewerState.scale;
+            if (document.getElementById('pdfZoomSelect').value === 'auto') {
+                scale = fitWidthScale;
+            }
+
+            // Create page wrapper
+            const pageWrapper = document.createElement('div');
+            pageWrapper.className = 'pdf-viewer-page';
+
+            // Create canvas
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+
+            const pageViewport = page.getViewport({ scale: scale });
+            canvas.width = pageViewport.width;
+            canvas.height = pageViewport.height;
+
+            // Render page
+            await page.render({
+                canvasContext: context,
+                viewport: pageViewport
+            }).promise;
+
+            pageWrapper.appendChild(canvas);
+            pagesContainer.appendChild(pageWrapper);
+
+            // Update UI
+            viewerState.currentPage = pageNum;
+            document.getElementById('pdfPageInput').value = pageNum;
+            document.getElementById('pdfPrevPage').disabled = pageNum === 1;
+            document.getElementById('pdfNextPage').disabled = pageNum === pdf.numPages;
+
+            viewerState.rendering = false;
+        }
+
+        // Event handlers
+        document.getElementById('pdfPrevPage').addEventListener('click', () => {
+            if (viewerState.currentPage > 1) {
+                renderPage(viewerState.currentPage - 1);
+            }
+        });
+
+        document.getElementById('pdfNextPage').addEventListener('click', () => {
+            if (viewerState.currentPage < viewerState.totalPages) {
+                renderPage(viewerState.currentPage + 1);
+            }
+        });
+
+        document.getElementById('pdfPageInput').addEventListener('change', (e) => {
+            const pageNum = parseInt(e.target.value);
+            if (pageNum >= 1 && pageNum <= viewerState.totalPages) {
+                renderPage(pageNum);
+            } else {
+                e.target.value = viewerState.currentPage;
+            }
+        });
+
+        document.getElementById('pdfZoomSelect').addEventListener('change', (e) => {
+            const value = e.target.value;
+            if (value === 'auto') {
+                viewerState.scale = fitWidthScale;
+            } else {
+                viewerState.scale = parseFloat(value);
+            }
+            renderPage(viewerState.currentPage);
+        });
+
+        document.getElementById('pdfZoomIn').addEventListener('click', () => {
+            const currentScale = viewerState.scale;
+            const newScale = Math.min(currentScale * 1.25, 3.0);
+            viewerState.scale = newScale;
+            document.getElementById('pdfZoomSelect').value = newScale.toFixed(2);
+            renderPage(viewerState.currentPage);
+        });
+
+        document.getElementById('pdfZoomOut').addEventListener('click', () => {
+            const currentScale = viewerState.scale;
+            const newScale = Math.max(currentScale / 1.25, 0.25);
+            viewerState.scale = newScale;
+            document.getElementById('pdfZoomSelect').value = newScale.toFixed(2);
+            renderPage(viewerState.currentPage);
+        });
+
+        document.getElementById('pdfDownload').addEventListener('click', () => {
+            const url = URL.createObjectURL(viewerState.pdfBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'document.pdf';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        // Initial render
+        await renderPage(1);
+
+    } catch (error) {
+        pagesContainer.innerHTML = `
+            <div class="pdf-viewer-error">
+                <div class="pdf-viewer-error-title">Error Loading PDF</div>
+                <div class="pdf-viewer-error-message">${error.message}</div>
+            </div>
+        `;
+        console.error('PDF rendering error:', error);
     }
 }
 

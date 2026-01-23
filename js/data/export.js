@@ -1097,9 +1097,45 @@ function generateLatexDocument() {
                 latex += `\\setcounter{section}{0}\n`;
                 latex += `\\setcounter{subsection}{0}\n`;
                 latex += `\\setcounter{subsubsection}{0}\n\n`;
+
+                // Add default template with article metadata and BibTeX
+                latex += `% Article Metadata Template\n`;
+                latex += `\\begin{quote}\n`;
+                latex += `\\textbf{Title:} ${escapeLatex(article.title || 'Untitled')}\\\\\n`;
+                if (article.authors) {
+                    latex += `\\textbf{Authors:} ${escapeLatex(article.authors)}\\\\\n`;
+                }
+                latex += `\\end{quote}\n\n`;
+
+                // Add BibTeX entry
+                latex += `\\textbf{BibTeX Entry:}\n\n`;
+                latex += `\\begin{verbatim}\n`;
+                const bibtexEntry = articleToBibTeX(article);
+                latex += bibtexEntry;
+                latex += `\\end{verbatim}\n\n`;
+
+                latex += `\\hrule\n\n`;
+
                 // Article content keeps its sectioning as-is
                 const articleText = processLatexContent(article.text);
                 latex += articleText + '\n\n';
+            } else {
+                // Even without custom notes, add the default template
+                latex += `\\textbf{Notes:}\n\n`;
+                latex += `% Article Metadata Template\n`;
+                latex += `\\begin{quote}\n`;
+                latex += `\\textbf{Title:} ${escapeLatex(article.title || 'Untitled')}\\\\\n`;
+                if (article.authors) {
+                    latex += `\\textbf{Authors:} ${escapeLatex(article.authors)}\\\\\n`;
+                }
+                latex += `\\end{quote}\n\n`;
+
+                // Add BibTeX entry
+                latex += `\\textbf{BibTeX Entry:}\n\n`;
+                latex += `\\begin{verbatim}\n`;
+                const bibtexEntry = articleToBibTeX(article);
+                latex += bibtexEntry;
+                latex += `\\end{verbatim}\n\n`;
             }
         });
     }
