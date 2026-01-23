@@ -21,6 +21,7 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
     const editorWrapper = document.createElement('div');
     editorWrapper.className = 'latex-editor-wrapper';
     editorWrapper.style.cssText = `
+        position: relative;
         display: flex;
         width: 100%;
         min-height: 400px;
@@ -47,6 +48,29 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
         border-right: 1px solid #e0e0e0;
         font-size: 12px;
         line-height: 1.5;
+        overflow: hidden;
+    `;
+
+    // Create syntax highlight layer (behind textarea)
+    const highlightLayer = document.createElement('pre');
+    highlightLayer.className = 'latex-highlight-layer';
+    highlightLayer.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 50px;
+        margin: 0;
+        padding: 8px 12px;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow: hidden;
+        pointer-events: none;
+        z-index: 1;
+        background: transparent;
+        border: none;
+        color: transparent;
     `;
 
     // Create textarea for code
@@ -57,10 +81,11 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
     textarea.setAttribute('autocomplete', 'off');
     textarea.setAttribute('autocorrect', 'off');
     textarea.setAttribute('autocapitalize', 'off');
-    textarea.setAttribute('wrap', 'off');
+    textarea.setAttribute('wrap', 'soft');
 
-    // Styling for LaTeX editor (light theme)
+    // Styling for LaTeX editor (light theme, transparent text for highlighting)
     textarea.style.cssText = `
+        position: relative;
         flex: 1;
         min-height: 400px;
         font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
@@ -71,9 +96,10 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
         margin: 0;
         resize: vertical;
         tab-size: 4;
-        background: #ffffff;
+        background: transparent;
         color: #2e3440;
         outline: none;
+        z-index: 2;
     `;
 
     // Add global CSS for syntax highlighting and scrollbar
@@ -107,17 +133,33 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
                 background: #b3d7ff;
             }
 
-            /* Syntax highlighting overlay */
-            .latex-highlight-layer {
-                position: absolute;
-                top: 0;
-                left: 0;
-                pointer-events: none;
-                font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-                font-size: 13px;
-                line-height: 1.5;
-                white-space: pre;
-                overflow: hidden;
+            /* Syntax highlighting colors */
+            .latex-highlight-layer .latex-command {
+                color: #0077aa;
+                font-weight: 500;
+            }
+
+            .latex-highlight-layer .latex-comment {
+                color: #6a9955;
+                font-style: italic;
+            }
+
+            .latex-highlight-layer .latex-bracket {
+                color: #af00db;
+            }
+
+            .latex-highlight-layer .latex-math {
+                color: #ee9900;
+                font-weight: bold;
+            }
+
+            .latex-highlight-layer .latex-environment {
+                color: #008080;
+                font-weight: 600;
+            }
+
+            .latex-highlight-layer .latex-string {
+                color: #d73a49;
             }
         `;
         document.head.appendChild(style);
@@ -136,51 +178,32 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
         lineNumbers.scrollTop = textarea.scrollTop;
     }
 
-    // Function to apply syntax highlighting (visual only)
+    // Function to apply syntax highlighting
     function applySyntaxHighlighting(text) {
-        // This creates a visual overlay with colored text
-        // LaTeX syntax categories:
-        // - Commands: \command
-        // - Math: $ ... $, \[ ... \]
-        // - Comments: %
-        // - Environments: \begin{} \end{}
-        // - Special chars: {, }, [, ]
-
-        return text
-            // Escape HTML
+        // Escape HTML first
+        let html = text
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            // Comments (green)
-            .replace(/(%.*$)/gm, '<span style="color: #6a9955;">$1</span>')
-            // Commands (blue)
-            .replace(/(\\[a-zA-Z]+)/g, '<span style="color: #0077aa; font-weight: 500;">$1</span>')
-            // Brackets and braces (purple)
-            .replace(/([{}[\]])/g, '<span style="color: #af00db;">$1</span>')
-            // Math delimiters (orange)
-            .replace(/(\$\$?)/g, '<span style="color: #ee9900; font-weight: bold;">$1</span>')
-            // Environment names (teal)
-            .replace(/(\\(?:begin|end)\{)([^}]+)(\})/g,
-                '<span style="color: #0077aa; font-weight: 500;">$1</span>' +
-                '<span style="color: #008080; font-weight: 600;">$2</span>' +
-                '<span style="color: #af00db;">$3</span>');
-    }
+            .replace(/>/g, '&gt;');
 
-    // Create syntax highlighting overlay
-    const highlightLayer = document.createElement('pre');
-    highlightLayer.className = 'latex-highlight-layer';
-    highlightLayer.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: ${lineNumbers.offsetWidth}px;
-        padding: 8px 12px;
-        margin: 0;
-        pointer-events: none;
-        color: transparent;
-        z-index: 1;
-        width: calc(100% - ${lineNumbers.offsetWidth}px);
-        overflow: hidden;
-    `;
+        // Apply syntax highlighting with classes
+        html = html
+            // Comments (green) - highest priority, should be done first
+            .replace(/(%.*?)$/gm, '<span class="latex-comment">$1</span>')
+            // LaTeX commands (\command)
+            .replace(/(\\[a-zA-Z@]+\*?)/g, '<span class="latex-command">$1</span>')
+            // Environment names  in \begin{} and \end{}
+            .replace(/(\\(?:begin|end)\{)([^}]+)(\})/g,
+                '<span class="latex-command">$1</span>' +
+                '<span class="latex-environment">$2</span>' +
+                '<span class="latex-bracket">$3</span>')
+            // Math delimiters ($ and $$)
+            .replace(/(\$\$?)/g, '<span class="latex-math">$1</span>')
+            // Brackets and braces (purple)
+            .replace(/([{}[\]])/g, '<span class="latex-bracket">$1</span>');
+
+        return html;
+    }
 
     // Update highlighting
     function updateHighlighting() {
@@ -191,13 +214,15 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
     }
 
     // Event listener for changes
-    if (onChange) {
-        textarea.addEventListener('input', () => {
+    const handleInput = () => {
+        if (onChange) {
             onChange(textarea.value);
-            updateLineNumbers();
-            updateHighlighting();
-        });
-    }
+        }
+        updateLineNumbers();
+        updateHighlighting();
+    };
+
+    textarea.addEventListener('input', handleInput);
 
     // Sync scroll between line numbers, textarea, and highlight layer
     textarea.addEventListener('scroll', () => {
@@ -219,24 +244,19 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
             textarea.selectionStart = textarea.selectionEnd = start + 4;
 
             // Trigger change event
-            if (onChange) {
-                onChange(textarea.value);
-            }
-            updateLineNumbers();
-            updateHighlighting();
+            handleInput();
         }
     });
 
-    // Assemble editor
+    // Assemble editor (order matters: highlight layer behind textarea)
     editorWrapper.appendChild(lineNumbers);
+    editorWrapper.appendChild(highlightLayer);
     editorWrapper.appendChild(textarea);
-    // Note: We're not adding highlightLayer as it would require complex positioning
-    // For now, we'll use the color in comments which users can see in real-time
-
     container.appendChild(editorWrapper);
 
     // Initial update
     updateLineNumbers();
+    updateHighlighting();
 
     // Return editor interface
     return {
@@ -244,6 +264,7 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
         setValue: (content) => {
             textarea.value = content;
             updateLineNumbers();
+            updateHighlighting();
         },
         destroy: () => {
             editorWrapper.remove();
