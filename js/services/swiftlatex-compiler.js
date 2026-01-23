@@ -43,9 +43,37 @@ class SwiftLaTeXCompiler {
                 console.log('✅ Engine loaded');
 
                 // Set TeX Live endpoint for on-demand package loading
-                // This allows SwiftLaTeX to fetch required files automatically
                 this.engine.setTexliveEndpoint('https://texlive.swiftlatex.com/');
-                console.log('✅ TeX Live endpoint configured')
+                console.log('✅ TeX Live endpoint configured');
+
+                // Preload format file from local storage
+                // IMPORTANT: Format file must be loaded to prevent download failures
+                console.log('📦 Preloading format file...');
+                try {
+                    const formatResponse = await fetch('js/lib/swiftlatexpdftex.fmt');
+                    if (formatResponse.ok) {
+                        const formatData = await formatResponse.arrayBuffer();
+                        const formatBytes = new Uint8Array(formatData);
+
+                        console.log(`📥 Format file fetched (${formatBytes.length} bytes), writing to virtual FS...`);
+
+                        // Write to /work directory where pdfTeX looks for format files
+                        try {
+                            this.engine.writeMemFSFile('work/swiftlatexpdftex.fmt', formatBytes);
+                            console.log('✅ Format file written to /work/swiftlatexpdftex.fmt');
+                        } catch (writeError) {
+                            console.error('❌ Failed to write format to /work:', writeError);
+                            // Try root as fallback
+                            this.engine.writeMemFSFile('swiftlatexpdftex.fmt', formatBytes);
+                            console.log('✅ Format file written to root (fallback)');
+                        }
+                    } else {
+                        console.warn(`⚠️ Format file HTTP ${formatResponse.status}, will try TeX Live CDN`);
+                    }
+                } catch (formatError) {
+                    console.error('⚠️ Could not preload format file:', formatError);
+                    console.warn('Will attempt to use TeX Live CDN (may be slow or fail)');
+                }
 
                 this.isReady = true;
                 this.isLoading = false;
