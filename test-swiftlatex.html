@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SwiftLaTeX Test</title>
+    <script src="js/lib/PdfTeXEngine.js"></script>
+</head>
+<body>
+    <h1>SwiftLaTeX Test</h1>
+    <button onclick="testCompile()">Test Compile</button>
+    <pre id="log"></pre>
+
+    <script>
+        async function testCompile() {
+            const log = document.getElementById('log');
+            log.textContent = 'Starting test...\n';
+
+            try {
+                // Create engine
+                log.textContent += 'Creating PdfTeXEngine...\n';
+                const engine = new PdfTeXEngine();
+
+                // Load engine
+                log.textContent += 'Loading engine...\n';
+                await engine.loadEngine();
+                log.textContent += 'Engine loaded!\n';
+
+                // Minimal LaTeX document
+                const latex = `\\documentclass{article}
+\\begin{document}
+Hello World!
+\\end{document}`;
+
+                log.textContent += 'Writing main.tex...\n';
+                const latexBytes = new TextEncoder().encode(latex);
+                engine.writeMemFSFile('main.tex', latexBytes);
+
+                log.textContent += 'Setting main file...\n';
+                engine.setEngineMainFile('main.tex');
+
+                log.textContent += 'Compiling...\n';
+                const result = await engine.compileLaTeX();
+
+                log.textContent += `Compilation finished!\n`;
+                log.textContent += `Status: ${result.status}\n`;
+                log.textContent += `PDF size: ${result.pdf ? result.pdf.length : 0} bytes\n`;
+                log.textContent += `Log:\n${result.log}\n`;
+
+                if (result.pdf && result.status === 0) {
+                    // Download PDF
+                    const blob = new Blob([result.pdf], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'test.pdf';
+                    a.click();
+                    log.textContent += '\nPDF downloaded!\n';
+                }
+            } catch (error) {
+                log.textContent += `\nERROR: ${error.message}\n`;
+                log.textContent += `Stack: ${error.stack}\n`;
+            }
+        }
+    </script>
+</body>
+</html>
