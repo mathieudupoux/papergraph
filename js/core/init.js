@@ -312,7 +312,19 @@ function initializeEventListeners() {
     });
     
     document.getElementById('actionExportPdf').addEventListener('click', () => {
-        exportToPdf();
+        exportToPDF();
+        mainDropdown.classList.remove('active');
+        closeAllSubmenus();
+    });
+    
+    document.getElementById('actionExportLatex').addEventListener('click', () => {
+        exportToLatex();
+        mainDropdown.classList.remove('active');
+        closeAllSubmenus();
+    });
+    
+    document.getElementById('actionLatexStyle').addEventListener('click', () => {
+        showLatexStyleEditor();
         mainDropdown.classList.remove('active');
         closeAllSubmenus();
     });

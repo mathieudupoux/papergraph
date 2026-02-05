@@ -4,6 +4,11 @@
 let appData = {
     articles: [],
     connections: [],
+    projectReview: "", // Global review document
+    projectReviewMeta: { // Review metadata
+        title: "Project Review",
+        authors: ""
+    },
     nextArticleId: 1,
     nextConnectionId: 1
 };
@@ -96,3 +101,7 @@ let currentEditingElement = null;
 let originalContent = '';
 let inlineEditingSetup = false;
 let currentPreviewArticleId = null;  // ID of article currently shown in preview
+
+// Note view state for List View notebook mode
+let noteViewMode = 'article'; // 'article' or 'review'
+let activeNoteId = null;

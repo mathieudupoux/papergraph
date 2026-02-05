@@ -1,9 +1,953 @@
-/* ===== LIST VIEW ===== */
+/* ===== LIST VIEW - NOTEBOOK MODE ===== */
 
-/* List View specific - add top margin */
+/* Layout Reset */
 #listView {
-    padding-top: 120px;
+    padding-top: 60px; /* Space for main app header */
+    /* Keep position: fixed from .view class */
+    /* Keep other .view properties intact */
 }
+
+.notebook-container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    background: #f7f9fb;
+}
+
+/* --- SIDEBAR --- */
+.notebook-sidebar {
+    width: 320px; /* Slightly wider for more info */
+    background: #f7f9fb;
+    border-right: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    flex-shrink: 0;
+}
+
+.sidebar-search {
+    padding: 15px 15px 10px 15px;
+    border-bottom: 1px solid #e0e0e0;
+    margin-top: 20px;
+}
+
+.sidebar-search input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.sidebar-search input:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 0;
+}
+
+.sidebar-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+/* Expanded Sidebar Item */
+.sidebar-item {
+    padding: 12px 15px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.2s;
+}
+
+.sidebar-item:hover {
+    background: #fff;
+}
+
+.sidebar-item.active {
+    background: #fff;
+    border-left-color: #4a90e2;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.sidebar-item.review-item {
+    background: #fff8e1;
+    border-left-color: #ffa726;
+    font-weight: 700;
+}
+
+.sidebar-item.review-item:hover {
+    background: #ffecb3;
+}
+
+.sidebar-item.review-item.active {
+    background: #ffe0b2;
+    border-left-color: #ff9800;
+}
+
+.sidebar-item-title {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 4px;
+    line-height: 1.3;
+    font-size: 0.9rem;
+}
+
+.sidebar-item-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #7f8c8d;
+    gap: 8px;
+}
+
+.sidebar-item-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.sidebar-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.meta-bibtex {
+    font-family: monospace;
+    background: #eef1f5;
+    padding: 2px 5px;
+    border-radius: 4px;
+    color: #555;
+}
+
+.meta-authors {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    text-align: right;
+}
+
+/* --- EDITOR AREA --- */
+.notebook-editor {
+    flex: 1;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto; /* Allow whole editor to scroll */
+    overflow-x: hidden;
+    padding-bottom: 40px; /* Space for bottom toolbar */
+}
+
+.notebook-editor::-webkit-scrollbar {
+    width: 10px;
+}
+
+.notebook-editor::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.notebook-editor::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 5px;
+}
+
+.editor-state {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%; /* Allow content to grow */
+}
+
+/* Empty State */
+#editorEmptyState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.empty-message {
+    color: #999;
+    font-size: 1.1rem;
+}
+
+/* Top Metadata Section */
+.editor-metadata-section {
+    padding: 30px 40px 20px 40px;
+    border-bottom: 1px solid #eee;
+    background: #fff;
+    flex-shrink: 0; /* Don't shrink */
+}
+
+.editor-header-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.citation-badge, .year-badge {
+    background: #e3f2fd;
+    color: #1565c0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    outline: none;
+    transition: background 0.2s;
+    cursor: text;
+}
+
+.citation-badge:hover, .year-badge:hover {
+    background: #bbdefb;
+}
+
+.citation-badge:focus, .year-badge:focus {
+    background: #fff;
+    box-shadow: 0 0 0 2px #4a90e2;
+}
+
+.editable-title {
+    font-size: 1.8rem;
+    margin: 0 0 10px 0;
+    line-height: 1.2;
+    outline: none;
+    color: #2c3e50;
+    font-weight: 700;
+}
+
+.editable-title:empty::before {
+    content: attr(placeholder);
+    color: #ccc;
+}
+
+.authors-row {
+    color: #666;
+    font-style: italic;
+    font-size: 0.95rem;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.authors-row label {
+    font-weight: 600;
+    font-style: normal;
+}
+
+.authors-row .editable-field {
+    flex: 1;
+}
+
+.affiliation-row, .abstract-row {
+    color: #666;
+    font-size: 0.9rem;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-top: 8px;
+}
+
+/* Make abstract row more visible and prominent */
+.abstract-row {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+
+.affiliation-row label, .abstract-row label {
+    font-weight: 600;
+    min-width: 80px;
+}
+
+/* Enhance abstract label */
+.abstract-row label {
+    font-size: 1rem;
+    color: #2c3e50;
+    font-weight: 700;
+}
+
+.affiliation-row .editable-field {
+    flex: 1;
+}
+
+.abstract-row .editable-field {
+    flex: 1;
+    font-size: 1rem; /* Larger text */
+}
+
+.editable-multiline {
+    min-height: 120px; /* Increased from 60px */
+    max-height: 300px; /* Increased from 120px */
+    overflow-y: auto;
+    line-height: 1.6; /* More readable line spacing */
+}
+
+.editable-multiline:empty::before {
+    content: attr(placeholder);
+    color: #ccc;
+}
+
+.authors-section {
+    margin-top: 16px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 12px;
+    background: #fafbfc;
+}
+
+.authors-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 4px 0;
+    user-select: none;
+}
+
+.authors-header label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #2c3e50;
+    margin: 0;
+}
+
+.authors-content {
+    margin-top: 12px;
+}
+
+.authors-content > label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #6c757d;
+    display: block;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.authors-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.author-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Author Card - Modern minimalist design */
+.author-card {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.author-card:hover {
+    border-color: #dee2e6;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+.author-name-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 14px;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.author-name-input:focus {
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.author-orcid-input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.author-orcid-input:focus {
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+/* Affiliation Badge (checkbox style) */
+.affiliation-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s;
+}
+
+.affiliation-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Affiliation Card - Minimalist design */
+.affiliation-card {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    transition: all 0.2s;
+}
+
+.affiliation-card:hover {
+    border-color: #dee2e6;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+.affiliation-number-badge {
+    min-width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #4a90e2;
+    color: white;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.affiliation-text-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 13px;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.affiliation-text-input:focus {
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+/* Author/Affiliation legacy styles */
+.author-affil-input {
+    flex: 1;
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.author-affil-input:focus {
+    border-color: #4a90e2;
+}
+
+/* Authors Preview Container - Live LaTeX Preview */
+#authorsPreviewContainer {
+    margin-top: 16px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 3px solid #4a90e2;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+#authorsPreviewContent {
+    font-family: Georgia, serif;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Authors Content Collapsible */
+.authors-content {
+    transition: all 0.3s ease-in-out;
+    overflow: hidden;
+}
+
+.authors-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+}
+
+.btn-collapse {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 8px;
+    color: #6c757d;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-collapse:hover {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.btn-collapse.collapsed {
+    transform: rotate(-90deg);
+}
+
+.authors-content.collapsed {
+    display: none;
+}
+
+.btn-add-author {
+    padding: 6px 12px;
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #666;
+    transition: all 0.2s;
+    transition: all 0.2s;
+}
+
+.btn-add-author:hover {
+    background: #0b5ed7;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.btn-remove-author {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: #dc3545;
+    color: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0;
+    transition: all 0.2s;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.btn-remove-author:hover {
+    background: #bb2d3b;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transform: scale(1.05);
+}
+
+.metadata-links {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.metadata-btn {
+    padding: 4px 12px;
+    border: 1px solid #ddd;
+    background: #f8f9fa;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #666;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    font-style: normal;
+}
+
+.metadata-btn:hover {
+    background: #e8eaed;
+    border-color: #4a90e2;
+    color: #4a90e2;
+}
+
+.tags-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.tags-row .category-tag {
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    color: #1976d2;
+    padding: 4px 12px;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+/* Split View Container (Overleaf Style - Full Height Notebook Editor) */
+.editor-split-container {
+    flex: 1;
+    display: flex;
+    background: #f8f9fa;
+    min-height: calc(100vh - 200px); /* Full height like notebook editor */
+    height: 100%;
+}
+
+.split-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    position: relative;
+    height: 100%; /* Ensure both panes have equal height */
+}
+
+.source-pane {
+    border-right: 1px solid #ddd;
+    background: #fff;
+}
+
+.preview-pane {
+    background: #fff;
+}
+
+.pane-label {
+    background: #f1f3f4;
+    color: #5f6368;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    padding: 8px 15px;
+    font-weight: 700;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 40px;
+    flex-shrink: 0;
+}
+
+/* Toggle Template Button */
+.toggle-template-btn {
+    background: #4a90e2;
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    transition: all 0.2s;
+}
+
+.toggle-template-btn:hover {
+    background: #357abd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.toggle-template-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* LaTeX Template Container */
+.latex-template-container {
+    background: #fafafa;
+    border-bottom: 2px solid #4a90e2;
+    display: flex;
+    flex-direction: column;
+    height: 500px; /* Fixed height instead of max-height */
+}
+
+.latex-template-header {
+    background: #e8f4fd;
+    padding: 8px 15px;
+    border-bottom: 1px solid #4a90e2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #2c3e50;
+    flex-shrink: 0; /* Don't shrink header */
+}
+
+.latex-template-header span {
+    flex: 1;
+}
+
+.save-template-btn,
+.reset-template-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.reset-template-btn {
+    background: #dc3545;
+}
+
+.save-template-btn:hover {
+    background: #218838;
+}
+
+.reset-template-btn:hover {
+    background: #c82333;
+}
+
+/* Template Editor Wrapper with Line Numbers */
+.latex-template-editor-wrapper {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+    background: #fafafa;
+}
+
+.latex-template-line-numbers {
+    width: 50px;
+    background: #f0f0f0;
+    color: #999;
+    text-align: right;
+    padding: 10px 8px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    border-right: 1px solid #ddd;
+    overflow: hidden;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.latex-template-editor {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    resize: none;
+    background: #fafafa;
+    color: #2c3e50;
+    outline: none;
+    overflow-y: auto;
+    overflow-x: auto;
+    white-space: pre;
+    tab-size: 4;
+}
+
+.latex-template-editor:focus {
+    background: #fff;
+}
+
+/* Preview Toolbar Buttons */
+.compile-pdf-btn,
+.download-tex-btn,
+.download-pdf-btn {
+    border: none;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s;
+    color: white;
+}
+
+.compile-pdf-btn {
+    background: #4a90e2;
+}
+
+.compile-pdf-btn:hover {
+    background: #357abd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.download-tex-btn {
+    background: #6c757d;
+}
+
+.download-tex-btn:hover {
+    background: #5a6268;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.download-pdf-btn {
+    background: #28a745;
+}
+
+.download-pdf-btn:hover {
+    background: #218838;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.compile-pdf-btn:disabled,
+.download-tex-btn:disabled,
+.download-pdf-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.compile-pdf-btn svg,
+.download-tex-btn svg,
+.download-pdf-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Toggle Preview Button */
+.toggle-preview-btn {
+    background: transparent;
+    border: none;
+    color: #6c757d;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.toggle-preview-btn:hover {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.toggle-preview-btn svg {
+    stroke: currentColor;
+    transition: stroke 0.2s;
+}
+
+.preview-pane.hidden {
+    display: none;
+}
+
+.source-pane.full-width {
+    flex: 1;
+    border-right: none;
+}
+
+.rich-textarea, .latex-content, .main-review-textarea {
+    flex: 1;
+    padding: 20px;
+    outline: none;
+    font-size: 1rem;
+    line-height: 1.6;
+    min-height: 500px;
+    height: 100%; /* Ensure content fills the pane */
+}
+
+.rich-textarea, .main-review-textarea {
+    overflow-y: auto; /* Add scrolling for text editors */
+}
+
+.latex-content {
+    overflow: hidden; /* No scrollbar - PDF viewer handles scrolling */
+}
+
+.rich-textarea {
+    font-family: 'Consolas', 'Monaco', monospace; /* Code font for source */
+    white-space: pre-wrap;
+    color: #2c3e50;
+}
+
+.latex-content {
+    color: #333;
+    white-space: pre-wrap;
+}
+
+.latex-content p {
+    margin: 1em 0;
+}
+
+.latex-content h1, .latex-content h2, .latex-content h3 {
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    font-weight: 700;
+}
+
+.main-review-textarea {
+    border: none;
+    resize: none;
+    font-family: 'Consolas', 'Monaco', monospace;
+    white-space: pre-wrap;
+}
+
+/* Static title for review mode */
+.static-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0;
+    color: #2c3e50;
+}
+
 
 /* List View */
 .list-header {

@@ -58,7 +58,6 @@ function newProject() {
             const controlPointNodes = allNodes.filter(node => node.id < 0);
             if (controlPointNodes.length > 0) {
                 network.body.data.nodes.remove(controlPointNodes.map(n => n.id));
-                console.log('🗑️ Removed', controlPointNodes.length, 'control point nodes');
             }
             
             // Remove all segment edges (IDs containing _seg_)
@@ -66,7 +65,6 @@ function newProject() {
             const segmentEdges = allEdges.filter(edge => edge.id.toString().includes('_seg_'));
             if (segmentEdges.length > 0) {
                 network.body.data.edges.remove(segmentEdges.map(e => e.id));
-                console.log('🗑️ Removed', segmentEdges.length, 'segment edges');
             }
         }
         
@@ -747,6 +745,19 @@ function importProject(e) {
                 }
                 
                 appData = imported;
+                
+                // Ensure new fields exist for backward compatibility
+                if (!appData.projectReview) {
+                    appData.projectReview = "";
+                }
+                if (!appData.reviewMetadata) {
+                    appData.reviewMetadata = {
+                        title: '',
+                        author: '',
+                        date: ''
+                    };
+                }
+                
                 updateGraph();
                 renderListView();
                 updateCategoryFilters();
@@ -782,231 +793,6 @@ function importProject(e) {
     e.target.value = '';
 }
 
-function exportToPdf() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    
-    const margin = 20;
-    const pageWidth = doc.internal.pageSize.width;
-    const pageHeight = doc.internal.pageSize.height;
-    const contentWidth = pageWidth - 2 * margin;
-    let yPosition = margin;
-    
-    // ===== HELPER FUNCTIONS =====
-    
-    const checkNewPage = (requiredSpace = 30) => {
-        if (yPosition + requiredSpace > pageHeight - margin) {
-            doc.addPage();
-            yPosition = margin;
-            return true;
-        }
-        return false;
-    };
-    
-    const drawBox = (x, y, width, height, fillColor, borderColor) => {
-        doc.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
-        doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(x, y, width, height, 2, 2, 'FD');
-    };
-    
-    // ===== TITLE PAGE =====
-    
-    // Get project title and author
-    let projectTitle = 'Research Articles';
-    let authorName = '';
-    
-    if (window.galleryProjectMetadata) {
-        projectTitle = window.galleryProjectMetadata.title || projectTitle;
-        authorName = window.galleryProjectMetadata.author || '';
-    } else {
-        const titleInput = document.getElementById('projectTitleInput') || document.getElementById('projectTitle');
-        if (titleInput && titleInput.value.trim()) {
-            projectTitle = titleInput.value.trim();
-        } else {
-            const storedTitle = localStorage.getItem('currentProjectTitle');
-            if (storedTitle) {
-                projectTitle = storedTitle;
-            }
-        }
-    }
-    
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(44, 62, 80); // #2c3e50
-    doc.text(projectTitle, pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += 10;
-    
-    // Add author if available
-    if (authorName) {
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(52, 73, 94); // #34495e
-        doc.text(`by ${authorName}`, pageWidth / 2, yPosition, { align: 'center' });
-        yPosition += 8;
-    }
-    
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(127, 140, 141); // #7f8c8d
-    doc.text(`Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 
-             pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += 8;
-    doc.setFontSize(10);
-    doc.text(`${appData.articles.length} article${appData.articles.length !== 1 ? 's' : ''} • ${appData.connections.length} connection${appData.connections.length !== 1 ? 's' : ''}`, 
-             pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += 15;
-    
-    // ===== GROUP ARTICLES BY CATEGORY =====
-    
-    const categorized = {};
-    const uncategorized = [];
-    
-    appData.articles.forEach(article => {
-        if (article.categories.length === 0) {
-            uncategorized.push(article);
-        } else {
-            article.categories.forEach(cat => {
-                if (!categorized[cat]) {
-                    categorized[cat] = [];
-                }
-                if (!categorized[cat].includes(article)) {
-                    categorized[cat].push(article);
-                }
-            });
-        }
-    });
-    
-    const sortedCategories = Object.keys(categorized).sort();
-    if (uncategorized.length > 0) {
-        sortedCategories.push('Uncategorized');
-        categorized['Uncategorized'] = uncategorized;
-    }
-    
-    // ===== RENDER ARTICLES =====
-    
-    sortedCategories.forEach((category, catIndex) => {
-        checkNewPage(20);
-        
-        // Category header
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(74, 144, 226); // #4a90e2
-        doc.text(category, margin, yPosition);
-        yPosition += 8;
-        
-        // Category articles
-        categorized[category].forEach((article, artIndex) => {
-            const boxHeight = 28 + (article.abstract ? 20 : 0);
-            checkNewPage(boxHeight + 5);
-            
-            const boxY = yPosition;
-            
-            // Draw article box (like list view)
-            drawBox(margin, boxY, contentWidth, boxHeight, 
-                    [248, 249, 250], // #f8f9fa background
-                    [233, 236, 239]); // #e9ecef border
-            
-            const innerMargin = margin + 4;
-            let innerY = boxY + 5;
-            
-            // BibTeX ID (small, gray, monospace)
-            if (article.bibtexId) {
-                doc.setFontSize(7);
-                doc.setFont('courier', 'normal');
-                doc.setTextColor(150, 150, 150);
-                doc.text(article.bibtexId, innerMargin, innerY);
-                innerY += 4;
-            }
-            
-            // Title (bold, dark blue)
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(44, 62, 80); // #2c3e50
-            const titleLines = doc.splitTextToSize(article.title, contentWidth - 8);
-            titleLines.forEach(line => {
-                doc.text(line, innerMargin, innerY);
-                innerY += 4;
-            });
-            
-            // Authors (italic, smaller)
-            if (article.authors) {
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'italic');
-                doc.setTextColor(100, 100, 100);
-                const authorLines = doc.splitTextToSize(article.authors, contentWidth - 8);
-                authorLines.forEach(line => {
-                    doc.text(line, innerMargin, innerY);
-                    innerY += 3.5;
-                });
-            }
-            
-            // Publication info (small, gray)
-            const pubInfo = [];
-            if (article.journal || article.booktitle) pubInfo.push(article.journal || article.booktitle);
-            if (article.year) pubInfo.push(article.year);
-            if (article.volume) pubInfo.push(`Vol. ${article.volume}`);
-            if (article.pages) pubInfo.push(`pp. ${article.pages}`);
-            
-            if (pubInfo.length > 0) {
-                doc.setFontSize(8);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(120, 120, 120);
-                doc.text(pubInfo.join(' • '), innerMargin, innerY);
-                innerY += 4;
-            }
-            
-            // Abstract (if present, very small)
-            if (article.abstract) {
-                doc.setFontSize(7);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(100, 100, 100);
-                const abstractLines = doc.splitTextToSize(
-                    article.abstract.substring(0, 300) + (article.abstract.length > 300 ? '...' : ''), 
-                    contentWidth - 8
-                );
-                abstractLines.slice(0, 3).forEach(line => {
-                    doc.text(line, innerMargin, innerY);
-                    innerY += 3;
-                });
-            }
-            
-            // DOI/Link (bottom, small, blue)
-            if (article.doi || article.link) {
-                innerY = boxY + boxHeight - 4;
-                doc.setFontSize(7);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(74, 144, 226); // #4a90e2
-                const link = article.doi ? `DOI: ${article.doi}` : `URL: ${article.link}`;
-                doc.text(link, innerMargin, innerY);
-            }
-            
-            yPosition += boxHeight + 4;
-        });
-        
-        yPosition += 4; // Extra space between categories
-    });
-    
-    // ===== FOOTER ON EACH PAGE =====
-    
-    const pageCount = doc.internal.getNumberOfPages();
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(150, 150, 150);
-    
-    for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-        doc.text('Generated by papergraph', pageWidth - margin, pageHeight - 10, { align: 'right' });
-    }
-    
-    // Save PDF
-    doc.save(getExportFilename('pdf'));
-    showNotification('PDF exported!', 'success');
-}
 
 // ===== BIBTEX EXPORT =====
 
@@ -1034,3 +820,523 @@ function exportToBibtex() {
     URL.revokeObjectURL(url);
     showNotification(`${appData.articles.length} article(s) exporté(s) en BibTeX!`, 'success');
 }
+
+
+// ===== PDF EXPORT VIA LATEX =====
+/**
+ * PDF Export via LaTeX Compilation
+ * 
+ * This module provides functionality to export the entire project as a PDF document.
+ * It generates a complete LaTeX document including:
+ * - Project review/overview (main document text)
+ * - All article summaries with abstracts and notes
+ * - Full bibliography in LaTeX format
+ * - "Generated by PaperGraph" footer
+ * 
+ * The LaTeX document is compiled online using the YtoTech LaTeX API (https://latex.ytotech.com/)
+ * Users can customize the document style (preamble, packages, formatting) via the style editor.
+ * 
+ * Features:
+ * - Preserves LaTeX math equations ($...$ and $$...$$)
+ * - Handles citation links (\cite{key})
+ * - Escapes special LaTeX characters in regular text
+ * - Customizable document style saved to localStorage
+ */
+
+/**
+ * Get custom LaTeX style from localStorage (or use default)
+ */
+function getLatexStyle() {
+    const savedStyle = localStorage.getItem('papergraph_latex_style');
+    if (savedStyle) {
+        return savedStyle;
+    }
+    
+    // Default LaTeX style - Minimal Academic format
+    return `\\documentclass[11pt,a4paper]{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage[margin=1in]{geometry}
+\\usepackage{hyperref}
+\\usepackage{orcidlink}
+\\usepackage{amsmath}
+\\usepackage{amssymb}
+\\usepackage{parskip}
+\\usepackage[numbers]{natbib}
+
+% Typography
+\\setlength{\\parindent}{0pt}
+\\setlength{\\parskip}{0.8em}
+\\linespread{1.1}
+
+% Multi-author support
+\\makeatletter
+\\renewcommand{\\@maketitle}{%
+  \\newpage
+  \\null
+  \\vskip 2em%
+  \\begin{center}%
+  \\let \\footnote \\thanks
+    {\\LARGE \\@title \\par}%
+    \\vskip 1.5em%
+    {\\large
+      \\lineskip .5em%
+      \\begin{tabular}[t]{c}%
+        \\@author
+      \\end{tabular}\\par}%
+    \\vskip 1em%
+    {\\large \\@date}%
+  \\end{center}%
+  \\par
+  \\vskip 1.5em}
+\\makeatother
+
+% Hyperlinks
+\\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=cyan,
+    citecolor=blue,
+    pdfborder={0 0 0}
+}`;
+}
+
+/**
+ * Save custom LaTeX style to localStorage
+ */
+function saveLatexStyle(styleContent) {
+    localStorage.setItem('papergraph_latex_style', styleContent);
+    showNotification('LaTeX style saved!', 'success');
+}
+
+/**
+ * Reset LaTeX style to default
+ */
+function resetLatexStyle() {
+    localStorage.removeItem('papergraph_latex_style');
+    showNotification('LaTeX style reset to default!', 'success');
+}
+
+/**
+ * Escape special LaTeX characters
+ */
+function escapeLatex(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/\\/g, '\\textbackslash{}')
+        .replace(/[&%$#_{}]/g, '\\$&')
+        .replace(/~/g, '\\textasciitilde{}')
+        .replace(/\^/g, '\\textasciicircum{}')
+        .replace(/</g, '\\textless{}')
+        .replace(/>/g, '\\textgreater{}');
+}
+
+/**
+ * Sanitize citation keys - remove or replace characters that are problematic in BibTeX keys
+ * BibTeX keys should only contain alphanumeric characters, hyphens, and underscores
+ */
+function sanitizeCitationKey(key) {
+    if (!key) return 'ref';
+    // Replace problematic characters with underscores
+    return String(key)
+        .replace(/[^a-zA-Z0-9\-_]/g, '_')
+        .replace(/^_+|_+$/g, '') // Remove leading/trailing underscores
+        .substring(0, 50); // Limit length
+}
+
+/**
+ * Generate complete LaTeX document
+ */
+function generateLatexDocument() {
+    // Use extended preamble with maketitle support
+    const style = `\\documentclass[11pt,a4paper]{article}
+\\usepackage{filecontents}
+\\usepackage[utf8]{inputenc}
+\\usepackage[margin=1in]{geometry}
+\\usepackage{amsmath}
+\\usepackage{amssymb}
+\\usepackage{hyperref}
+\\usepackage{orcidlink}
+\\usepackage{cite}
+\\usepackage{parskip}
+\\usepackage[numbers]{natbib}
+
+% Typography
+\\setlength{\\parindent}{0pt}
+\\setlength{\\parskip}{0.8em}
+\\linespread{1.1}
+
+% Multi-author support
+\\makeatletter
+\\renewcommand{\\@maketitle}{%
+  \\newpage
+  \\null
+  \\vskip 2em%
+  \\begin{center}%
+  \\let \\footnote \\thanks
+    {\\LARGE \\@title \\par}%
+    \\vskip 1.5em%
+    {\\large
+      \\lineskip .5em%
+      \\begin{tabular}[t]{c}%
+        \\@author
+      \\end{tabular}\\par}%
+    \\vskip 1em%
+    {\\large \\@date}%
+  \\end{center}%
+  \\par
+  \\vskip 1.5em}
+\\makeatother
+
+% Hyperlinks
+\\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=cyan,
+    citecolor=blue,
+    pdfborder={0 0 0}
+}`;
+    
+    // Get project metadata
+    const projectTitle = (appData.projectReviewMeta?.title) || 'Project Review';
+    const authorsData = appData.projectReviewMeta?.authorsData || [];
+    const affiliationsData = appData.projectReviewMeta?.affiliationsData || [];
+    const projectAbstract = (appData.projectReviewMeta?.abstract) || '';
+    const projectContent = appData.projectReview || '';
+    
+    // Start LaTeX document
+    let latex = style + '\n\n';
+    
+    latex += `\\title{${escapeLatex(projectTitle)}}\n`;
+    
+    // Handle authors with superscript affiliation numbers and ORCID
+    latex += '\\author{';
+    if (authorsData && authorsData.length > 0) {
+        let authorsCount = 0; // Compteur interne pour les auteurs valides
+        
+        authorsData.forEach((author, idx) => {
+            if (!author.name || !author.name.trim()) return;
+            
+            authorsCount++; // On incrémente pour chaque auteur réellement ajouté
+            let authorLine = escapeLatex(author.name);
+            
+            // Add superscript affiliation numbers (use affiliationNumbers property, not affiliations)
+            const affiliationNums = author.affiliationNumbers || author.affiliations || [];
+            if (affiliationNums && affiliationNums.length > 0) {
+                const affNums = affiliationNums.map(num => typeof num === 'number' ? num : (num + 1)).join(',');
+                authorLine += `$^{${affNums}}$`;
+            }
+            
+            // Add ORCID if present
+            if (author.orcid && author.orcid.trim()) {
+                const orcidId = author.orcid.replace('https://orcid.org/', '');
+                authorLine += ` \\orcidlink{${orcidId}}`;
+            }
+            
+            latex += authorLine;
+
+            // Logique de séparation
+            if (idx < authorsData.length - 1) {
+                // Si on a atteint 3 auteurs sur la ligne actuelle, on passe à la ligne
+                // Sinon, on met une virgule.
+                if (authorsCount % 3 === 0) {
+                    latex += ' \\\\\n';
+                } else {
+                    latex += ', ';
+                }
+            }
+        });
+    }
+    latex += '}\n';
+        
+   // Output affiliations below authors
+    if (affiliationsData && affiliationsData.length > 0) {
+        latex += '\n';
+        latex += '\\date{';
+        latex += '\\vspace{0.5em}';
+        latex += '{\\small\\itshape\n';
+        latex += '\\begin{tabular}{@{}c@{}}\n';
+        
+        // Filter out empty affiliations and add line breaks only between non-empty ones
+        const nonEmptyAffils = affiliationsData
+            .map((affil, idx) => ({ text: affil.text, originalIdx: idx }))
+            .filter(affil => affil.text && affil.text.trim());
+        
+        nonEmptyAffils.forEach((affil, idx) => {
+            latex += `\\textsuperscript{${affil.originalIdx + 1}}${escapeLatex(affil.text)}`;
+            if (idx < nonEmptyAffils.length - 1) {
+                latex += ' \\\\\n';
+            }
+        });
+        
+        latex += '\n\\end{tabular}}';
+        latex += '\\\\[1.5em]\n';
+        latex += '\\today}\n';
+    } else {
+        latex += `\\date{\\today}\n`;
+    }
+    
+    // Add embedded bibliography using filecontents
+    const articlesWithBibtex = appData.articles ? appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
+    if (articlesWithBibtex.length > 0) {
+        const bibContent = generateBibtexContent();
+        if (bibContent && bibContent.trim()) {
+            latex += '\n\n';
+            latex += '\\begin{filecontents}{references.bib}\n';
+            latex += bibContent;
+            latex += '\\end{filecontents}\n';
+        }
+    }
+    
+    latex += '\n\n';
+    latex += `\\begin{document}\n\n`;
+    latex += `\\maketitle\n\n`;
+    
+    // Add abstract if exists
+    if (projectAbstract && projectAbstract.trim()) {
+        latex += `\\begin{abstract}\n`;
+        latex += processLatexContent(projectAbstract);
+        latex += `\n\\end{abstract}\n\n`;
+    }
+    
+    // Add main review content
+    if (projectContent && projectContent.trim()) {
+        latex += processLatexContent(projectContent) + '\n\n';
+    }
+    
+    // Concatenate each article's LaTeX content
+    if (appData.articles && appData.articles.length > 0) {
+        appData.articles.forEach((article, index) => {
+            // Reset section numbering for each article
+            latex += `\\setcounter{section}{0}\n`;
+            latex += `\\setcounter{subsection}{0}\n`;
+            latex += `\\setcounter{subsubsection}{0}\n\n`;
+            
+            // Each article section with citation in title (matching article preview)
+            latex += `\\section*{${escapeLatex(article.title || 'Untitled')}`;
+            if (article.bibtexId && article.bibtexId.trim()) {
+                const citationKey = sanitizeCitationKey(article.bibtexId);
+                latex += ` \\cite{${citationKey}}`;
+            }
+            latex += `}\n\n`;
+            
+            // Add authors and metadata below title (minimal styling)
+            const metadataParts = [];
+            
+            if (article.authors && article.authors.trim()) {
+                metadataParts.push(escapeLatex(article.authors));
+            }
+            
+            if (article.year && article.year.trim()) {
+                metadataParts.push(`(${escapeLatex(article.year)})`);
+            }
+            
+            if (article.journal && article.journal.trim()) {
+                let journalText = escapeLatex(article.journal);
+                if (article.volume && article.volume.trim()) {
+                    journalText += ` ${escapeLatex(article.volume)}`;
+                    if (article.number && article.number.trim()) {
+                        journalText += `(${escapeLatex(article.number)})`;
+                    }
+                }
+                metadataParts.push(`\\textit{${journalText}}`);
+            }
+            
+            if (metadataParts.length > 0) {
+                latex += `{\\small ${metadataParts.join(', ')}}\n\n`;
+            }
+            
+            // Add user content directly
+            if (article.text && article.text.trim()) {
+                const articleText = processLatexContent(article.text);
+                latex += articleText + '\n\n';
+            }
+        });
+    }
+    
+    // Add bibliography section using natbib
+    if (articlesWithBibtex.length > 0) {
+        latex += '\n\n\\bibliographystyle{plainnat}\n';
+        latex += '\\bibliography{references}\n\n';
+    }
+    
+    latex += `\\end{document}\n`;
+    
+    return latex;
+}
+
+/**
+ * Generate BibTeX file content from articles
+ */
+function generateBibtexContent() {
+    let bibtexContent = '';
+    
+    if (appData.articles && appData.articles.length > 0) {
+        appData.articles.forEach(article => {
+            if (article.bibtexId) {
+                bibtexContent += articleToBibTeX(article) + '\n';
+            }
+        });
+    }
+    
+    return bibtexContent;
+}
+
+/**
+ * Process content to preserve LaTeX commands and math
+ * Users can write LaTeX directly in their content (sections, formatting, citations, etc.)
+ */
+function processLatexContent(text) {
+    if (!text) return '';
+    
+    // Process citations: \cite{key1,key2}, \citep{key}, \citet{key}
+    // These should be preserved as-is for LaTeX compilation
+    let processedText = text;
+    
+    // // Ensure citations are properly formatted for LaTeX
+    // // Replace any malformed citations
+    // processedText = processedText.replace(/\\cite\s*\{([^}]+)\}/g, (match, keys) => {
+    //     // Clean up the keys (remove extra spaces)
+    //     const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
+    //     return `\\cite{${cleanKeys}}`;
+    // });
+    
+    // processedText = processedText.replace(/\\citep\s*\{([^}]+)\}/g, (match, keys) => {
+    //     const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
+    //     return `\\cite{${cleanKeys}}`; // citep becomes cite in basic LaTeX
+    // });
+    
+    // processedText = processedText.replace(/\\citet\s*\{([^}]+)\}/g, (match, keys) => {
+    //     const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
+    //     return `\\cite{${cleanKeys}}`; // citet becomes cite in basic LaTeX
+    // });
+    
+    return processedText;
+}
+
+/**
+ * Export project to PDF using SwiftLaTeX WebAssembly compiler
+ */
+async function exportToPDF() {
+    try {
+        showNotification('Generating LaTeX document...', 'info');
+
+        const latexContent = generateLatexDocument();
+
+        // Debug: log LaTeX document structure
+
+        // Extract and log all citations
+        const citations = latexContent.match(/\\cite\{([^}]+)\}/g);
+
+        // Extract and log all bibliography items
+        const biblioSection = latexContent.match(/\\begin{thebibliography}[\s\S]*?\\end{thebibliography}/);
+        if (biblioSection) {
+            const bibItems = biblioSection[0].match(/\\bibitem\{([^}]+)\}/g);
+        } else {
+        }
+
+        // Show notification
+        showNotification('Compiling to PDF with SwiftLaTeX... This may take a few seconds.', 'info');
+
+        // Initialize and use SwiftLaTeX WebAssembly compiler
+        if (!window.swiftLatexCompiler) {
+            throw new Error('SwiftLaTeX compiler not loaded. Please refresh the page.');
+        }
+
+        await window.swiftLatexCompiler.initialize();
+
+        // Generate bibliography content
+        const bibContent = generateBibtexContent();
+
+        // Compile using SwiftLaTeX with bibliography file
+        const pdfBlob = await window.swiftLatexCompiler.compileToPDF(latexContent, {
+            bibContent: bibContent
+        });
+
+
+        // Download PDF
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = getExportFilename('pdf');
+        a.click();
+        URL.revokeObjectURL(url);
+
+        showNotification('PDF exported successfully!', 'success');
+    } catch (error) {
+        console.error('PDF export error:', error);
+        showNotification('Error exporting to PDF: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Download LaTeX source as ZIP (with .tex and .bib files)
+ */
+async function exportToLatex() {
+    try {
+        const latexContent = generateLatexDocument();
+        const bibContent = generateBibtexContent();
+        
+        // Create ZIP file with main.tex and references.bib
+        const zip = new JSZip();
+        zip.file('main.tex', latexContent);
+        
+        if (bibContent && bibContent.trim()) {
+            zip.file('references.bib', bibContent);
+        }
+        
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = getExportFilename('zip');
+        a.click();
+        
+        URL.revokeObjectURL(url);
+        showNotification('LaTeX source package exported!', 'success');
+    } catch (error) {
+        console.error('LaTeX export error:', error);
+        showNotification('Error exporting LaTeX: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Show LaTeX style editor modal
+ */
+function showLatexStyleEditor() {
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2>LaTeX Document Style</h2>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">×</button>
+            </div>
+            <div class="modal-body">
+                <p>Customize the LaTeX preamble and document class. This affects the PDF export.</p>
+                <textarea id="latexStyleEditor" style="width: 100%; height: 400px; font-family: monospace; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">${getLatexStyle()}</textarea>
+                <div style="margin-top: 10px; color: #666; font-size: 0.9em;">
+                    <strong>Tip:</strong> You can use any LaTeX packages. Math delimiters ($ and $$) in your content will be preserved.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="resetLatexStyle(); document.getElementById('latexStyleEditor').value = getLatexStyle();">Reset to Default</button>
+                <button class="btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
+                <button class="btn-primary" onclick="saveLatexStyle(document.getElementById('latexStyleEditor').value); this.closest('.modal').remove();">Save Style</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+// Make functions globally available
+window.exportToPDF = exportToPDF;
+window.exportToLatex = exportToLatex;
+window.showLatexStyleEditor = showLatexStyleEditor;
+window.saveLatexStyle = saveLatexStyle;
+window.resetLatexStyle = resetLatexStyle;
+window.getLatexStyle = getLatexStyle;
+window.sanitizeCitationKey = sanitizeCitationKey;
+window.generateLatexDocument = generateLatexDocument;
+window.escapeLatex = escapeLatex;
+window.processLatexContent = processLatexContent;

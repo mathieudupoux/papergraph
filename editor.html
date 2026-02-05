@@ -21,6 +21,7 @@
     <link rel="stylesheet" href="css/components/radial-menu.css">
     <link rel="stylesheet" href="css/components/footer.css">
     <link rel="stylesheet" href="css/components/onboarding.css">
+    <link rel="stylesheet" href="css/components/pdf-viewer.css">
     
     <!-- Modular CSS - Views -->
     <link rel="stylesheet" href="css/views/graph-view.css">
@@ -32,6 +33,39 @@
     
     <!-- Driver.js for Interactive Tutorial -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
+    
+    <!-- LaTeX.js for true LaTeX compilation -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/css/base.css">
+    <script src="https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/latex.js"></script>
+
+    <!-- PDF.js for PDF preview rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Configure PDF.js worker
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
+
+    <!-- MathJax for LaTeX math rendering -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true,
+                packages: {'[+]': ['ams', 'newcommand', 'configmacros']}
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <!-- html2canvas for PDF export with LaTeX -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     
     <!-- Cursors - MUST BE LAST to override everything -->
     <link rel="stylesheet" href="css/base/cursors.css">
@@ -256,7 +290,22 @@
                     <polyline points="14 2 14 8 20 8"/>
                     <line x1="9" y1="15" x2="15" y2="15"/>
                 </svg>
-                <span>Export PDF</span>
+                <span>Export PDF (LaTeX)</span>
+            </button>
+            <button class="dropdown-menu-item" id="actionExportLatex">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <path d="M10 13l2 2 4-4"/>
+                </svg>
+                <span>Export LaTeX (.tex)</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-menu-item" id="actionLatexStyle">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+                <span>LaTeX Document Style...</span>
             </button>
             <button class="dropdown-menu-item" id="actionExportImage">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -410,8 +459,67 @@
 
         <!-- List View -->
         <div id="listView" class="view">
-            <div id="listContainer" class="articles-list">
-                <!-- Articles will be added here dynamically -->
+            <div class="notebook-container">
+                <div class="notebook-sidebar">
+                    <div class="sidebar-search">
+                        <input type="text" id="sidebarSearch" placeholder="Search articles..." onkeyup="renderListView(this.value)">
+                    </div>
+
+                    <div id="sidebarContent" class="sidebar-content">
+                        <!-- Sidebar items will be added here dynamically -->
+                    </div>
+                </div>
+
+                <div class="notebook-editor">
+                    <div id="editorEmptyState" class="editor-state" style="display:none;">
+                        <div class="empty-message">Select an article to start editing</div>
+                    </div>
+                    
+                    <div id="articleEditorState" class="editor-state">
+                        <div class="editor-metadata-section">
+                            <div class="editor-header-row">
+                                <div class="citation-badge" id="noteCitationKey" contenteditable="true"></div>
+                                <div id="noteYear" class="year-badge" contenteditable="true"></div>
+                            </div>
+                            
+                            <h1 id="noteTitle" class="editable-title" contenteditable="true" placeholder="Article Title"></h1>
+                            
+                            <div class="authors-section" id="authorsSection" style="display: none;">
+                                <div class="authors-header" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="toggleAuthorsContent()">
+                                    <label style="margin: 0;">Authors & Affiliations</label>
+                                    <button type="button" class="btn-collapse" id="authorsCollapseBtn" style="background: none; border: none; cursor: pointer; font-size: 18px; padding: 0 5px;">▼</button>
+                                </div>
+                                <div id="authorsContent" class="authors-content">
+                                    <label style="margin-top: 10px;">Authors:</label>
+                                    <div id="authorsList" class="authors-list"></div>
+                                    <button type="button" id="addAuthorBtn" class="btn-add-author">+ Add Author</button>
+                                    
+                                    <label style="margin-top: 15px;">Affiliations:</label>
+                                    <div id="affiliationsList" class="affiliations-list"></div>
+                                    <button type="button" id="addAffiliationBtn" class="btn-add-author">+ Add Affiliation</button>
+                                </div>
+                            </div>
+
+                            <div class="abstract-row" id="abstractRow" style="display: none;">
+                                <label>Abstract:</label>
+                                <div id="noteAbstract" class="editable-field editable-multiline" contenteditable="true" placeholder="Project abstract..."></div>
+                            </div>
+
+                            <div class="tags-row" id="noteTags"></div>
+                        </div>
+
+                        <div class="editor-split-container">
+                            <div class="split-pane source-pane">
+                                <div class="pane-label">Source (LaTeX supported)</div>
+                                <div id="noteContent" class="rich-textarea" contenteditable="true"></div>
+                            </div>
+                            <div class="split-pane preview-pane">
+                                <div class="pane-label">Preview</div>
+                                <div id="latexPreview" class="latex-content"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -807,6 +915,18 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/dist/vis-network.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- CodeMirror 6 -->
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@6.0.1/dist/index.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@6.0.1/dist/codemirror.min.css">
+
+    <!-- PDF.js for PDF preview rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
     
     <!-- Initialize Supabase Client Globally -->
     <script type="module">
@@ -826,6 +946,13 @@
     <!-- Data Layer -->
     <script src="js/data/storage.js"></script>
     <script src="js/data/bibtex-parser.js"></script>
+
+    <!-- NEW: Client-Side Compilation Services -->
+    <script src="js/services/swiftlatex-compiler.js"></script>
+    <script src="js/utils/codemirror-latex.js"></script>
+
+    <!-- OLD: Keep for backward compatibility -->
+    <script src="js/data/latex-compiler.js"></script>
     <script src="js/data/export.js"></script>
     <script src="js/data/import.js"></script>
     
@@ -1097,6 +1224,21 @@
                 submitBtn.textContent = 'Submit Project';
             }
         };
+    </script>
+    
+    <!-- Toggle Authors Section -->
+    <script>
+        function toggleAuthorsContent() {
+            const content = document.getElementById('authorsContent');
+            const btn = document.getElementById('authorsCollapseBtn');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                btn.textContent = '▼';
+            } else {
+                content.style.display = 'none';
+                btn.textContent = '▶';
+            }
+        }
     </script>
     
     <!-- Application Startup -->
