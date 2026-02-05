@@ -3,6 +3,22 @@
 // Global editor instance
 let latexEditor = null;
 
+// PDF cache for compiled documents (key: articleId or 'review', value: {pdfBlob, latexContent, bibContent, contentHash, timestamp})
+let pdfCache = {};
+
+// Helper function to generate hash from content
+function generateContentHash(content) {
+    // Simple hash function for content comparison
+    let hash = 0;
+    if (!content) return hash;
+    for (let i = 0; i < content.length; i++) {
+        const char = content.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash.toString();
+}
+
 function renderListView(searchTerm = '') {
     const sidebar = document.getElementById('sidebarContent');
     if (!sidebar) return;
@@ -177,10 +193,28 @@ function loadArticleToEditor(id) {
         latexEditor = null;
     }
 
-    // Show instruction in preview
+    // Check if we have a cached PDF for this article
     const previewContainer = document.getElementById('latexPreview');
     if (previewContainer) {
-        previewContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #999; font-size: 14px;">Click "Compile PDF" to preview your LaTeX document</div>';
+        const cachedPdf = pdfCache[id];
+        if (cachedPdf && cachedPdf.pdfBlob) {
+            // Try to load cached PDF if content hasn't changed
+            const currentContentHash = generateContentHash(article.text || '');
+            if (cachedPdf.contentHash === currentContentHash) {
+                console.log(`📦 Loading cached PDF for article ${id}`);
+                previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">📄 Loading cached PDF preview...</div>';
+                renderPDFInContainer(cachedPdf.pdfBlob, previewContainer).catch(() => {
+                    // If loading fails, show compile instruction
+                    previewContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #999; font-size: 14px;">Click "Compile PDF" to preview your LaTeX document</div>';
+                });
+            } else {
+                // Content changed, show compile instruction
+                previewContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #999; font-size: 14px;">Click "Compile PDF" to preview your LaTeX document</div>';
+            }
+        } else {
+            // No cache, show instruction
+            previewContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #999; font-size: 14px;">Click "Compile PDF" to preview your LaTeX document</div>';
+        }
     }
 
     // Initialize editor with auto-save
@@ -253,43 +287,62 @@ function addPreviewToggle() {
         await compileToPDFPreview();
     };
 
-    // Download .tex button
+    // Download .tex button (now downloads .zip with .tex and .bib)
     const downloadTexBtn = document.createElement('button');
     downloadTexBtn.className = 'download-tex-btn';
-    downloadTexBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>';
-    downloadTexBtn.title = 'Download LaTeX source (.tex)';
+    downloadTexBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg><span style="margin-left: 4px;">.zip</span>';
+    downloadTexBtn.title = 'Download LaTeX source (.zip with .tex and .bib)';
     downloadTexBtn.style.cssText = 'background: #6c757d; color: white; border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; font-size: 12px;';
 
-    downloadTexBtn.onclick = () => {
-        if (!window.lastCompiledLatex) {
+    downloadTexBtn.onclick = async () => {
+        // Use cached data for current article/review
+        const cachedData = pdfCache[activeNoteId];
+        
+        if (!cachedData || !cachedData.latexContent) {
             showNotification('Please compile first', 'warning');
             return;
         }
 
-        const blob = new Blob([window.lastCompiledLatex], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = getExportFilename('tex');
-        a.click();
-        URL.revokeObjectURL(url);
-        showNotification('LaTeX source downloaded!', 'success');
+        try {
+            // Create ZIP file with main.tex and references.bib
+            const zip = new JSZip();
+            zip.file('main.tex', cachedData.latexContent);
+            
+            if (cachedData.bibContent && cachedData.bibContent.trim()) {
+                zip.file('references.bib', cachedData.bibContent);
+            }
+            
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(zipBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = getExportFilename('zip');
+            a.click();
+            URL.revokeObjectURL(url);
+            showNotification('LaTeX source package downloaded!', 'success');
+        } catch (error) {
+            console.error('Download error:', error);
+            showNotification('Error creating download: ' + error.message, 'error');
+        }
     };
 
     // Download .pdf button
     const downloadPdfBtn = document.createElement('button');
     downloadPdfBtn.className = 'download-pdf-btn';
-    downloadPdfBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>';
+    downloadPdfBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg><span style="margin-left: 4px;">.pdf</span>';
     downloadPdfBtn.title = 'Download compiled PDF';
     downloadPdfBtn.style.cssText = 'background: #28a745; color: white; border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; font-size: 12px;';
 
     downloadPdfBtn.onclick = () => {
-        if (!window.lastCompiledPdf) {
+        // Use cached data for current article/review
+        const cachedData = pdfCache[activeNoteId];
+        
+        if (!cachedData || !cachedData.pdfBlob) {
             showNotification('Please compile first', 'warning');
             return;
         }
 
-        const url = URL.createObjectURL(window.lastCompiledPdf);
+        const url = URL.createObjectURL(cachedData.pdfBlob);
         const a = document.createElement('a');
         a.href = url;
         a.download = getExportFilename('pdf');
@@ -349,29 +402,100 @@ async function compileToPDFPreview() {
             return;
         }
 
-        // Add minimal document wrapper if not present
-        if (!latexContent.includes('\\documentclass')) {
-            let preamble = `\\documentclass[11pt,a4paper]{article}
+        // Always generate BibTeX bibliography if there are articles
+        if (appData.articles && appData.articles.length > 0) {
+            bibContent = generateBibliography(appData.articles);
+            console.log(`📚 Generated bibliography with ${appData.articles.length} entries`);
+            console.log('📚 Bibliography preview:', bibContent.substring(0, 200) + '...');
+        } else {
+            console.log('⚠️ No articles found for bibliography');
+        }
+
+        // For project review, generate full document like export
+        if (activeNoteId === 'review') {
+            // Use the same format as export.js generateLatexDocument() - it generates everything
+            if (window.generateLatexDocument) {
+                latexContent = window.generateLatexDocument();
+            } else {
+                // Fallback if export.js not loaded yet
+                latexContent = generateFallbackLatexDocument(latexContent);
+            }
+        } else {
+            // For articles, add minimal document wrapper if not present
+            if (!latexContent.includes('\\documentclass')) {
+                // Get current article data
+                const currentArticle = appData.articles.find(a => a.id === activeNoteId);
+                
+                let preamble = `\\documentclass[11pt,a4paper]{article}
+\\usepackage{filecontents}
 \\usepackage[utf8]{inputenc}
 \\usepackage[margin=1in]{geometry}
 \\usepackage{amsmath}
 \\usepackage{amssymb}
 \\usepackage{hyperref}
-\\usepackage{cite}
+\\usepackage{orcidlink}
+\\usepackage[numbers,sort&compress]{natbib}
 
-\\begin{document}
 `;
+                
+                // Add embedded bibliography using filecontents (before \begin{document})
+                const articlesWithBibtex = appData.articles ? appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
+                if (articlesWithBibtex.length > 0 && bibContent && bibContent.trim()) {
+                    preamble += '\\begin{filecontents}{references.bib}\n';
+                    preamble += bibContent;
+                    preamble += '\\end{filecontents}\n\n';
+                }
+                
+                preamble += '\\begin{document}\n\n';
+                
+                // Add article title (minimal styling)
+                if (currentArticle) {
+                    preamble += `\\section*{${escapeLatex(currentArticle.title || 'Untitled')}`;
+                    if (currentArticle.bibtexId && currentArticle.bibtexId.trim()) {
+                        const citationKey = window.sanitizeCitationKey ? window.sanitizeCitationKey(currentArticle.bibtexId) : currentArticle.bibtexId;
+                        preamble += ` \\cite{${citationKey}}`;
+                    }
+                    preamble += `}\n\n`;
+                    
+                    // Add authors and metadata below title (minimal styling)
+                    const metadataParts = [];
+                    
+                    if (currentArticle.authors && currentArticle.authors.trim()) {
+                        metadataParts.push(escapeLatex(currentArticle.authors));
+                    }
+                    
+                    if (currentArticle.year && currentArticle.year.trim()) {
+                        metadataParts.push(`(${escapeLatex(currentArticle.year)})`);
+                    }
+                    
+                    if (currentArticle.journal && currentArticle.journal.trim()) {
+                        let journalText = escapeLatex(currentArticle.journal);
+                        if (currentArticle.volume && currentArticle.volume.trim()) {
+                            journalText += ` ${escapeLatex(currentArticle.volume)}`;
+                            if (currentArticle.number && currentArticle.number.trim()) {
+                                journalText += `(${escapeLatex(currentArticle.number)})`;
+                            }
+                        }
+                        metadataParts.push(`\\textit{${journalText}}`);
+                    }
+                    
+                    if (metadataParts.length > 0) {
+                        preamble += `{\\small ${metadataParts.join(', ')}}\n\n`;
+                    }
+                }
+                
 
-            // Generate BibTeX bibliography if there are citations
-            if (appData.articles && appData.articles.length > 0 && latexContent.includes('\\cite')) {
-                bibContent = generateBibliography(appData.articles);
+                // Generate bibliography
+                let bibliography = '';
+                
+                if (articlesWithBibtex.length > 0) {
+                    bibliography = '\n\n\\bibliographystyle{plainnat}\n';
+                    bibliography += '\\bibliography{references}\n\n';
+                }
+
+                latexContent = preamble + latexContent + bibliography + '\\end{document}';
             }
-
-            latexContent = preamble + latexContent + '\n\n\\bibliographystyle{plain}\n\\bibliography{references}\n\n\\end{document}';
         }
-
-        // Store for download
-        window.lastCompiledLatex = latexContent;
 
         // Update status
         previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">🔄 Compiling LaTeX with SwiftLaTeX...<br><small>This may take 5-30 seconds</small></div>';
@@ -381,14 +505,56 @@ async function compileToPDFPreview() {
         console.log(`   Document: ${latexContent.length} chars`);
         console.log(`   Bibliography: ${bibContent.length} chars`);
 
+        // ===== DEBUGGING: Show what we're sending to compiler =====
+        console.log('=== PREVIEW COMPILATION DEBUG ===');
+        
+        // Extract and show all \cite commands
+        const citeCommands = latexContent.match(/\\cite\{([^}]+)\}/g);
+        console.log('Citations in LaTeX:', citeCommands || 'NONE FOUND');
+        
+        // Extract citation keys
+        const citationKeys = citeCommands ? citeCommands.map(c => c.match(/\{([^}]+)\}/)[1]) : [];
+        console.log('Citation Keys:', citationKeys);
+        
+        // Extract BibTeX entry keys
+        const bibtexKeys = bibContent.match(/@\w+\{([^,]+),/g);
+        console.log('BibTeX Entries:', bibtexKeys || 'NONE FOUND');
+        const bibtexEntryKeys = bibtexKeys ? bibtexKeys.map(k => k.replace(/@\w+\{/, '').replace(',', '')) : [];
+        console.log('BibTeX Keys:', bibtexEntryKeys);
+        
+        // Check for mismatches
+        const missingKeys = citationKeys.filter(key => !bibtexEntryKeys.includes(key));
+        if (missingKeys.length > 0) {
+            console.error('❌ MISMATCH: Citations without BibTeX entries:', missingKeys);
+        }
+        
+        // Check if \bibliography command exists
+        const hasBibliographyCmd = latexContent.includes('\\bibliography{references}');
+        console.log('Has \\bibliography{references}:', hasBibliographyCmd);
+        console.log('Has \\bibliographystyle:', latexContent.includes('\\bibliographystyle'));
+        
+        // Show natbib detection
+        console.log('Uses natbib:', /\\usepackage(\[.*?\])?\{natbib\}/.test(latexContent));
+        
+        console.log('=== END DEBUG ===');
+
         const pdfBlob = await window.swiftLatexCompiler.compileToPDF(latexContent, {
             bibContent: bibContent
         });
 
         console.log(`✅ PDF generated (${pdfBlob.size} bytes)`);
 
-        // Store for download
-        window.lastCompiledPdf = pdfBlob;
+        // Cache the compiled PDF with content hash and LaTeX/Bib content
+        const contentToHash = activeNoteId === 'review' ? (appData.projectReview || '') : (latexEditor ? latexEditor.getValue() : '');
+        const contentHash = generateContentHash(contentToHash);
+        pdfCache[activeNoteId] = {
+            pdfBlob: pdfBlob,
+            latexContent: latexContent,
+            bibContent: bibContent,
+            contentHash: contentHash,
+            timestamp: Date.now()
+        };
+        console.log(`💾 Cached PDF for ${activeNoteId} (hash: ${contentHash})`);
 
         // Update status
         previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">📄 Rendering PDF preview...</div>';
@@ -438,7 +604,11 @@ function generateBibliography(articles) {
         const key = article.bibtexId;
         bib += `@article{${key},\n`;
 
-        if (article.authors) bib += `  author = {${escapeBibTeX(article.authors)}},\n`;
+        // Convert comma-separated authors to 'and' separated for BibTeX
+        if (article.authors) {
+            const authorsFormatted = article.authors.split(',').map(a => a.trim()).join(' and ');
+            bib += `  author = {${escapeBibTeX(authorsFormatted)}},\n`;
+        }
         if (article.title) bib += `  title = {${escapeBibTeX(article.title)}},\n`;
         if (article.journal) bib += `  journal = {${escapeBibTeX(article.journal)}},\n`;
         if (article.year) bib += `  year = {${article.year}},\n`;
@@ -465,215 +635,200 @@ function escapeBibTeX(text) {
         .replace(/%/g, '\\%');
 }
 
-// Modern PDF.js viewer with toolbar and controls
-async function renderPDFInContainer(pdfBlob, container) {
-    if (!window.pdfjsLib) {
-        throw new Error('PDF.js library not loaded');
-    }
+/**
+ * Escape special LaTeX characters (for regular text)
+ */
+function escapeLatex(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/\\/g, '\\textbackslash{}')
+        .replace(/[&%$#_{}]/g, '\\$&')
+        .replace(/~/g, '\\textasciitilde{}')
+        .replace(/\^/g, '\\textasciicircum{}')
+        .replace(/</g, '\\textless{}')
+        .replace(/>/g, '\\textgreater{}');
+}
 
+/**
+ * Generate full LaTeX document like export (with title, authors, affiliations, abstract)
+ * This uses the same method as export.js generateLatexDocument for consistency
+ */
+function generateFullLatexDocument(contentText) {
+    // Use the export module's function to ensure consistency
+    // We'll generate the full document including the main content
+    return window.generateLatexDocument ? window.generateLatexDocument() : generateFallbackLatexDocument(contentText);
+}
+
+/**
+ * Fallback LaTeX document generator if export module not loaded
+ */
+function generateFallbackLatexDocument(contentText) {
+    // Get LaTeX template from localStorage or use default
+    const savedStyle = localStorage.getItem('papergraph_latex_style');
+    const style = savedStyle || getDefaultLatexStyle();
+    
+    // Get project metadata
+    const projectTitle = (appData.projectReviewMeta?.title) || 'Project Review';
+    const authorsData = appData.projectReviewMeta?.authorsData || [];
+    const affiliationsData = appData.projectReviewMeta?.affiliationsData || [];
+    const projectAbstract = (appData.projectReviewMeta?.abstract) || '';
+    
+    // Start LaTeX document
+    let latex = style + '\n\n';
+    
+    latex += `\\title{${escapeLatex(projectTitle)}}\n`;
+    
+    // Handle authors with superscript affiliation numbers and ORCID
+    latex += '\\author{';
+    if (authorsData && authorsData.length > 0) {
+        authorsData.forEach((author, idx) => {
+            if (author.name && author.name.trim()) {
+                latex += escapeLatex(author.name);
+
+                // Add affiliation superscripts
+                const affilNums = author.affiliationNumbers || [];
+                if (affilNums && affilNums.length > 0) {
+                    affilNums.forEach(num => {
+                        latex += `\\textsuperscript{${num}}`;
+                    });
+                }
+
+                // Add ORCID logo and link if provided
+                if (author.orcid && author.orcid.trim()) {
+                    // Don't escape ORCID - it's a URL/identifier
+                    latex += `\\,\\orcidlink{${author.orcid}}`;
+                }
+
+                // Add separator between authors
+                if (idx < authorsData.length - 1) {
+                    latex += ', ';
+                }
+            }
+        });
+    }
+    latex += '}\n';
+    
+    // Output affiliations below authors
+    if (affiliationsData && affiliationsData.length > 0) {
+        latex += '\n';
+        latex += '\\date{';
+        latex += '\\vspace{0.5em}';
+        latex += '{\\small\\itshape\n';
+        latex += '\\begin{tabular}{@{}c@{}}\n';
+        affiliationsData.forEach((affil, idx) => {
+            if (affil.text && affil.text.trim()) {
+                latex += `\\textsuperscript{${idx + 1}}${escapeLatex(affil.text)}`;
+                if (idx < affiliationsData.length - 1) {
+                    latex += ' \\\\\n';
+                }
+            }
+        });
+        latex += '\n\\end{tabular}}';
+        latex += '\\\\[1.5em]\n';
+        latex += '\\today}\n';
+    } else {
+        latex += `\\date{\\today}\n`;
+    }
+    
+    latex += '\n\n';
+    latex += `\\begin{document}\n\n`;
+    latex += `\\maketitle\n\n`;
+    
+    // Add abstract if exists
+    if (projectAbstract && projectAbstract.trim()) {
+        latex += `\\begin{abstract}\n`;
+        latex += contentText.includes('\\') ? projectAbstract : escapeLatex(projectAbstract);
+        latex += `\n\\end{abstract}\n\n`;
+    }
+    
+    // Add main content
+    latex += contentText;
+    
+    // Add bibliography section using manual bibliography (not BibTeX)
+    // This works with SwiftLaTeX single-pass compilation
+    const articlesWithBibtex = appData.articles ? appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
+    
+    if (articlesWithBibtex.length > 0) {
+        latex += '\\begin{thebibliography}{99}\n\n';
+
+        articlesWithBibtex.forEach((article, index) => {
+            // Use the article's bibtexId as the citation key (sanitized)
+            const citationKey = window.sanitizeCitationKey ? window.sanitizeCitationKey(article.bibtexId) : article.bibtexId;
+            latex += `\\bibitem{${citationKey}}\n`;
+
+            // Format: Authors. Title. Journal, Volume(Number), Pages. Year.
+            if (article.authors) {
+                latex += escapeLatex(article.authors) + '. ';
+            }
+            if (article.title) {
+                latex += `\\textit{${escapeLatex(article.title)}}. `;
+            }
+            if (article.journal) {
+                latex += escapeLatex(article.journal);
+                if (article.volume) {
+                    latex += ` \\textbf{${escapeLatex(article.volume)}}`;
+                }
+                if (article.number) {
+                    latex += `(${escapeLatex(article.number)})`;
+                }
+                if (article.pages) {
+                    latex += `, ${escapeLatex(article.pages)}`;
+                }
+                latex += '. ';
+            }
+            if (article.year) {
+                latex += `(${escapeLatex(article.year)}).`;
+            }
+            latex += '\n\n';
+        });
+
+        latex += '\\end{thebibliography}\n\n';
+    }
+    
+    
+    latex += `\\end{document}\n`;
+    
+    return latex;
+}
+
+// Simple PDF viewer using default system PDF viewer (object/embed tag)
+async function renderPDFInContainer(pdfBlob, container) {
     // Clear container and reset styles
     container.innerHTML = '';
-    container.style.cssText = '';
-
-    // Create viewer structure
-    const viewerContainer = document.createElement('div');
-    viewerContainer.className = 'pdf-viewer-container';
-
-    // Create toolbar
-    const toolbar = document.createElement('div');
-    toolbar.className = 'pdf-viewer-toolbar';
-    toolbar.innerHTML = `
-        <div class="pdf-viewer-toolbar-left">
-            <button class="pdf-viewer-btn" id="pdfPrevPage" title="Previous Page">
-                <span class="pdf-viewer-icon-prev"></span> Previous
-            </button>
-            <button class="pdf-viewer-btn" id="pdfNextPage" title="Next Page">
-                Next <span class="pdf-viewer-icon-next"></span>
-            </button>
-        </div>
-        <div class="pdf-viewer-toolbar-center">
-            <div class="pdf-viewer-page-info">
-                <span>Page</span>
-                <input type="number" class="pdf-viewer-page-input" id="pdfPageInput" min="1" value="1">
-                <span>of <span id="pdfPageCount">-</span></span>
-            </div>
-        </div>
-        <div class="pdf-viewer-toolbar-right">
-            <button class="pdf-viewer-btn" id="pdfZoomOut" title="Zoom Out">
-                <span class="pdf-viewer-icon-zoom-out"></span>
-            </button>
-            <select class="pdf-viewer-zoom-select" id="pdfZoomSelect">
-                <option value="0.5">50%</option>
-                <option value="0.75">75%</option>
-                <option value="1.0" selected>100%</option>
-                <option value="1.25">125%</option>
-                <option value="1.5">150%</option>
-                <option value="2.0">200%</option>
-                <option value="auto">Fit Width</option>
-            </select>
-            <button class="pdf-viewer-btn" id="pdfZoomIn" title="Zoom In">
-                <span class="pdf-viewer-icon-zoom-in"></span>
-            </button>
-            <button class="pdf-viewer-btn" id="pdfDownload" title="Download PDF">
-                <span class="pdf-viewer-icon-download"></span> Download
-            </button>
-        </div>
-    `;
-
-    // Create content area
-    const content = document.createElement('div');
-    content.className = 'pdf-viewer-content';
-
-    const pagesContainer = document.createElement('div');
-    pagesContainer.className = 'pdf-viewer-pages';
-    content.appendChild(pagesContainer);
-
-    // Assemble viewer
-    viewerContainer.appendChild(toolbar);
-    viewerContainer.appendChild(content);
-    container.appendChild(viewerContainer);
-
-    // Show loading
-    pagesContainer.innerHTML = '<div class="pdf-viewer-loading">Loading PDF...</div>';
+    container.style.cssText = 'padding: 0; margin: 0; width: 100%; height: 100%;';
 
     try {
-        // Convert blob to array buffer
-        const arrayBuffer = await pdfBlob.arrayBuffer();
+        // Create object URL for the PDF
+        const pdfUrl = URL.createObjectURL(pdfBlob);
 
-        // Load PDF document
-        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-        const pdf = await loadingTask.promise;
+        // Create object element to embed PDF with native viewer
+        const objectEl = document.createElement('object');
+        objectEl.data = pdfUrl;
+        objectEl.type = 'application/pdf';
+        objectEl.style.cssText = 'width: 100%; height: 100%; border: none; margin: 0; padding: 0;';
 
-        // PDF viewer state
-        const viewerState = {
-            pdf: pdf,
-            currentPage: 1,
-            totalPages: pdf.numPages,
-            scale: 1.0,
-            pagesContainer: pagesContainer,
-            rendering: false,
-            pdfBlob: pdfBlob
-        };
+        // Fallback for browsers that don't support PDF viewing
+        objectEl.innerHTML = `
+            <embed src="${pdfUrl}" type="application/pdf" style="width: 100%; height: 100%; border: none; margin: 0; padding: 0;">
+            <p style="padding: 20px; text-align: center;">
+                Your browser does not support PDF viewing. 
+                <a href="${pdfUrl}" download="document.pdf" style="color: #4a90e2; text-decoration: underline;">Download the PDF</a> to view it.
+            </p>
+        `;
 
-        // Update page count
-        document.getElementById('pdfPageCount').textContent = pdf.numPages;
+        container.appendChild(objectEl);
 
-        // Calculate initial scale for fit width
-        const contentWidth = content.clientWidth - 40;
-        const firstPage = await pdf.getPage(1);
-        const viewport = firstPage.getViewport({ scale: 1.0 });
-        const fitWidthScale = contentWidth / viewport.width;
-
-        // Render current page
-        async function renderPage(pageNum) {
-            if (viewerState.rendering) return;
-            viewerState.rendering = true;
-
-            pagesContainer.innerHTML = '';
-
-            const page = await pdf.getPage(pageNum);
-
-            // Calculate scale
-            let scale = viewerState.scale;
-            if (document.getElementById('pdfZoomSelect').value === 'auto') {
-                scale = fitWidthScale;
-            }
-
-            // Create page wrapper
-            const pageWrapper = document.createElement('div');
-            pageWrapper.className = 'pdf-viewer-page';
-
-            // Create canvas
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-
-            const pageViewport = page.getViewport({ scale: scale });
-            canvas.width = pageViewport.width;
-            canvas.height = pageViewport.height;
-
-            // Render page
-            await page.render({
-                canvasContext: context,
-                viewport: pageViewport
-            }).promise;
-
-            pageWrapper.appendChild(canvas);
-            pagesContainer.appendChild(pageWrapper);
-
-            // Update UI
-            viewerState.currentPage = pageNum;
-            document.getElementById('pdfPageInput').value = pageNum;
-            document.getElementById('pdfPrevPage').disabled = pageNum === 1;
-            document.getElementById('pdfNextPage').disabled = pageNum === pdf.numPages;
-
-            viewerState.rendering = false;
-        }
-
-        // Event handlers
-        document.getElementById('pdfPrevPage').addEventListener('click', () => {
-            if (viewerState.currentPage > 1) {
-                renderPage(viewerState.currentPage - 1);
-            }
-        });
-
-        document.getElementById('pdfNextPage').addEventListener('click', () => {
-            if (viewerState.currentPage < viewerState.totalPages) {
-                renderPage(viewerState.currentPage + 1);
-            }
-        });
-
-        document.getElementById('pdfPageInput').addEventListener('change', (e) => {
-            const pageNum = parseInt(e.target.value);
-            if (pageNum >= 1 && pageNum <= viewerState.totalPages) {
-                renderPage(pageNum);
-            } else {
-                e.target.value = viewerState.currentPage;
-            }
-        });
-
-        document.getElementById('pdfZoomSelect').addEventListener('change', (e) => {
-            const value = e.target.value;
-            if (value === 'auto') {
-                viewerState.scale = fitWidthScale;
-            } else {
-                viewerState.scale = parseFloat(value);
-            }
-            renderPage(viewerState.currentPage);
-        });
-
-        document.getElementById('pdfZoomIn').addEventListener('click', () => {
-            const currentScale = viewerState.scale;
-            const newScale = Math.min(currentScale * 1.25, 3.0);
-            viewerState.scale = newScale;
-            document.getElementById('pdfZoomSelect').value = newScale.toFixed(2);
-            renderPage(viewerState.currentPage);
-        });
-
-        document.getElementById('pdfZoomOut').addEventListener('click', () => {
-            const currentScale = viewerState.scale;
-            const newScale = Math.max(currentScale / 1.25, 0.25);
-            viewerState.scale = newScale;
-            document.getElementById('pdfZoomSelect').value = newScale.toFixed(2);
-            renderPage(viewerState.currentPage);
-        });
-
-        document.getElementById('pdfDownload').addEventListener('click', () => {
-            const url = URL.createObjectURL(viewerState.pdfBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'document.pdf';
-            a.click();
-            URL.revokeObjectURL(url);
-        });
-
-        // Initial render
-        await renderPage(1);
+        // Clean up the object URL after a delay to ensure the PDF loads
+        setTimeout(() => {
+            // Note: We keep the URL active as long as the viewer is open
+            // URL.revokeObjectURL(pdfUrl);
+        }, 1000);
 
     } catch (error) {
-        pagesContainer.innerHTML = `
-            <div class="pdf-viewer-error">
-                <div class="pdf-viewer-error-title">Error Loading PDF</div>
-                <div class="pdf-viewer-error-message">${error.message}</div>
+        container.innerHTML = `
+            <div style="padding: 40px; text-align: center; color: #dc3545;">
+                <div style="font-size: 18px; font-weight: 600; margin-bottom: 10px;">Error Loading PDF</div>
+                <div style="font-size: 14px;">${error.message}</div>
             </div>
         `;
         console.error('PDF rendering error:', error);
@@ -743,6 +898,7 @@ function loadReviewToEditor() {
             addAffilBtn.onclick = () => {
                 appData.projectReviewMeta.affiliationsData.push({text: ""});
                 renderAffiliationsList();
+                renderAuthorsList(); // Re-render authors to show new affiliation button
                 saveToLocalStorage(true);
             };
         }
@@ -774,10 +930,28 @@ function loadReviewToEditor() {
     // Content - use CodeMirror LaTeX Editor
     const contentEl = document.getElementById('noteContent');
 
-    // Show instruction in preview
+    // Check if we have a cached PDF for review
     const previewContainer = document.getElementById('latexPreview');
     if (previewContainer) {
-        previewContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #999; font-size: 14px;">Click "Compile PDF" to preview your LaTeX document</div>';
+        const cachedPdf = pdfCache['review'];
+        if (cachedPdf && cachedPdf.pdfBlob) {
+            // Try to load cached PDF if content hasn't changed
+            const currentContentHash = generateContentHash(appData.projectReview || '');
+            if (cachedPdf.contentHash === currentContentHash) {
+                console.log('📦 Loading cached PDF for project review');
+                previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">📄 Loading cached PDF preview...</div>';
+                renderPDFInContainer(cachedPdf.pdfBlob, previewContainer).catch(() => {
+                    // If loading fails, show compile instruction
+                    previewContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #999; font-size: 14px;">Click "Compile PDF" to preview your LaTeX document</div>';
+                });
+            } else {
+                // Content changed, show compile instruction
+                previewContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #999; font-size: 14px;">Click "Compile PDF" to preview your LaTeX document</div>';
+            }
+        } else {
+            // No cache, show instruction
+            previewContainer.innerHTML = '<div style="padding: 40px; text-align: center; color: #999; font-size: 14px;">Click "Compile PDF" to preview your LaTeX document</div>';
+        }
     }
 
     // Debounce timer for auto-save
@@ -833,7 +1007,6 @@ function renderAuthorsList() {
         nameInput.oninput = () => {
             appData.projectReviewMeta.authorsData[authorIdx].name = nameInput.value.trim();
             saveToLocalStorage(true);
-            updateAuthorPreview();
         };
 
         const removeBtn = document.createElement('button');
@@ -848,7 +1021,6 @@ function renderAuthorsList() {
             }
             renderAuthorsList();
             saveToLocalStorage(true);
-            updateAuthorPreview();
         };
 
         topRow.appendChild(nameInput);
@@ -875,7 +1047,6 @@ function renderAuthorsList() {
             let value = orcidInput.value.replace(/[^0-9X-]/g, '');
             appData.projectReviewMeta.authorsData[authorIdx].orcid = value;
             saveToLocalStorage(true);
-            updateAuthorPreview();
 
             // Visual validation
             const isValid = /^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]$/.test(value);
@@ -934,7 +1105,6 @@ function renderAuthorsList() {
                 appData.projectReviewMeta.authorsData[authorIdx].affiliationNumbers = affiliationNumbers;
                 saveToLocalStorage(true);
                 renderAuthorsList(); // Re-render to update badge styles
-                updateAuthorPreview();
             };
 
             badge.appendChild(checkbox);
@@ -951,9 +1121,6 @@ function renderAuthorsList() {
         authorCard.appendChild(affiliationsRow);
         authorsList.appendChild(authorCard);
     });
-
-    // Update author preview after rendering
-    updateAuthorPreview();
 }
 
 // Render affiliations list (minimalist style)
@@ -986,7 +1153,6 @@ function renderAffiliationsList() {
         textInput.oninput = () => {
             appData.projectReviewMeta.affiliationsData[affilIdx].text = textInput.value.trim();
             saveToLocalStorage(true);
-            updateAuthorPreview();
         };
 
         // Remove button
@@ -1015,7 +1181,6 @@ function renderAffiliationsList() {
             renderAffiliationsList();
             renderAuthorsList(); // Update authors to reflect new affiliation count
             saveToLocalStorage(true);
-            updateAuthorPreview();
         };
 
         affilCard.appendChild(numberBadge);
@@ -1024,88 +1189,6 @@ function renderAffiliationsList() {
         affiliationsList.appendChild(affilCard);
     });
 
-    // Update author preview after rendering
-    updateAuthorPreview();
-}
-
-// Live LaTeX preview for authors and affiliations
-function updateAuthorPreview() {
-    // Check if we're in the review editor
-    if (activeNoteId !== 'review') return;
-
-    // Find or create the preview container
-    let previewContainer = document.getElementById('authorsPreviewContainer');
-    if (!previewContainer) {
-        // Create preview container after the affiliations list
-        const affiliationsSection = document.getElementById('affiliationsList');
-        if (!affiliationsSection || !affiliationsSection.parentNode) return;
-
-        previewContainer = document.createElement('div');
-        previewContainer.id = 'authorsPreviewContainer';
-        previewContainer.style.cssText = 'margin-top: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 3px solid #4a90e2;';
-
-        const previewLabel = document.createElement('div');
-        previewLabel.textContent = 'LaTeX Preview:';
-        previewLabel.style.cssText = 'font-size: 12px; color: #6c757d; margin-bottom: 8px; font-weight: 600;';
-        previewContainer.appendChild(previewLabel);
-
-        const previewContent = document.createElement('div');
-        previewContent.id = 'authorsPreviewContent';
-        previewContent.style.cssText = 'font-family: Georgia, serif; font-size: 14px; line-height: 1.6;';
-        previewContainer.appendChild(previewContent);
-
-        affiliationsSection.parentNode.appendChild(previewContainer);
-    }
-
-    const previewContent = document.getElementById('authorsPreviewContent');
-    if (!previewContent) return;
-
-    // Generate preview HTML
-    const authorsData = appData.projectReviewMeta.authorsData || [];
-    const affiliationsData = appData.projectReviewMeta.affiliationsData || [];
-
-    let html = '';
-
-    // Authors with superscript affiliation numbers and ORCID
-    if (authorsData.length > 0) {
-        const authorStrings = authorsData.map(author => {
-            if (!author.name || !author.name.trim()) return '';
-
-            let authorHtml = `<span style="font-weight: 500;">${escapeHtml(author.name)}</span>`;
-
-            // Add affiliation superscripts
-            if (author.affiliationNumbers && author.affiliationNumbers.length > 0) {
-                const superscripts = author.affiliationNumbers.map(n => `<sup>${n}</sup>`).join(',');
-                authorHtml += superscripts;
-            }
-
-            // Add ORCID logo if provided
-            if (author.orcid && author.orcid.trim()) {
-                authorHtml += `<sup><a href="https://orcid.org/${escapeHtml(author.orcid)}" target="_blank" style="text-decoration: none;"><svg width="12" height="12" viewBox="0 0 256 256" style="vertical-align: baseline; margin-left: 2px;"><rect width="256" height="256" fill="#A6CE39" rx="128"/><g><path fill="#fff" d="M86.3 186.2H70.9V79.1h15.4v107.1zM108.9 79.1h41.6c39.6 0 57 28.3 57 53.6 0 27.5-21.5 53.6-56.8 53.6h-41.8V79.1zm15.4 93.3h24.5c34.9 0 42.9-26.5 42.9-39.7C191.7 111.2 178 93 148 93h-23.7v79.4zM88.7 56.8c0 5.5-4.5 10.1-10.1 10.1s-10.1-4.6-10.1-10.1c0-5.6 4.5-10.1 10.1-10.1s10.1 4.6 10.1 10.1z"/></g></svg></a></sup>`;
-            }
-
-            return authorHtml;
-        }).filter(s => s);
-
-        if (authorStrings.length > 0) {
-            html += '<div style="text-align: center; margin-bottom: 8px;">';
-            html += authorStrings.join(', ');
-            html += '</div>';
-        }
-    }
-
-    // Affiliations
-    if (affiliationsData.length > 0) {
-        html += '<div style="font-size: 12px; text-align: center; color: #6c757d; font-style: italic;">';
-        affiliationsData.forEach((affil, idx) => {
-            if (affil.text && affil.text.trim()) {
-                html += `<div style="margin: 2px 0;"><sup>${idx + 1}</sup>${escapeHtml(affil.text)}</div>`;
-            }
-        });
-        html += '</div>';
-    }
-
-    previewContent.innerHTML = html || '<span style="color: #adb5bd; font-style: italic;">No authors or affiliations yet</span>';
 }
 
 // Helper function to escape HTML
@@ -1532,6 +1615,7 @@ function bindEditableField(elementId, obj, prop) {
     const el = document.getElementById(elementId);
     if(!el) return;
     el.textContent = obj[prop] || '';
+    el.contentEditable = 'true'; // Ensure it's editable
     el.onblur = () => {
         const val = el.textContent.trim();
         if (obj[prop] !== val) {

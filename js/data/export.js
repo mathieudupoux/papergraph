@@ -58,7 +58,6 @@ function newProject() {
             const controlPointNodes = allNodes.filter(node => node.id < 0);
             if (controlPointNodes.length > 0) {
                 network.body.data.nodes.remove(controlPointNodes.map(n => n.id));
-                console.log('🗑️ Removed', controlPointNodes.length, 'control point nodes');
             }
             
             // Remove all segment edges (IDs containing _seg_)
@@ -66,7 +65,6 @@ function newProject() {
             const segmentEdges = allEdges.filter(edge => edge.id.toString().includes('_seg_'));
             if (segmentEdges.length > 0) {
                 network.body.data.edges.remove(segmentEdges.map(e => e.id));
-                console.log('🗑️ Removed', segmentEdges.length, 'segment edges');
             }
         }
         
@@ -854,50 +852,21 @@ function getLatexStyle() {
         return savedStyle;
     }
     
-    // Default LaTeX style - Academic format
+    // Default LaTeX style - Minimal Academic format
     return `\\documentclass[11pt,a4paper]{article}
 \\usepackage[utf8]{inputenc}
 \\usepackage[margin=1in]{geometry}
-\\usepackage{xcolor}
 \\usepackage{hyperref}
-\\usepackage{graphicx}
+\\usepackage{orcidlink}
 \\usepackage{amsmath}
 \\usepackage{amssymb}
-\\usepackage{titlesec}
 \\usepackage{parskip}
-
-% Custom ORCID iD badge command (green colored iD text)
-\\newcommand{\\orcidlink}[1]{%
-  \\href{https://orcid.org/#1}{%
-    \\textcolor[HTML]{A6CE39}{\\textsuperscript{\\scriptsize\\textbf{[iD]}}}%
-  }%
-}
+\\usepackage[numbers]{natbib}
 
 % Typography
 \\setlength{\\parindent}{0pt}
 \\setlength{\\parskip}{0.8em}
 \\linespread{1.1}
-
-% Main headings (Overview, Article titles) - unnumbered, chapter-like
-\\titleformat{name=\\section,numberless}
-  {\\normalfont\\LARGE\\bfseries}{}{0em}{}
-  [\\vspace{0.5ex}\\titlerule]
-\\titlespacing*{\\section}{0pt}{2em}{1em}
-
-% Regular sections (numbered, for content within review/articles)
-\\titleformat{\\section}
-  {\\normalfont\\Large\\bfseries}{\\thesection}{1em}{}
-\\titlespacing*{\\section}{0pt}{1.5em}{0.8em}
-
-% Subsections
-\\titleformat{\\subsection}
-  {\\normalfont\\large\\bfseries}{\\thesubsection}{1em}{}
-\\titlespacing*{\\subsection}{0pt}{1.2em}{0.6em}
-
-% Subsubsections
-\\titleformat{\\subsubsection}
-  {\\normalfont\\normalsize\\bfseries}{\\thesubsubsection}{1em}{}
-\\titlespacing*{\\subsubsection}{0pt}{1em}{0.4em}
 
 % Multi-author support
 \\makeatletter
@@ -925,7 +894,6 @@ function getLatexStyle() {
 \\hypersetup{
     colorlinks=true,
     linkcolor=blue,
-    filecolor=magenta,
     urlcolor=cyan,
     citecolor=blue,
     pdfborder={0 0 0}
@@ -979,10 +947,57 @@ function sanitizeCitationKey(key) {
  * Generate complete LaTeX document
  */
 function generateLatexDocument() {
-    const style = getLatexStyle();
+    // Use extended preamble with maketitle support
+    const style = `\\documentclass[11pt,a4paper]{article}
+\\usepackage{filecontents}
+\\usepackage[utf8]{inputenc}
+\\usepackage[margin=1in]{geometry}
+\\usepackage{amsmath}
+\\usepackage{amssymb}
+\\usepackage{hyperref}
+\\usepackage{orcidlink}
+\\usepackage{cite}
+\\usepackage{parskip}
+\\usepackage[numbers]{natbib}
+
+% Typography
+\\setlength{\\parindent}{0pt}
+\\setlength{\\parskip}{0.8em}
+\\linespread{1.1}
+
+% Multi-author support
+\\makeatletter
+\\renewcommand{\\@maketitle}{%
+  \\newpage
+  \\null
+  \\vskip 2em%
+  \\begin{center}%
+  \\let \\footnote \\thanks
+    {\\LARGE \\@title \\par}%
+    \\vskip 1.5em%
+    {\\large
+      \\lineskip .5em%
+      \\begin{tabular}[t]{c}%
+        \\@author
+      \\end{tabular}\\par}%
+    \\vskip 1em%
+    {\\large \\@date}%
+  \\end{center}%
+  \\par
+  \\vskip 1.5em}
+\\makeatother
+
+% Hyperlinks
+\\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=cyan,
+    citecolor=blue,
+    pdfborder={0 0 0}
+}`;
     
     // Get project metadata
-    const projectTitle = (appData.projectReviewMeta?.title) || 'Research Project Review';
+    const projectTitle = (appData.projectReviewMeta?.title) || 'Project Review';
     const authorsData = appData.projectReviewMeta?.authorsData || [];
     const affiliationsData = appData.projectReviewMeta?.affiliationsData || [];
     const projectAbstract = (appData.projectReviewMeta?.abstract) || '';
@@ -996,198 +1011,153 @@ function generateLatexDocument() {
     // Handle authors with superscript affiliation numbers and ORCID
     latex += '\\author{';
     if (authorsData && authorsData.length > 0) {
+        let authorsCount = 0; // Compteur interne pour les auteurs valides
+        
         authorsData.forEach((author, idx) => {
-            if (author.name && author.name.trim()) {
-                latex += escapeLatex(author.name);
+            if (!author.name || !author.name.trim()) return;
+            
+            authorsCount++; // On incrémente pour chaque auteur réellement ajouté
+            let authorLine = escapeLatex(author.name);
+            
+            // Add superscript affiliation numbers (use affiliationNumbers property, not affiliations)
+            const affiliationNums = author.affiliationNumbers || author.affiliations || [];
+            if (affiliationNums && affiliationNums.length > 0) {
+                const affNums = affiliationNums.map(num => typeof num === 'number' ? num : (num + 1)).join(',');
+                authorLine += `$^{${affNums}}$`;
+            }
+            
+            // Add ORCID if present
+            if (author.orcid && author.orcid.trim()) {
+                const orcidId = author.orcid.replace('https://orcid.org/', '');
+                authorLine += ` \\orcidlink{${orcidId}}`;
+            }
+            
+            latex += authorLine;
 
-                // Add affiliation superscripts (no comma between numbers, just consecutive)
-                const affilNums = author.affiliationNumbers || [];
-                if (affilNums && affilNums.length > 0) {
-                    affilNums.forEach(num => {
-                        latex += `\\textsuperscript{${num}}`;
-                    });
-                }
-
-                // Add ORCID logo and link if provided
-                if (author.orcid && author.orcid.trim()) {
-                    // ORCID logo using custom command (green circular badge with iD)
-                    latex += `\\,\\orcidlink{${escapeLatex(author.orcid)}}`;
-                }
-
-                // Add separator between authors - use comma for multi-author
-                if (idx < authorsData.length - 1) {
+            // Logique de séparation
+            if (idx < authorsData.length - 1) {
+                // Si on a atteint 3 auteurs sur la ligne actuelle, on passe à la ligne
+                // Sinon, on met une virgule.
+                if (authorsCount % 3 === 0) {
+                    latex += ' \\\\\n';
+                } else {
                     latex += ', ';
                 }
             }
         });
     }
     latex += '}\n';
-    
-    // Output affiliations below authors as separate block using \\date{} or custom command
+        
+   // Output affiliations below authors
     if (affiliationsData && affiliationsData.length > 0) {
         latex += '\n';
         latex += '\\date{';
-        latex += '\\vspace{0.5em}\\\\\n';  // Positive spacing to push affiliations down
-        latex += '{\\small\\itshape\n';  // Smaller font and italic for affiliations
+        latex += '\\vspace{0.5em}';
+        latex += '{\\small\\itshape\n';
         latex += '\\begin{tabular}{@{}c@{}}\n';
-        affiliationsData.forEach((affil, idx) => {
-            if (affil.text && affil.text.trim()) {
-                latex += `\\textsuperscript{${idx + 1}}${escapeLatex(affil.text)}`;
-                if (idx < affiliationsData.length - 1) {
-                    latex += ' \\\\\n';
-                }
+        
+        // Filter out empty affiliations and add line breaks only between non-empty ones
+        const nonEmptyAffils = affiliationsData
+            .map((affil, idx) => ({ text: affil.text, originalIdx: idx }))
+            .filter(affil => affil.text && affil.text.trim());
+        
+        nonEmptyAffils.forEach((affil, idx) => {
+            latex += `\\textsuperscript{${affil.originalIdx + 1}}${escapeLatex(affil.text)}`;
+            if (idx < nonEmptyAffils.length - 1) {
+                latex += ' \\\\\n';
             }
         });
-        latex += '\n\\end{tabular}}';  // Close small font
-        latex += '\\\\[1.5em]\n';  // More spacing before date
+        
+        latex += '\n\\end{tabular}}';
+        latex += '\\\\[1.5em]\n';
         latex += '\\today}\n';
     } else {
         latex += `\\date{\\today}\n`;
     }
     
+    // Add embedded bibliography using filecontents
+    const articlesWithBibtex = appData.articles ? appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
+    if (articlesWithBibtex.length > 0) {
+        const bibContent = generateBibtexContent();
+        if (bibContent && bibContent.trim()) {
+            latex += '\n\n';
+            latex += '\\begin{filecontents}{references.bib}\n';
+            latex += bibContent;
+            latex += '\\end{filecontents}\n';
+        }
+    }
+    
     latex += '\n\n';
-
     latex += `\\begin{document}\n\n`;
     latex += `\\maketitle\n\n`;
     
-    // Add abstract if provided
-    if (projectAbstract) {
+    // Add abstract if exists
+    if (projectAbstract && projectAbstract.trim()) {
         latex += `\\begin{abstract}\n`;
-        latex += processLatexContent(projectAbstract) + '\n';
-        latex += `\\end{abstract}\n\n`;
+        latex += processLatexContent(projectAbstract);
+        latex += `\n\\end{abstract}\n\n`;
     }
     
-    // Add main document content
-    if (projectContent) {
-        latex += `\\section*{Overview}\n\n`;
-        const processedContent = processLatexContent(projectContent);
-        latex += processedContent + '\n\n';
+    // Add main review content
+    if (projectContent && projectContent.trim()) {
+        latex += processLatexContent(projectContent) + '\n\n';
     }
     
-    // Add article abstracts section
+    // Concatenate each article's LaTeX content
     if (appData.articles && appData.articles.length > 0) {
         appData.articles.forEach((article, index) => {
-            // Each article is a chapter-like section (no numbering in title)
-            latex += `\\section*{${escapeLatex(article.title || 'Untitled')}}`;
+            // Reset section numbering for each article
+            latex += `\\setcounter{section}{0}\n`;
+            latex += `\\setcounter{subsection}{0}\n`;
+            latex += `\\setcounter{subsubsection}{0}\n\n`;
+            
+            // Each article section with citation in title (matching article preview)
+            latex += `\\section*{${escapeLatex(article.title || 'Untitled')}`;
             if (article.bibtexId && article.bibtexId.trim()) {
                 const citationKey = sanitizeCitationKey(article.bibtexId);
                 latex += ` \\cite{${citationKey}}`;
             }
-            latex += `\n\n`;
+            latex += `}\n\n`;
             
-            if (article.authors) {
-                latex += `\\textbf{Authors:} ${escapeLatex(article.authors)}\\\\\n`;
-            }
-            if (article.year) {
-                latex += `\\textbf{Year:} ${escapeLatex(article.year)}\\\\\n`;
-            }
-            if (article.journal) {
-                latex += `\\textbf{Journal:} ${escapeLatex(article.journal)}\\\\\n`;
-            }
-            latex += '\n';
+            // Add authors and metadata below title (minimal styling)
+            const metadataParts = [];
             
-            if (article.abstract) {
-                latex += `\\textbf{Abstract:}\n\n`;
-                latex += processLatexContent(article.abstract) + '\n\n';
+            if (article.authors && article.authors.trim()) {
+                metadataParts.push(escapeLatex(article.authors));
             }
             
-            if (article.text) {
-                latex += `\\textbf{Notes:}\n\n`;
-                // Reset section counter for independent article numbering
-                latex += `\\setcounter{section}{0}\n`;
-                latex += `\\setcounter{subsection}{0}\n`;
-                latex += `\\setcounter{subsubsection}{0}\n\n`;
-
-                // Add default template with article metadata and BibTeX
-                latex += `% Article Metadata Template\n`;
-                latex += `\\begin{quote}\n`;
-                latex += `\\textbf{Title:} ${escapeLatex(article.title || 'Untitled')}\\\\\n`;
-                if (article.authors) {
-                    latex += `\\textbf{Authors:} ${escapeLatex(article.authors)}\\\\\n`;
+            if (article.year && article.year.trim()) {
+                metadataParts.push(`(${escapeLatex(article.year)})`);
+            }
+            
+            if (article.journal && article.journal.trim()) {
+                let journalText = escapeLatex(article.journal);
+                if (article.volume && article.volume.trim()) {
+                    journalText += ` ${escapeLatex(article.volume)}`;
+                    if (article.number && article.number.trim()) {
+                        journalText += `(${escapeLatex(article.number)})`;
+                    }
                 }
-                latex += `\\end{quote}\n\n`;
-
-                // Add BibTeX entry
-                latex += `\\textbf{BibTeX Entry:}\n\n`;
-                latex += `\\begin{verbatim}\n`;
-                const bibtexEntry = articleToBibTeX(article);
-                latex += bibtexEntry;
-                latex += `\\end{verbatim}\n\n`;
-
-                latex += `\\hrule\n\n`;
-
-                // Article content keeps its sectioning as-is
+                metadataParts.push(`\\textit{${journalText}}`);
+            }
+            
+            if (metadataParts.length > 0) {
+                latex += `{\\small ${metadataParts.join(', ')}}\n\n`;
+            }
+            
+            // Add user content directly
+            if (article.text && article.text.trim()) {
                 const articleText = processLatexContent(article.text);
                 latex += articleText + '\n\n';
-            } else {
-                // Even without custom notes, add the default template
-                latex += `\\textbf{Notes:}\n\n`;
-                latex += `% Article Metadata Template\n`;
-                latex += `\\begin{quote}\n`;
-                latex += `\\textbf{Title:} ${escapeLatex(article.title || 'Untitled')}\\\\\n`;
-                if (article.authors) {
-                    latex += `\\textbf{Authors:} ${escapeLatex(article.authors)}\\\\\n`;
-                }
-                latex += `\\end{quote}\n\n`;
-
-                // Add BibTeX entry
-                latex += `\\textbf{BibTeX Entry:}\n\n`;
-                latex += `\\begin{verbatim}\n`;
-                const bibtexEntry = articleToBibTeX(article);
-                latex += bibtexEntry;
-                latex += `\\end{verbatim}\n\n`;
             }
         });
     }
     
-    // Add bibliography section
-    // Only include articles that have a bibtexId to avoid empty bibliography entries
-    const articlesWithBibtex = appData.articles ? appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
-
+    // Add bibliography section using natbib
     if (articlesWithBibtex.length > 0) {
-        // Add references heading
-        latex += '\\section*{References}\n\n';
-        latex += '\\begin{thebibliography}{99}\n\n';
-
-        articlesWithBibtex.forEach((article, index) => {
-            // Use the article's bibtexId as the citation key (sanitized)
-            const citationKey = sanitizeCitationKey(article.bibtexId);
-            latex += `\\bibitem{${citationKey}}\n`;
-
-            // Format: Authors. Title. Journal, Volume(Number), Pages. Year.
-            if (article.authors) {
-                latex += escapeLatex(article.authors) + '. ';
-            }
-            if (article.title) {
-                latex += `\\textit{${escapeLatex(article.title)}}. `;
-            }
-            if (article.journal) {
-                latex += escapeLatex(article.journal);
-                if (article.volume) {
-                    latex += ` \\textbf{${escapeLatex(article.volume)}}`;
-                }
-                if (article.number) {
-                    latex += `(${escapeLatex(article.number)})`;
-                }
-                if (article.pages) {
-                    latex += `, ${escapeLatex(article.pages)}`;
-                }
-                latex += '. ';
-            }
-            if (article.year) {
-                latex += `(${escapeLatex(article.year)}).`;
-            }
-            latex += '\n\n';
-        });
-
-        latex += '\\end{thebibliography}\n\n';
+        latex += '\n\n\\bibliographystyle{plainnat}\n';
+        latex += '\\bibliography{references}\n\n';
     }
-    
-    // Add footer
-    latex += `\\vfill\n`;
-    latex += `\\begin{center}\n`;
-    latex += `\\small\\textit{Generated by Papergraph --- \\url{https://papergraph.net}}\n`;
-    latex += `\\end{center}\n\n`;
     
     latex += `\\end{document}\n`;
     
@@ -1222,23 +1192,23 @@ function processLatexContent(text) {
     // These should be preserved as-is for LaTeX compilation
     let processedText = text;
     
-    // Ensure citations are properly formatted for LaTeX
-    // Replace any malformed citations
-    processedText = processedText.replace(/\\cite\s*\{([^}]+)\}/g, (match, keys) => {
-        // Clean up the keys (remove extra spaces)
-        const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
-        return `\\cite{${cleanKeys}}`;
-    });
+    // // Ensure citations are properly formatted for LaTeX
+    // // Replace any malformed citations
+    // processedText = processedText.replace(/\\cite\s*\{([^}]+)\}/g, (match, keys) => {
+    //     // Clean up the keys (remove extra spaces)
+    //     const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
+    //     return `\\cite{${cleanKeys}}`;
+    // });
     
-    processedText = processedText.replace(/\\citep\s*\{([^}]+)\}/g, (match, keys) => {
-        const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
-        return `\\cite{${cleanKeys}}`; // citep becomes cite in basic LaTeX
-    });
+    // processedText = processedText.replace(/\\citep\s*\{([^}]+)\}/g, (match, keys) => {
+    //     const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
+    //     return `\\cite{${cleanKeys}}`; // citep becomes cite in basic LaTeX
+    // });
     
-    processedText = processedText.replace(/\\citet\s*\{([^}]+)\}/g, (match, keys) => {
-        const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
-        return `\\cite{${cleanKeys}}`; // citet becomes cite in basic LaTeX
-    });
+    // processedText = processedText.replace(/\\citet\s*\{([^}]+)\}/g, (match, keys) => {
+    //     const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
+    //     return `\\cite{${cleanKeys}}`; // citet becomes cite in basic LaTeX
+    // });
     
     return processedText;
 }
@@ -1253,24 +1223,16 @@ async function exportToPDF() {
         const latexContent = generateLatexDocument();
 
         // Debug: log LaTeX document structure
-        console.log('=== LaTeX Compilation Debug ===');
-        console.log('Document length:', latexContent.length, 'characters');
-        console.log('First 500 chars:', latexContent.substring(0, 500));
 
         // Extract and log all citations
         const citations = latexContent.match(/\\cite\{([^}]+)\}/g);
-        console.log('Citations found:', citations ? citations.length : 0, citations || 'none');
 
         // Extract and log all bibliography items
         const biblioSection = latexContent.match(/\\begin{thebibliography}[\s\S]*?\\end{thebibliography}/);
         if (biblioSection) {
             const bibItems = biblioSection[0].match(/\\bibitem\{([^}]+)\}/g);
-            console.log('Bibliography items:', bibItems ? bibItems.length : 0, bibItems || 'none');
-            console.log('Bibliography section (first 500 chars):', biblioSection[0].substring(0, 500));
         } else {
-            console.log('No bibliography section found');
         }
-        console.log('==============================');
 
         // Show notification
         showNotification('Compiling to PDF with SwiftLaTeX... This may take a few seconds.', 'info');
@@ -1280,13 +1242,16 @@ async function exportToPDF() {
             throw new Error('SwiftLaTeX compiler not loaded. Please refresh the page.');
         }
 
-        console.log('Compiling LaTeX document with SwiftLaTeX...');
         await window.swiftLatexCompiler.initialize();
 
-        // Compile using SwiftLaTeX (no bibliography file needed since using thebibliography)
-        const pdfBlob = await window.swiftLatexCompiler.compileToPDF(latexContent);
+        // Generate bibliography content
+        const bibContent = generateBibtexContent();
 
-        console.log('PDF compiled successfully, size:', pdfBlob.size, 'bytes');
+        // Compile using SwiftLaTeX with bibliography file
+        const pdfBlob = await window.swiftLatexCompiler.compileToPDF(latexContent, {
+            bibContent: bibContent
+        });
+
 
         // Download PDF
         const url = URL.createObjectURL(pdfBlob);
@@ -1304,22 +1269,31 @@ async function exportToPDF() {
 }
 
 /**
- * Download LaTeX source (without compiling)
+ * Download LaTeX source as ZIP (with .tex and .bib files)
  */
-function exportToLatex() {
+async function exportToLatex() {
     try {
         const latexContent = generateLatexDocument();
+        const bibContent = generateBibtexContent();
         
-        const blob = new Blob([latexContent], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
+        // Create ZIP file with main.tex and references.bib
+        const zip = new JSZip();
+        zip.file('main.tex', latexContent);
+        
+        if (bibContent && bibContent.trim()) {
+            zip.file('references.bib', bibContent);
+        }
+        
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
         
         const a = document.createElement('a');
         a.href = url;
-        a.download = getExportFilename('tex');
+        a.download = getExportFilename('zip');
         a.click();
         
         URL.revokeObjectURL(url);
-        showNotification('LaTeX source exported!', 'success');
+        showNotification('LaTeX source package exported!', 'success');
     } catch (error) {
         console.error('LaTeX export error:', error);
         showNotification('Error exporting LaTeX: ' + error.message, 'error');
@@ -1362,3 +1336,7 @@ window.showLatexStyleEditor = showLatexStyleEditor;
 window.saveLatexStyle = saveLatexStyle;
 window.resetLatexStyle = resetLatexStyle;
 window.getLatexStyle = getLatexStyle;
+window.sanitizeCitationKey = sanitizeCitationKey;
+window.generateLatexDocument = generateLatexDocument;
+window.escapeLatex = escapeLatex;
+window.processLatexContent = processLatexContent;

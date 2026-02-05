@@ -156,7 +156,7 @@
     height: 100%;
     overflow-y: auto; /* Allow whole editor to scroll */
     overflow-x: hidden;
-    padding-bottom: 120px; /* Space for bottom toolbar */
+    padding-bottom: 40px; /* Space for bottom toolbar */
 }
 
 .notebook-editor::-webkit-scrollbar {
@@ -214,6 +214,7 @@
     font-size: 0.9rem;
     outline: none;
     transition: background 0.2s;
+    cursor: text;
 }
 
 .citation-badge:hover, .year-badge:hover {
@@ -266,9 +267,26 @@
     margin-top: 8px;
 }
 
+/* Make abstract row more visible and prominent */
+.abstract-row {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+
 .affiliation-row label, .abstract-row label {
     font-weight: 600;
     min-width: 80px;
+}
+
+/* Enhance abstract label */
+.abstract-row label {
+    font-size: 1rem;
+    color: #2c3e50;
+    font-weight: 700;
 }
 
 .affiliation-row .editable-field {
@@ -277,13 +295,14 @@
 
 .abstract-row .editable-field {
     flex: 1;
+    font-size: 1rem; /* Larger text */
 }
 
 .editable-multiline {
-    min-height: 60px;
-    max-height: 120px;
+    min-height: 120px; /* Increased from 60px */
+    max-height: 300px; /* Increased from 120px */
     overflow-y: auto;
-    line-height: 1.5;
+    line-height: 1.6; /* More readable line spacing */
 }
 
 .editable-multiline:empty::before {
@@ -620,12 +639,13 @@
     font-weight: 600;
 }
 
-/* Split View Container (Overleaf Style) */
+/* Split View Container (Overleaf Style - Full Height Notebook Editor) */
 .editor-split-container {
     flex: 1;
     display: flex;
     background: #f8f9fa;
-    min-height: calc(100vh - 300px); /* Ensure minimum height */
+    min-height: calc(100vh - 200px); /* Full height like notebook editor */
+    height: 100%;
 }
 
 .split-pane {
@@ -634,6 +654,7 @@
     flex-direction: column;
     padding: 0;
     position: relative;
+    height: 100%; /* Ensure both panes have equal height */
 }
 
 .source-pane {
@@ -656,7 +677,131 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-height: 40px;
+    height: 40px;
+    flex-shrink: 0;
+}
+
+/* Toggle Template Button */
+.toggle-template-btn {
+    background: #4a90e2;
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    transition: all 0.2s;
+}
+
+.toggle-template-btn:hover {
+    background: #357abd;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.toggle-template-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* LaTeX Template Container */
+.latex-template-container {
+    background: #fafafa;
+    border-bottom: 2px solid #4a90e2;
+    display: flex;
+    flex-direction: column;
+    height: 500px; /* Fixed height instead of max-height */
+}
+
+.latex-template-header {
+    background: #e8f4fd;
+    padding: 8px 15px;
+    border-bottom: 1px solid #4a90e2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #2c3e50;
+    flex-shrink: 0; /* Don't shrink header */
+}
+
+.latex-template-header span {
+    flex: 1;
+}
+
+.save-template-btn,
+.reset-template-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.reset-template-btn {
+    background: #dc3545;
+}
+
+.save-template-btn:hover {
+    background: #218838;
+}
+
+.reset-template-btn:hover {
+    background: #c82333;
+}
+
+/* Template Editor Wrapper with Line Numbers */
+.latex-template-editor-wrapper {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+    background: #fafafa;
+}
+
+.latex-template-line-numbers {
+    width: 50px;
+    background: #f0f0f0;
+    color: #999;
+    text-align: right;
+    padding: 10px 8px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    border-right: 1px solid #ddd;
+    overflow: hidden;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.latex-template-editor {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    resize: none;
+    background: #fafafa;
+    color: #2c3e50;
+    outline: none;
+    overflow-y: auto;
+    overflow-x: auto;
+    white-space: pre;
+    tab-size: 4;
+}
+
+.latex-template-editor:focus {
+    background: #fff;
 }
 
 /* Preview Toolbar Buttons */
@@ -755,7 +900,16 @@
     outline: none;
     font-size: 1rem;
     line-height: 1.6;
-    min-height: 500px; /* Ensure minimum height */
+    min-height: 500px;
+    height: 100%; /* Ensure content fills the pane */
+}
+
+.rich-textarea, .main-review-textarea {
+    overflow-y: auto; /* Add scrolling for text editors */
+}
+
+.latex-content {
+    overflow: hidden; /* No scrollbar - PDF viewer handles scrolling */
 }
 
 .rich-textarea {

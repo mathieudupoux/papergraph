@@ -9,14 +9,12 @@ class LaTeXOnlineCompiler {
         // Default to public latex-online instance
         this.serverUrl = 'https://latex.ytotech.com';
         this.isReady = true; // Always ready, no initialization needed
-        console.log('📦 LaTeX Online compiler created');
     }
 
     /**
      * Initialize compiler (no-op for HTTP-based compilation)
      */
     async initialize() {
-        console.log('✅ LaTeX Online compiler ready');
         return true;
     }
 
@@ -32,38 +30,55 @@ class LaTeXOnlineCompiler {
         const { bibContent, compiler = 'pdflatex' } = options;
 
         try {
-            console.log('📄 Starting LaTeX compilation via latex-online...');
-            console.log(`   Document length: ${mainTexContent.length} chars`);
-            console.log(`   Compiler: ${compiler}`);
 
-            // Build URL with parameters
-            const url = new URL(`${this.serverUrl}/builds/sync`);
-            url.searchParams.set('content', mainTexContent);
-            url.searchParams.set('compiler', compiler);
+            // Check if document uses natbib
+            const usesNatbib = /\\usepackage(\[.*?\])?\{natbib\}/.test(mainTexContent);
+            const usesBibliography = /\\bibliography\{/.test(mainTexContent);
+            
+            if (usesNatbib) {
+            }
+            if (usesBibliography) {
+            }
 
-            // Add bibliography as resource if provided
+            // Build URL endpoint
+            const url = `${this.serverUrl}/builds/sync`;
+
+            // Build form data for POST request with files
+            const formData = new FormData();
+            
+            // Create main.tex file as Blob and append it
+            const texBlob = new Blob([mainTexContent], { type: 'text/plain' });
+            formData.append('file[]', texBlob, 'main.tex');
+            
+            // Set compiler
+            formData.append('compiler', compiler);
+
+            // Add bibliography as a file if provided
             if (bibContent && bibContent.trim()) {
-                console.log(`   Bibliography: ${bibContent.length} chars`);
-                url.searchParams.append('resource-path[]', 'references.bib');
-                url.searchParams.append('resource-value[]', bibContent);
-                url.searchParams.append('resource-type[]', 'content');
+                const bibBlob = new Blob([bibContent], { type: 'text/plain' });
+                formData.append('file[]', bibBlob, 'references.bib');
+                
+                // Specify the compilation command to run bibtex
+                // Run: latex -> bibtex -> latex -> latex (standard bibliography workflow)
+                formData.append('command', `${compiler} -interaction=nonstopmode main.tex && bibtex main || true && ${compiler} -interaction=nonstopmode main.tex && ${compiler} -interaction=nonstopmode main.tex`);
+            } else {
+                // No bibliography, single compilation pass
+                formData.append('command', `${compiler} -interaction=nonstopmode main.tex`);
             }
 
             // Make request
-            console.log(`📤 Requesting compilation from ${this.serverUrl}`);
-            console.log('⏳ Waiting for compilation (this may take 10-60 seconds)...');
 
             const startTime = performance.now();
 
-            const response = await fetch(url.toString(), {
-                method: 'GET',
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData,
                 headers: {
                     'Accept': 'application/pdf',
                 }
             });
 
             const endTime = performance.now();
-            console.log(`✅ Server responded in ${((endTime - startTime) / 1000).toFixed(2)}s`);
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -73,7 +88,6 @@ class LaTeXOnlineCompiler {
             }
 
             // Get PDF
-            console.log('📥 Downloading PDF...');
             const pdfData = await response.arrayBuffer();
 
             // Verify it's actually a PDF
@@ -90,7 +104,6 @@ class LaTeXOnlineCompiler {
             }
 
             const pdfBlob = new Blob([pdfData], { type: 'application/pdf' });
-            console.log(`✅ PDF generated successfully (${pdfBlob.size} bytes)`);
 
             return pdfBlob;
 
@@ -105,7 +118,6 @@ class LaTeXOnlineCompiler {
      * Reset compiler state (no-op for HTTP-based compilation)
      */
     async reset() {
-        console.log('🧹 Compiler reset (no-op for HTTP-based compilation)');
     }
 
     /**
@@ -114,14 +126,13 @@ class LaTeXOnlineCompiler {
      */
     setServerUrl(url) {
         this.serverUrl = url.replace(/\/$/, ''); // Remove trailing slash
-        console.log(`🔧 Server URL set to: ${this.serverUrl}`);
     }
 }
 
 // Create and export singleton
 const latexOnlineCompiler = new LaTeXOnlineCompiler();
 
-// Make globally available (maintain compatibility with existing code)
+// Make globally available
 window.swiftLatexCompiler = latexOnlineCompiler; // Keep old name for compatibility
 window.latexOnlineCompiler = latexOnlineCompiler;
 

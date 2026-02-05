@@ -24,6 +24,7 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
         position: relative;
         display: flex;
         width: 100%;
+        height: 100%;
         min-height: 400px;
         font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
         font-size: 13px;
@@ -32,7 +33,6 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
         border: none;
         margin: 0;
         padding: 0;
-        overflow: hidden;
     `;
 
     // Create line numbers column
@@ -46,31 +46,19 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
         user-select: none;
         min-width: 50px;
         border-right: 1px solid #e0e0e0;
-        font-size: 12px;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        font-size: 13px;
         line-height: 1.5;
         overflow: hidden;
+        box-sizing: border-box;
+        height: 100%;
     `;
 
     // Create syntax highlight layer (behind textarea)
     const highlightLayer = document.createElement('pre');
     highlightLayer.className = 'latex-highlight-layer';
     highlightLayer.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 50px;
-        margin: 0;
-        padding: 8px 12px;
-        font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-        font-size: 13px;
-        line-height: 1.5;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-        overflow: hidden;
-        pointer-events: none;
-        z-index: 1;
-        background: transparent;
-        border: none;
-        color: transparent;
+        display: none;
     `;
 
     // Create textarea for code
@@ -83,9 +71,8 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
     textarea.setAttribute('autocapitalize', 'off');
     textarea.setAttribute('wrap', 'soft');
 
-    // Styling for LaTeX editor (light theme, transparent text for highlighting)
+    // Styling for LaTeX editor (light theme)
     textarea.style.cssText = `
-        position: relative;
         flex: 1;
         min-height: 400px;
         font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
@@ -96,10 +83,10 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
         margin: 0;
         resize: vertical;
         tab-size: 4;
-        background: transparent;
+        background: #ffffff;
         color: #2e3440;
         outline: none;
-        z-index: 2;
+        box-sizing: border-box;
     `;
 
     // Add global CSS for syntax highlighting and scrollbar
@@ -109,6 +96,11 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
         style.textContent = `
             .latex-editor-wrapper {
                 position: relative;
+                overflow: visible !important;
+            }
+
+            .latex-editor-content {
+                overflow: auto !important;
             }
 
             .latex-editor-content::-webkit-scrollbar {
@@ -131,35 +123,6 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
 
             .latex-editor-content::selection {
                 background: #b3d7ff;
-            }
-
-            /* Syntax highlighting colors */
-            .latex-highlight-layer .latex-command {
-                color: #0077aa;
-                font-weight: 500;
-            }
-
-            .latex-highlight-layer .latex-comment {
-                color: #6a9955;
-                font-style: italic;
-            }
-
-            .latex-highlight-layer .latex-bracket {
-                color: #af00db;
-            }
-
-            .latex-highlight-layer .latex-math {
-                color: #ee9900;
-                font-weight: bold;
-            }
-
-            .latex-highlight-layer .latex-environment {
-                color: #008080;
-                font-weight: 600;
-            }
-
-            .latex-highlight-layer .latex-string {
-                color: #d73a49;
             }
         `;
         document.head.appendChild(style);
@@ -205,12 +168,9 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
         return html;
     }
 
-    // Update highlighting
+    // Update highlighting (currently disabled)
     function updateHighlighting() {
-        const highlighted = applySyntaxHighlighting(textarea.value);
-        highlightLayer.innerHTML = highlighted;
-        highlightLayer.scrollTop = textarea.scrollTop;
-        highlightLayer.scrollLeft = textarea.scrollLeft;
+        // Syntax highlighting temporarily disabled for better performance
     }
 
     // Event listener for changes
@@ -224,11 +184,9 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
 
     textarea.addEventListener('input', handleInput);
 
-    // Sync scroll between line numbers, textarea, and highlight layer
+    // Sync scroll between line numbers and textarea
     textarea.addEventListener('scroll', () => {
         lineNumbers.scrollTop = textarea.scrollTop;
-        highlightLayer.scrollTop = textarea.scrollTop;
-        highlightLayer.scrollLeft = textarea.scrollLeft;
     });
 
     // Tab key support (insert 4 spaces)
@@ -248,9 +206,8 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
         }
     });
 
-    // Assemble editor (order matters: highlight layer behind textarea)
+    // Assemble editor
     editorWrapper.appendChild(lineNumbers);
-    editorWrapper.appendChild(highlightLayer);
     editorWrapper.appendChild(textarea);
     container.appendChild(editorWrapper);
 
