@@ -1,0 +1,583 @@
+{
+  "edges": [
+    {
+      "id": 5,
+      "to": 16,
+      "from": 17,
+      "label": "implémente"
+    },
+    {
+      "id": 6,
+      "to": 18,
+      "from": 17,
+      "label": "implémente"
+    },
+    {
+      "id": 8,
+      "to": 16,
+      "from": 19,
+      "label": "explique"
+    },
+    {
+      "id": 9,
+      "to": 19,
+      "from": 20,
+      "label": ""
+    },
+    {
+      "id": 10,
+      "to": 17,
+      "from": 28,
+      "label": "valide"
+    },
+    {
+      "id": 12,
+      "to": 17,
+      "from": 30,
+      "label": "applique"
+    },
+    {
+      "id": 13,
+      "to": 17,
+      "from": 29,
+      "label": "nettoie"
+    },
+    {
+      "id": 16,
+      "to": 27,
+      "from": 23,
+      "label": "nécessite"
+    },
+    {
+      "id": 17,
+      "to": 17,
+      "from": 25,
+      "label": "évalue"
+    },
+    {
+      "id": 18,
+      "to": 24,
+      "from": 23,
+      "label": ""
+    },
+    {
+      "id": 19,
+      "to": 22,
+      "from": 23,
+      "label": ""
+    },
+    {
+      "id": 20,
+      "to": 26,
+      "from": 24,
+      "label": ""
+    }
+  ],
+  "nodes": [
+    {
+      "id": 16,
+      "doi": "10.1023/A:1010933404324",
+      "pdf": "",
+      "date": "2001-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "",
+      "text": "",
+      "year": "2001",
+      "pages": "5--32",
+      "title": "Random forests",
+      "number": "1",
+      "volume": "45",
+      "authors": "Breiman, Leo",
+      "journal": "Machine Learning",
+      "abstract": "",
+      "bibtexId": "breiman2001random",
+      "entryType": "article",
+      "publisher": "",
+      "categories": [
+        "Modélisation"
+      ],
+      "citationKey": "breiman2001random",
+      "originalBibTeX": "@article{breiman2001random,   title={Random forests},   author={Breiman, Leo},   journal={Machine Learning},   volume={45},   number={1},   pages={5--32},   year={2001},   doi={10.1023/A:1010933404324} }"
+    },
+    {
+      "id": 17,
+      "doi": "",
+      "pdf": "",
+      "date": "2011-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "Référence standard pour les outils d'apprentissage automatique utilisés (implémentation Random Forest, K-Means, métriques)",
+      "text": "Référence standard pour les outils d'apprentissage automatique utilisés (implémentation Random Forest, K-Means, métriques)",
+      "year": "2011",
+      "pages": "2825--2830",
+      "title": "Scikit-learn: Machine learning in Python",
+      "number": "",
+      "volume": "12",
+      "authors": "Pedregosa, Fabian and Varoquaux, Ga{\\\"e}l and Gramfort, Alexandre and Michel, Vincent and Thirion, Bertrand and Grisel, Olivier and Blondel, Mathieu and Prettenhofer, Peter and Weiss, Ron and Dubourg, Vincent and others",
+      "journal": "Journal of Machine Learning Research",
+      "abstract": "Référence standard pour les outils d'apprentissage automatique utilisés (implémentation Random Forest, K-Means, métriques)",
+      "bibtexId": "pedregosa2011scikit",
+      "entryType": "article",
+      "publisher": "",
+      "categories": [
+        "Modélisation"
+      ],
+      "citationKey": "pedregosa2011scikit",
+      "originalBibTeX": "@article{pedregosa2011scikit,   title={Scikit-learn: Machine learning in Python},   author={Pedregosa, Fabian and Varoquaux, Ga{\\\"e}l and Gramfort, Alexandre and Michel, Vincent and Thirion, Bertrand and Grisel, Olivier and Blondel, Mathieu and Prettenhofer, Peter and Weiss, Ron and Dubourg, Vincent and others},   journal={Journal of Machine Learning Research},   volume={12},   pages={2825--2830},   year={2011},   note={Référence standard pour les outils d'apprentissage automatique utilisés (implémentation Random Forest, K-Means, métriques)} }"
+    },
+    {
+      "id": 18,
+      "doi": "",
+      "pdf": "",
+      "date": "1967-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "",
+      "text": "",
+      "year": "1967",
+      "pages": "281--297",
+      "title": "Some methods for classification and analysis of multivariate observations",
+      "number": "",
+      "volume": "1",
+      "authors": "MacQueen, James",
+      "journal": "Proceedings of the Fifth Berkeley Symposium on Mathematical Statistics and Probability",
+      "abstract": "",
+      "bibtexId": "macqueen1967methods",
+      "booktitle": "Proceedings of the Fifth Berkeley Symposium on Mathematical Statistics and Probability",
+      "entryType": "inproceedings",
+      "publisher": "",
+      "categories": [
+        "Modélisation"
+      ],
+      "citationKey": "macqueen1967methods",
+      "originalBibTeX": "@inproceedings{macqueen1967methods,   title={Some methods for classification and analysis of multivariate observations},   author={MacQueen, James},   booktitle={Proceedings of the Fifth Berkeley Symposium on Mathematical Statistics and Probability},   volume={1},   pages={281--297},   year={1967} }"
+    },
+    {
+      "id": 19,
+      "doi": "",
+      "pdf": "",
+      "date": "2020-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "",
+      "text": "",
+      "year": "2020",
+      "pages": "56--67",
+      "title": "From local explanations to global understanding with explainable AI for trees",
+      "number": "1",
+      "volume": "2",
+      "authors": "Lundberg, Scott M and others",
+      "journal": "Nature Machine Intelligence",
+      "abstract": "",
+      "bibtexId": "lundberg2020local",
+      "entryType": "article",
+      "publisher": "",
+      "categories": [
+        "Explicabilité (XAI)"
+      ],
+      "citationKey": "lundberg2020local",
+      "originalBibTeX": "@article{lundberg2020local,   title={From local explanations to global understanding with explainable AI for trees},   author={Lundberg, Scott M and others},   journal={Nature Machine Intelligence},   volume={2},   number={1},   pages={56--67},   year={2020} }"
+    },
+    {
+      "id": 20,
+      "doi": "",
+      "pdf": "",
+      "date": "2017-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "",
+      "text": "",
+      "year": "2017",
+      "pages": "4765--4774",
+      "title": "A unified approach to interpreting model predictions",
+      "number": "",
+      "volume": "30",
+      "authors": "Lundberg, Scott M and Lee, Su-In",
+      "journal": "Advances in Neural Information Processing Systems",
+      "abstract": "",
+      "bibtexId": "lundberg2017unified",
+      "booktitle": "Advances in Neural Information Processing Systems",
+      "entryType": "inproceedings",
+      "publisher": "",
+      "categories": [
+        "Explicabilité (XAI)"
+      ],
+      "citationKey": "lundberg2017unified",
+      "originalBibTeX": "@inproceedings{lundberg2017unified,   title={A unified approach to interpreting model predictions},   author={Lundberg, Scott M and Lee, Su-In},   booktitle={Advances in Neural Information Processing Systems},   volume={30},   pages={4765--4774},   year={2017} }"
+    },
+    {
+      "id": 21,
+      "doi": "",
+      "pdf": "",
+      "date": "2015-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "",
+      "text": "",
+      "year": "2015",
+      "pages": "44--65",
+      "title": "Peeking inside the black box: Visualizing statistical learning with plots of individual conditional expectation",
+      "number": "1",
+      "volume": "24",
+      "authors": "Goldstein, Alex and Kapelner, Adam and Bleich, Justin and Pitkin, Emil",
+      "journal": "Journal of Computational and Graphical Statistics",
+      "abstract": "",
+      "bibtexId": "goldstein2015peeking",
+      "entryType": "article",
+      "publisher": "",
+      "categories": [
+        "Explicabilité (XAI)"
+      ],
+      "citationKey": "goldstein2015peeking",
+      "originalBibTeX": "@article{goldstein2015peeking,   title={Peeking inside the black box: Visualizing statistical learning with plots of individual conditional expectation},   author={Goldstein, Alex and Kapelner, Adam and Bleich, Justin and Pitkin, Emil},   journal={Journal of Computational and Graphical Statistics},   volume={24},   number={1},   pages={44--65},   year={2015} }"
+    },
+    {
+      "id": 22,
+      "doi": "",
+      "pdf": "",
+      "date": "1993-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "",
+      "text": "",
+      "year": "1993",
+      "pages": "424--432",
+      "title": "Evaluation of regression procedures for methods comparison studies",
+      "number": "3",
+      "volume": "39",
+      "authors": "Linnet, Kristian",
+      "journal": "Clinical Chemistry",
+      "abstract": "",
+      "bibtexId": "linnet1993evaluation",
+      "entryType": "article",
+      "publisher": "",
+      "categories": [
+        "Métrologie & Comparaison"
+      ],
+      "citationKey": "linnet1993evaluation",
+      "originalBibTeX": "@article{linnet1993evaluation,   title={Evaluation of regression procedures for methods comparison studies},   author={Linnet, Kristian},   journal={Clinical Chemistry},   volume={39},   number={3},   pages={424--432},   year={1993} }"
+    },
+    {
+      "id": 23,
+      "doi": "",
+      "pdf": "",
+      "date": "2000-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "",
+      "text": "",
+      "year": "2000",
+      "pages": "100--104",
+      "title": "General Deming regression for estimating systematic bias and its confidence interval in method-comparison studies",
+      "number": "1",
+      "volume": "46",
+      "authors": "Martin, RF",
+      "journal": "Clinical Chemistry",
+      "abstract": "",
+      "bibtexId": "martin2000general",
+      "entryType": "article",
+      "publisher": "",
+      "categories": [
+        "Métrologie & Comparaison"
+      ],
+      "citationKey": "martin2000general",
+      "originalBibTeX": "@article{martin2000general,   title={General Deming regression for estimating systematic bias and its confidence interval in method-comparison studies},   author={Martin, RF},   journal={Clinical Chemistry},   volume={46},   number={1},   pages={100--104},   year={2000} }"
+    },
+    {
+      "id": 24,
+      "doi": "10.1016/S0140-6736(86)90837-8",
+      "pdf": "",
+      "date": "1986-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "",
+      "text": "",
+      "year": "1986",
+      "pages": "307--310",
+      "title": "Statistical methods for assessing agreement between two methods of clinical measurement",
+      "number": "8476",
+      "volume": "327",
+      "authors": "Bland, J Martin and Altman, Douglas G",
+      "journal": "The Lancet",
+      "abstract": "",
+      "bibtexId": "bland1986statistical",
+      "entryType": "article",
+      "publisher": "Elsevier",
+      "categories": [
+        "Métrologie & Comparaison"
+      ],
+      "citationKey": "bland1986statistical",
+      "originalBibTeX": "@article{bland1986statistical,   title={Statistical methods for assessing agreement between two methods of clinical measurement},   author={Bland, J Martin and Altman, Douglas G},   journal={The Lancet},   volume={327},   number={8476},   pages={307--310},   year={1986},   publisher={Elsevier},   doi={10.1016/S0140-6736(86)90837-8} }"
+    },
+    {
+      "id": 25,
+      "doi": "",
+      "pdf": "",
+      "date": "2005-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "",
+      "text": "",
+      "year": "2005",
+      "pages": "79--82",
+      "title": "Advantages of the mean absolute error (MAE) over the root mean square error (RMSE) in assessing average model performance",
+      "number": "1",
+      "volume": "30",
+      "authors": "Willmott, Cort J and Matsuura, Kenji",
+      "journal": "Climate Research",
+      "abstract": "",
+      "bibtexId": "willmott2005advantages",
+      "entryType": "article",
+      "publisher": "",
+      "categories": [
+        "Métrologie & Comparaison"
+      ],
+      "citationKey": "willmott2005advantages",
+      "originalBibTeX": "@article{willmott2005advantages,   title={Advantages of the mean absolute error (MAE) over the root mean square error (RMSE) in assessing average model performance},   author={Willmott, Cort J and Matsuura, Kenji},   journal={Climate Research},   volume={30},   number={1},   pages={79--82},   year={2005} }"
+    },
+    {
+      "id": 26,
+      "doi": "",
+      "pdf": "",
+      "date": "1988-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "",
+      "text": "",
+      "year": "1988",
+      "pages": "596--610",
+      "title": "Locally weighted regression: an approach to regression analysis by local fitting",
+      "number": "403",
+      "volume": "83",
+      "authors": "Cleveland, William S and Devlin, Susan J",
+      "journal": "Journal of the American Statistical Association",
+      "abstract": "",
+      "bibtexId": "cleveland1988locally",
+      "entryType": "article",
+      "publisher": "",
+      "categories": [
+        "Métrologie & Comparaison"
+      ],
+      "citationKey": "cleveland1988locally",
+      "originalBibTeX": "@article{cleveland1988locally,   title={Locally weighted regression: an approach to regression analysis by local fitting},   author={Cleveland, William S and Devlin, Susan J},   journal={Journal of the American Statistical Association},   volume={83},   number={403},   pages={596--610},   year={1988} }"
+    },
+    {
+      "id": 27,
+      "doi": "",
+      "pdf": "",
+      "date": "1965-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "Référence standard pour le test de normalité de Shapiro-Wilk, appliqué à l'analyse des résidus du modèle",
+      "text": "Référence standard pour le test de normalité de Shapiro-Wilk, appliqué à l'analyse des résidus du modèle",
+      "year": "1965",
+      "pages": "591--611",
+      "title": "An analysis of variance test for normality (complete samples)",
+      "number": "3/4",
+      "volume": "52",
+      "authors": "Shapiro, Samuel Sanford and Wilk, Martin B",
+      "journal": "Biometrika",
+      "abstract": "Référence standard pour le test de normalité de Shapiro-Wilk, appliqué à l'analyse des résidus du modèle",
+      "bibtexId": "shapiro1965analysis",
+      "entryType": "article",
+      "publisher": "Oxford University Press",
+      "categories": [
+        "Protocole statistique"
+      ],
+      "citationKey": "shapiro1965analysis",
+      "originalBibTeX": "@article{shapiro1965analysis,   title={An analysis of variance test for normality (complete samples)},   author={Shapiro, Samuel Sanford and Wilk, Martin B},   journal={Biometrika},   volume={52},   number={3/4},   pages={591--611},   year={1965},   publisher={Oxford University Press},   note={Référence standard pour le test de normalité de Shapiro-Wilk, appliqué à l'analyse des résidus du modèle} }"
+    },
+    {
+      "id": 28,
+      "doi": "",
+      "pdf": "",
+      "date": "1995-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "Référence fondamentale justifiant le choix de la validation croisée (K-Fold) pour l'évaluation des modèles",
+      "text": "Référence fondamentale justifiant le choix de la validation croisée (K-Fold) pour l'évaluation des modèles",
+      "year": "1995",
+      "pages": "1137--1143",
+      "title": "A study of cross-validation and bootstrap for accuracy estimation and model selection",
+      "number": "2",
+      "volume": "14",
+      "authors": "Kohavi, Ron",
+      "journal": "Proceedings of the 14th International Joint Conference on Artificial Intelligence (IJCAI)",
+      "abstract": "Référence fondamentale justifiant le choix de la validation croisée (K-Fold) pour l'évaluation des modèles",
+      "bibtexId": "kohavi1995study",
+      "booktitle": "Proceedings of the 14th International Joint Conference on Artificial Intelligence (IJCAI)",
+      "entryType": "inproceedings",
+      "publisher": "",
+      "categories": [
+        "Protocole statistique"
+      ],
+      "citationKey": "kohavi1995study",
+      "organization": "Montreal, Canada",
+      "originalBibTeX": "@inproceedings{kohavi1995study,   title={A study of cross-validation and bootstrap for accuracy estimation and model selection},   author={Kohavi, Ron},   booktitle={Proceedings of the 14th International Joint Conference on Artificial Intelligence (IJCAI)},   volume={14},   number={2},   pages={1137--1143},   year={1995},   organization={Montreal, Canada},   note={Référence fondamentale justifiant le choix de la validation croisée (K-Fold) pour l'évaluation des modèles} }"
+    },
+    {
+      "id": 29,
+      "doi": "",
+      "pdf": "",
+      "date": "2013-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "Justification méthodologique pour le traitement robuste des valeurs aberrantes dans le jeu de données",
+      "text": "Justification méthodologique pour le traitement robuste des valeurs aberrantes dans le jeu de données",
+      "year": "2013",
+      "pages": "764--766",
+      "title": "Detecting outliers: Do not use standard deviation around the mean, use absolute deviation around the median",
+      "number": "4",
+      "volume": "49",
+      "authors": "Leys, Christophe and Ley, C{\\'e}dric and Klein, Olivier and Bernard, Philippe and Licata, Laurent",
+      "journal": "Journal of Experimental Social Psychology",
+      "abstract": "Justification méthodologique pour le traitement robuste des valeurs aberrantes dans le jeu de données",
+      "bibtexId": "leys2013detecting",
+      "entryType": "article",
+      "publisher": "Elsevier",
+      "categories": [
+        "Protocole statistique"
+      ],
+      "citationKey": "leys2013detecting",
+      "originalBibTeX": "@article{leys2013detecting,   title={Detecting outliers: Do not use standard deviation around the mean, use absolute deviation around the median},   author={Leys, Christophe and Ley, C{\\'e}dric and Klein, Olivier and Bernard, Philippe and Licata, Laurent},   journal={Journal of Experimental Social Psychology},   volume={49},   number={4},   pages={764--766},   year={2013},   publisher={Elsevier},   note={Justification méthodologique pour le traitement robuste des valeurs aberrantes dans le jeu de données} }"
+    },
+    {
+      "id": 30,
+      "doi": "",
+      "pdf": "",
+      "date": "1979-01-01",
+      "isbn": "",
+      "issn": "",
+      "link": "",
+      "note": "Article fondateur de la méthode du Bootstrap, utilisée pour estimer les intervalles de confiance et la variabilité des prédictions",
+      "text": "Article fondateur de la méthode du Bootstrap, utilisée pour estimer les intervalles de confiance et la variabilité des prédictions",
+      "year": "1979",
+      "pages": "1--26",
+      "title": "Bootstrap methods: another look at the jackknife",
+      "number": "1",
+      "volume": "7",
+      "authors": "Efron, Bradley",
+      "journal": "The Annals of Statistics",
+      "abstract": "Article fondateur de la méthode du Bootstrap, utilisée pour estimer les intervalles de confiance et la variabilité des prédictions",
+      "bibtexId": "efron1979bootstrap",
+      "entryType": "article",
+      "publisher": "Institute of Mathematical Statistics",
+      "categories": [
+        "Protocole statistique"
+      ],
+      "citationKey": "efron1979bootstrap",
+      "originalBibTeX": "@article{efron1979bootstrap,   title={Bootstrap methods: another look at the jackknife},   author={Efron, Bradley},   journal={The Annals of Statistics},   volume={7},   number={1},   pages={1--26},   year={1979},   publisher={Institute of Mathematical Statistics},   note={Article fondateur de la méthode du Bootstrap, utilisée pour estimer les intervalles de confiance et la variabilité des prédictions} }"
+    }
+  ],
+  "zones": [
+    {
+      "x": -1197.143938517966,
+      "y": -491.4992288221906,
+      "tag": "Modélisation",
+      "color": "#2ecc71",
+      "width": 280.3598399731035,
+      "height": 349.11601681027935
+    },
+    {
+      "x": -881.5645283036187,
+      "y": -360.692437133258,
+      "tag": "Explicabilité (XAI)",
+      "color": "#e74c3c",
+      "width": 253.01021185794843,
+      "height": 256.33444388322675
+    },
+    {
+      "x": -1269.4730546477358,
+      "y": -47.08666052169653,
+      "tag": "Métrologie & Comparaison",
+      "color": "#3498db",
+      "width": 465.91099100149074,
+      "height": 199.7537421609885
+    },
+    {
+      "x": -1551.0697289521352,
+      "y": -369.1737195920222,
+      "tag": "Protocole statistique",
+      "color": "#f1c40f",
+      "width": 303.47743013337345,
+      "height": 292.88608747078297
+    }
+  ],
+  "positions": {
+    "16": {
+      "x": -1112,
+      "y": -365
+    },
+    "17": {
+      "x": -1062,
+      "y": -185
+    },
+    "18": {
+      "x": -1003,
+      "y": -275
+    },
+    "19": {
+      "x": -796,
+      "y": -273
+    },
+    "20": {
+      "x": -714,
+      "y": -215
+    },
+    "21": {
+      "x": -784,
+      "y": -147
+    },
+    "22": {
+      "x": -1080,
+      "y": 32
+    },
+    "23": {
+      "x": -1203,
+      "y": 90
+    },
+    "24": {
+      "x": -1049,
+      "y": 109
+    },
+    "25": {
+      "x": -878,
+      "y": 26
+    },
+    "26": {
+      "x": -895,
+      "y": 89
+    },
+    "27": {
+      "x": -1454,
+      "y": -176
+    },
+    "28": {
+      "x": -1338,
+      "y": -210
+    },
+    "29": {
+      "x": -1383,
+      "y": -284
+    },
+    "30": {
+      "x": -1334,
+      "y": -125
+    }
+  }
+}
