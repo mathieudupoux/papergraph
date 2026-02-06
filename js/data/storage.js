@@ -57,7 +57,16 @@ function loadFromLocalStorage() {
                 // Cloud format (nodes/edges)
                 appData = {
                     articles: galleryData.nodes || [],
-                    connections: galleryData.edges || []
+                    connections: galleryData.edges || [],
+                    projectReview: galleryData.projectReview || "",
+                    projectReviewMeta: galleryData.projectReviewMeta || {
+                        title: "Project Review",
+                        authorsData: [{name: "", affiliationNumbers: []}],
+                        affiliationsData: [{text: ""}],
+                        abstract: ""
+                    },
+                    nextArticleId: Math.max(0, ...(galleryData.nodes || []).map(n => n.id || 0)) + 1,
+                    nextConnectionId: Math.max(0, ...(galleryData.edges || []).map(e => e.id || 0)) + 1
                 };
                 tagZones = galleryData.zones || [];
                 window.savedNodePositions = galleryData.positions || {};
@@ -65,7 +74,16 @@ function loadFromLocalStorage() {
                 // Editor format (articles/connections)
                 appData = {
                     articles: galleryData.articles || [],
-                    connections: galleryData.connections || []
+                    connections: galleryData.connections || [],
+                    projectReview: galleryData.projectReview || "",
+                    projectReviewMeta: galleryData.projectReviewMeta || {
+                        title: "Project Review",
+                        authorsData: [{name: "", affiliationNumbers: []}],
+                        affiliationsData: [{text: ""}],
+                        abstract: ""
+                    },
+                    nextArticleId: galleryData.nextArticleId || Math.max(0, ...(galleryData.articles || []).map(n => n.id || 0)) + 1,
+                    nextConnectionId: galleryData.nextConnectionId || Math.max(0, ...(galleryData.connections || []).map(e => e.id || 0)) + 1
                 };
                 tagZones = galleryData.tagZones || galleryData.zones || [];
                 window.savedNodePositions = galleryData.nodePositions || galleryData.positions || {};

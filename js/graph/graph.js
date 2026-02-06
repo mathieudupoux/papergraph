@@ -1061,9 +1061,12 @@ function getGraphData() {
         ? appData.articles.filter(a => a.categories.includes(currentCategoryFilter))
         : appData.articles;
     
-    console.log('Current filter:', currentCategoryFilter);
-    console.log('Total articles:', appData.articles.length);
-    console.log('Filtered articles:', filteredArticles.length);
+    console.log('📊 getGraphData called:');
+    console.log('  - Current filter:', currentCategoryFilter);
+    console.log('  - Total articles:', appData?.articles?.length || 0);
+    console.log('  - Filtered articles:', filteredArticles?.length || 0);
+    console.log('  - appData:', appData);
+    console.log('  - window.appData:', window.appData);
     
     const nodes = new vis.DataSet(filteredArticles.map(article => {
         let nodeColor = { border: '#4a90e2', background: '#e3f2fd' };

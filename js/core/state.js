@@ -1,7 +1,8 @@
 // ===== APPLICATION STATE =====
 // Central state management for the Papermap application
 
-let appData = {
+// Use window.appData to ensure global accessibility across all scripts
+window.appData = window.appData || {
     articles: [],
     connections: [],
     projectReview: "", // Global review document
@@ -12,6 +13,9 @@ let appData = {
     nextArticleId: 1,
     nextConnectionId: 1
 };
+
+// Create local reference for convenience in this file
+let appData = window.appData;
 
 // ===== USER PERMISSIONS =====
 // Tracks current user's role for permission checks

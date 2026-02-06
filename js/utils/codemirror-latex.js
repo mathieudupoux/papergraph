@@ -8,9 +8,10 @@
  * @param {HTMLElement} container - Container element
  * @param {string} initialContent - Initial document content
  * @param {Function} onChange - Callback when content changes
+ * @param {boolean} readonly - Whether to make the editor read-only
  * @returns {Object} Editor instance with getValue/setValue methods
  */
-function initLatexEditor(container, initialContent = '', onChange = null) {
+function initLatexEditor(container, initialContent = '', onChange = null, readonly = false) {
     // Clear container and remove any padding/margin
     container.innerHTML = '';
     container.style.margin = '0';
@@ -70,6 +71,13 @@ function initLatexEditor(container, initialContent = '', onChange = null) {
     textarea.setAttribute('autocorrect', 'off');
     textarea.setAttribute('autocapitalize', 'off');
     textarea.setAttribute('wrap', 'soft');
+    
+    // Set readonly if specified
+    if (readonly) {
+        textarea.setAttribute('readonly', 'readonly');
+        textarea.style.cursor = 'default';
+        textarea.style.backgroundColor = '#f5f5f5';
+    }
 
     // Styling for LaTeX editor (light theme)
     textarea.style.cssText = `

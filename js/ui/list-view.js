@@ -217,9 +217,13 @@ function loadArticleToEditor(id) {
         }
     }
 
-    // Initialize editor with auto-save
+    // Initialize editor with auto-save (disable save in read-only mode)
     let saveTimer = null;
-    latexEditor = window.initLatexEditor(contentEl, article.text || '', (content) => {
+    const isReadOnly = window.isReadOnlyMode || window.isGalleryViewer || false;
+    latexEditor = window.initLatexEditor(contentEl, article.text || '', isReadOnly ? null : (content) => {
+        // Don't auto-save in read-only mode
+        if (window.isReadOnlyMode) return;
+        
         // Auto-save after 1 second of no typing
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
@@ -228,7 +232,14 @@ function loadArticleToEditor(id) {
                 saveToLocalStorage(true);
             }
         }, 1000);
-    });
+    }, isReadOnly);
+    
+    // Make editor read-only if in gallery viewer mode
+    if (window.isReadOnlyMode && latexEditor && latexEditor.element) {
+        latexEditor.element.readOnly = true;
+        latexEditor.element.style.cursor = 'default';
+        latexEditor.element.style.backgroundColor = '#f7f9fb';
+    }
     
     // Render tags
     const tagsContainer = document.getElementById('noteTags');
@@ -861,20 +872,26 @@ function loadReviewToEditor() {
     const authorsRow = document.querySelector('.authors-row');
     if (authorsRow) authorsRow.style.display = 'none';
 
-    // Set metadata for review - make editable
+    // Set metadata for review - make editable (unless read-only)
     document.getElementById('noteCitationKey').textContent = 'review';
     document.getElementById('noteCitationKey').contentEditable = 'false';
     
     const titleEl = document.getElementById('noteTitle');
     titleEl.textContent = appData.projectReviewMeta.title || 'Project Review';
-    titleEl.contentEditable = 'true';
-    titleEl.onblur = () => {
-        appData.projectReviewMeta.title = titleEl.textContent.trim();
-        saveToLocalStorage(true);
-        // Update sidebar
-        const reviewItem = document.querySelector('.sidebar-item.review-item .sidebar-item-title');
-        if (reviewItem) reviewItem.textContent = '📄 ' + appData.projectReviewMeta.title;
-    };
+    
+    if (window.isReadOnlyMode) {
+        titleEl.contentEditable = 'false';
+        titleEl.style.cursor = 'default';
+    } else {
+        titleEl.contentEditable = 'true';
+        titleEl.onblur = () => {
+            appData.projectReviewMeta.title = titleEl.textContent.trim();
+            saveToLocalStorage(true);
+            // Update sidebar
+            const reviewItem = document.querySelector('.sidebar-item.review-item .sidebar-item-title');
+            if (reviewItem) reviewItem.textContent = '📄 ' + appData.projectReviewMeta.title;
+        };
+    }
     
     // Show and setup authors section
     const authorsSection = document.getElementById('authorsSection');
@@ -882,25 +899,35 @@ function loadReviewToEditor() {
         authorsSection.style.display = 'block';
         renderAuthorsList();
         
-        // Add author button handler
+        // Add author button handler (hide in read-only mode)
         const addBtn = document.getElementById('addAuthorBtn');
         if (addBtn) {
-            addBtn.onclick = () => {
-                appData.projectReviewMeta.authorsData.push({name: "", affiliationNumbers: []});
-                renderAuthorsList();
-                saveToLocalStorage(true);
-            };
+            if (window.isReadOnlyMode) {
+                addBtn.style.display = 'none';
+            } else {
+                addBtn.style.display = '';
+                addBtn.onclick = () => {
+                    appData.projectReviewMeta.authorsData.push({name: "", affiliationNumbers: []});
+                    renderAuthorsList();
+                    saveToLocalStorage(true);
+                };
+            }
         }
         
-        // Add affiliation button handler
+        // Add affiliation button handler (hide in read-only mode)
         const addAffilBtn = document.getElementById('addAffiliationBtn');
         if (addAffilBtn) {
-            addAffilBtn.onclick = () => {
-                appData.projectReviewMeta.affiliationsData.push({text: ""});
-                renderAffiliationsList();
-                renderAuthorsList(); // Re-render authors to show new affiliation button
-                saveToLocalStorage(true);
-            };
+            if (window.isReadOnlyMode) {
+                addAffilBtn.style.display = 'none';
+            } else {
+                addAffilBtn.style.display = '';
+                addAffilBtn.onclick = () => {
+                    appData.projectReviewMeta.affiliationsData.push({text: ""});
+                    renderAffiliationsList();
+                    renderAuthorsList(); // Re-render authors to show new affiliation button
+                    saveToLocalStorage(true);
+                };
+            }
         }
         
         renderAffiliationsList();
@@ -912,11 +939,17 @@ function loadReviewToEditor() {
     if (abstractRow && abstractEl) {
         abstractRow.style.display = 'flex';
         abstractEl.textContent = appData.projectReviewMeta.abstract || '';
-        abstractEl.contentEditable = 'true';
-        abstractEl.onblur = () => {
-            appData.projectReviewMeta.abstract = abstractEl.textContent.trim();
-            saveToLocalStorage(true);
-        };
+        
+        if (window.isReadOnlyMode) {
+            abstractEl.contentEditable = 'false';
+            abstractEl.style.cursor = 'default';
+        } else {
+            abstractEl.contentEditable = 'true';
+            abstractEl.onblur = () => {
+                appData.projectReviewMeta.abstract = abstractEl.textContent.trim();
+                saveToLocalStorage(true);
+            };
+        }
     }
     
     // Set current year for review
@@ -963,8 +996,12 @@ function loadReviewToEditor() {
         latexEditor = null;
     }
 
-    // Initialize CodeMirror LaTeX Editor for project review
-    latexEditor = window.initLatexEditor(contentEl, appData.projectReview || '', (content) => {
+    // Initialize CodeMirror LaTeX Editor for project review (disable save in read-only mode)
+    const isReadOnly = window.isReadOnlyMode || window.isGalleryViewer || false;
+    latexEditor = window.initLatexEditor(contentEl, appData.projectReview || '', isReadOnly ? null : (content) => {
+        // Don't auto-save in read-only mode
+        if (window.isReadOnlyMode) return;
+        
         // Auto-save after 1 second of no typing
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
@@ -973,7 +1010,14 @@ function loadReviewToEditor() {
                 saveToLocalStorage(true);
             }
         }, 1000);
-    });
+    }, isReadOnly);
+    
+    // Make editor read-only if in gallery viewer mode
+    if (window.isReadOnlyMode && latexEditor && latexEditor.element) {
+        latexEditor.element.readOnly = true;
+        latexEditor.element.style.cursor = 'default';
+        latexEditor.element.style.backgroundColor = '#f7f9fb';
+    }
     
     // Add toggle button to preview pane label
     addPreviewToggle();
@@ -1004,24 +1048,38 @@ function renderAuthorsList() {
         nameInput.placeholder = 'Author name';
         nameInput.value = author.name || '';
         nameInput.style.cssText = 'flex: 1; padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 14px;';
-        nameInput.oninput = () => {
-            appData.projectReviewMeta.authorsData[authorIdx].name = nameInput.value.trim();
-            saveToLocalStorage(true);
-        };
+        
+        // Make read-only if in gallery viewer mode
+        if (window.isReadOnlyMode) {
+            nameInput.readOnly = true;
+            nameInput.style.backgroundColor = '#f7f9fb';
+            nameInput.style.cursor = 'default';
+        } else {
+            nameInput.oninput = () => {
+                appData.projectReviewMeta.authorsData[authorIdx].name = nameInput.value.trim();
+                saveToLocalStorage(true);
+            };
+        }
 
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.className = 'btn-remove-author';
         removeBtn.innerHTML = '×';
         removeBtn.style.cssText = 'width: 28px; height: 28px; border: none; background: #ef5350; color: white; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; padding: 0;';
-        removeBtn.onclick = () => {
-            appData.projectReviewMeta.authorsData.splice(authorIdx, 1);
-            if (appData.projectReviewMeta.authorsData.length === 0) {
-                appData.projectReviewMeta.authorsData = [{name: "", affiliationNumbers: [], orcid: ""}];
-            }
-            renderAuthorsList();
-            saveToLocalStorage(true);
-        };
+        
+        // Hide remove button in read-only mode
+        if (window.isReadOnlyMode) {
+            removeBtn.style.display = 'none';
+        } else {
+            removeBtn.onclick = () => {
+                appData.projectReviewMeta.authorsData.splice(authorIdx, 1);
+                if (appData.projectReviewMeta.authorsData.length === 0) {
+                    appData.projectReviewMeta.authorsData = [{name: "", affiliationNumbers: [], orcid: ""}];
+                }
+                renderAuthorsList();
+                saveToLocalStorage(true);
+            };
+        }
 
         topRow.appendChild(nameInput);
         topRow.appendChild(removeBtn);
@@ -1042,16 +1100,24 @@ function renderAuthorsList() {
         orcidInput.placeholder = '0000-0000-0000-0000';
         orcidInput.value = author.orcid || '';
         orcidInput.style.cssText = 'flex: 1; padding: 6px 10px; border: 1px solid #dee2e6; border-radius: 4px; font-size: 12px; font-family: monospace;';
-        orcidInput.oninput = () => {
-            // Validate ORCID format (XXXX-XXXX-XXXX-XXXX)
-            let value = orcidInput.value.replace(/[^0-9X-]/g, '');
-            appData.projectReviewMeta.authorsData[authorIdx].orcid = value;
-            saveToLocalStorage(true);
+        
+        // Make read-only if in gallery viewer mode
+        if (window.isReadOnlyMode) {
+            orcidInput.readOnly = true;
+            orcidInput.style.backgroundColor = '#f7f9fb';
+            orcidInput.style.cursor = 'default';
+        } else {
+            orcidInput.oninput = () => {
+                // Validate ORCID format (XXXX-XXXX-XXXX-XXXX)
+                let value = orcidInput.value.replace(/[^0-9X-]/g, '');
+                appData.projectReviewMeta.authorsData[authorIdx].orcid = value;
+                saveToLocalStorage(true);
 
-            // Visual validation
-            const isValid = /^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]$/.test(value);
-            orcidInput.style.borderColor = value && !isValid ? '#ef5350' : '#dee2e6';
-        };
+                // Visual validation
+                const isValid = /^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]$/.test(value);
+                orcidInput.style.borderColor = value && !isValid ? '#ef5350' : '#dee2e6';
+            };
+        }
 
         orcidRow.appendChild(orcidLogo);
         orcidRow.appendChild(orcidInput);
@@ -1089,23 +1155,27 @@ function renderAuthorsList() {
             checkbox.type = 'checkbox';
             checkbox.checked = isChecked;
             checkbox.style.cssText = 'display: none;';
-            checkbox.onchange = () => {
-                let affiliationNumbers = author.affiliationNumbers || [];
-                const affilNum = affilIdx + 1;
+            
+            // Disable checkbox in read-only mode
+            if (!window.isReadOnlyMode) {
+                checkbox.onchange = () => {
+                    let affiliationNumbers = author.affiliationNumbers || [];
+                    const affilNum = affilIdx + 1;
 
-                if (checkbox.checked) {
-                    if (!affiliationNumbers.includes(affilNum)) {
-                        affiliationNumbers.push(affilNum);
-                        affiliationNumbers.sort((a, b) => a - b);
+                    if (checkbox.checked) {
+                        if (!affiliationNumbers.includes(affilNum)) {
+                            affiliationNumbers.push(affilNum);
+                            affiliationNumbers.sort((a, b) => a - b);
+                        }
+                    } else {
+                        affiliationNumbers = affiliationNumbers.filter(n => n !== affilNum);
                     }
-                } else {
-                    affiliationNumbers = affiliationNumbers.filter(n => n !== affilNum);
-                }
 
-                appData.projectReviewMeta.authorsData[authorIdx].affiliationNumbers = affiliationNumbers;
-                saveToLocalStorage(true);
-                renderAuthorsList(); // Re-render to update badge styles
-            };
+                    appData.projectReviewMeta.authorsData[authorIdx].affiliationNumbers = affiliationNumbers;
+                    saveToLocalStorage(true);
+                    renderAuthorsList(); // Re-render to update badge styles
+                };
+            }
 
             badge.appendChild(checkbox);
 
@@ -1113,7 +1183,12 @@ function renderAuthorsList() {
             badgeText.textContent = `${affilIdx + 1}`;
             badge.appendChild(badgeText);
 
-            badge.onclick = () => checkbox.click();
+            // Disable clicking in read-only mode
+            if (!window.isReadOnlyMode) {
+                badge.onclick = () => checkbox.click();
+            } else {
+                badge.style.cursor = 'default';
+            }
 
             affiliationsRow.appendChild(badge);
         });
@@ -1150,10 +1225,18 @@ function renderAffiliationsList() {
         textInput.placeholder = 'University Name, Department, Country';
         textInput.value = affiliation.text || '';
         textInput.style.cssText = 'flex: 1; padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 13px;';
-        textInput.oninput = () => {
-            appData.projectReviewMeta.affiliationsData[affilIdx].text = textInput.value.trim();
-            saveToLocalStorage(true);
-        };
+        
+        // Make read-only if in gallery viewer mode
+        if (window.isReadOnlyMode) {
+            textInput.readOnly = true;
+            textInput.style.backgroundColor = '#f7f9fb';
+            textInput.style.cursor = 'default';
+        } else {
+            textInput.oninput = () => {
+                appData.projectReviewMeta.affiliationsData[affilIdx].text = textInput.value.trim();
+                saveToLocalStorage(true);
+            };
+        }
 
         // Remove button
         const removeBtn = document.createElement('button');
@@ -1161,27 +1244,33 @@ function renderAffiliationsList() {
         removeBtn.className = 'btn-remove-author';
         removeBtn.innerHTML = '×';
         removeBtn.style.cssText = 'width: 28px; height: 28px; border: none; background: #ef5350; color: white; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; padding: 0;';
-        removeBtn.onclick = () => {
-            // Remove this affiliation
-            appData.projectReviewMeta.affiliationsData.splice(affilIdx, 1);
-            if (appData.projectReviewMeta.affiliationsData.length === 0) {
-                appData.projectReviewMeta.affiliationsData = [{text: ""}];
-            }
-
-            // Update author affiliation numbers
-            appData.projectReviewMeta.authorsData.forEach(author => {
-                if (author.affiliationNumbers) {
-                    // Remove this affiliation number and adjust higher numbers
-                    author.affiliationNumbers = author.affiliationNumbers
-                        .filter(n => n !== affilIdx + 1)
-                        .map(n => n > affilIdx + 1 ? n - 1 : n);
+        
+        // Hide remove button in read-only mode
+        if (window.isReadOnlyMode) {
+            removeBtn.style.display = 'none';
+        } else {
+            removeBtn.onclick = () => {
+                // Remove this affiliation
+                appData.projectReviewMeta.affiliationsData.splice(affilIdx, 1);
+                if (appData.projectReviewMeta.affiliationsData.length === 0) {
+                    appData.projectReviewMeta.affiliationsData = [{text: ""}];
                 }
-            });
 
-            renderAffiliationsList();
-            renderAuthorsList(); // Update authors to reflect new affiliation count
-            saveToLocalStorage(true);
-        };
+                // Update author affiliation numbers
+                appData.projectReviewMeta.authorsData.forEach(author => {
+                    if (author.affiliationNumbers) {
+                        // Remove this affiliation number and adjust higher numbers
+                        author.affiliationNumbers = author.affiliationNumbers
+                            .filter(n => n !== affilIdx + 1)
+                            .map(n => n > affilIdx + 1 ? n - 1 : n);
+                    }
+                });
+
+                renderAffiliationsList();
+                renderAuthorsList(); // Update authors to reflect new affiliation count
+                saveToLocalStorage(true);
+            };
+        }
 
         affilCard.appendChild(numberBadge);
         affilCard.appendChild(textInput);
@@ -1615,6 +1704,14 @@ function bindEditableField(elementId, obj, prop) {
     const el = document.getElementById(elementId);
     if(!el) return;
     el.textContent = obj[prop] || '';
+    
+    // Check if we're in read-only mode (gallery viewer)
+    if (window.isReadOnlyMode) {
+        el.contentEditable = 'false';
+        el.style.cursor = 'default';
+        return; // Don't add event listeners
+    }
+    
     el.contentEditable = 'true'; // Ensure it's editable
     el.onblur = () => {
         const val = el.textContent.trim();
