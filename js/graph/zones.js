@@ -703,20 +703,19 @@ function updateZoneCursor(event) {
     const resizeHandle = getZoneResizeHandle(event);
     
     if (resizeHandle.zoneIndex !== -1) {
-        // Set cursor based on handle type with custom SVG cursors (using bidirectional arrows)
         const cursorMap = {
-            'nw': "url('assets/cursors/size_fdiag.svg'), nw-resize",
-            'ne': "url('assets/cursors/size_bdiag.svg'), ne-resize",
-            'sw': "url('assets/cursors/size_bdiag.svg'), sw-resize",
-            'se': "url('assets/cursors/size_fdiag.svg'), se-resize",
-            'n': "url('assets/cursors/size_ver.svg'), n-resize",
-            's': "url('assets/cursors/size_ver.svg'), s-resize",
-            'w': "url('assets/cursors/size_hor.svg'), w-resize",
-            'e': "url('assets/cursors/size_hor.svg'), e-resize"
+            'nw': "nw-resize",
+            'ne': "ne-resize",
+            'sw': "sw-resize",
+            'se': "se-resize",
+            'n': "n-resize",
+            's': "s-resize",
+            'w': "w-resize",
+            'e': "e-resize"
         };
-        canvas.style.cursor = cursorMap[resizeHandle.handle] || "url('assets/cursors/default.svg'), default";
+        canvas.style.cursor = cursorMap[resizeHandle.handle] || "default";
     } else {
-        canvas.style.cursor = "url('assets/cursors/default.svg'), default";
+        canvas.style.cursor = "default";
     }
 }
 
@@ -1123,9 +1122,9 @@ function deleteZone(zoneIndex) {
     
     const canvas = network.canvas.frame.canvas;
     if (canvas) {
-        canvas.style.cursor = "url('assets/cursors/default.svg'), default";
+        canvas.style.cursor = "default";
     }
-    
+
     showNotification(`Zone "${tagToRemove}" deleted`, 'success');
 }
 

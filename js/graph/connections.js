@@ -531,7 +531,7 @@ function cancelConnectionMode() {
     document.getElementById('connectionModeIndicator').classList.remove('active');
     
     if (network) {
-        network.canvas.body.container.style.cursor = "url('assets/cursors/default.svg'), default";
+        network.canvas.body.container.style.cursor = "default";
         network.setOptions({
             interaction: {
                 hover: true,

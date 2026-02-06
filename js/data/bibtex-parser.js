@@ -377,14 +377,19 @@ function articleToBibTeX(article) {
     }
     
     const entryType = article.entryType || 'article';
-    const citationKey = article.bibtexId || article.citationKey || `article${article.id}`;
+    // Sanitize citation key to ensure valid BibTeX format
+    const rawKey = article.bibtexId || article.citationKey || `article${article.id}`;
+    const citationKey = window.sanitizeCitationKey ? window.sanitizeCitationKey(rawKey) : rawKey;
     
     let bibtex = `@${entryType}{${citationKey},\n`;
     
     // Add fields that have values
+    // Convert comma-separated authors to 'and' separated for BibTeX
+    const authorsFormatted = article.authors ? article.authors.split(',').map(a => a.trim()).join(' and ') : null;
+    
     const fieldMap = {
         title: article.title,
-        author: article.authors,
+        author: authorsFormatted,
         year: article.year,
         month: article.month,
         journal: article.journal,
@@ -396,7 +401,7 @@ function articleToBibTeX(article) {
         doi: article.doi,
         isbn: article.isbn,
         url: article.link || article.url,
-        abstract: article.abstract || article.text,
+        // abstract field excluded to keep filecontents clean
         keywords: article.keywords || (article.categories ? article.categories.join(', ') : ''),
         note: article.note
     };

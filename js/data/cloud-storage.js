@@ -93,6 +93,10 @@ async function loadProjectFromCloud() {
             appData.articles = project.data.nodes || [];
             appData.connections = project.data.edges || [];
             
+            // Load project review data
+            appData.projectReview = project.data.projectReview || "";
+            appData.projectReviewMeta = project.data.projectReviewMeta || { title: "Project Review", authors: "" };
+            
             // Update next IDs based on existing data
             if (appData.articles.length > 0) {
                 const maxId = Math.max(...appData.articles.map(a => parseInt(a.id) || 0));
@@ -218,7 +222,9 @@ export async function saveToCloud(silent = false) {
             nodes: appData?.articles || [],
             edges: appData?.connections || [],
             zones: tagZones || [],
-            positions: positions
+            positions: positions,
+            projectReview: appData?.projectReview || "",
+            projectReviewMeta: appData?.projectReviewMeta || { title: "Project Review", authors: "" }
         };
         
         // Save to cloud with auto-save (throttled)
@@ -269,6 +275,8 @@ export async function saveToCloudWithPreview(silent = false) {
             edges: appData?.connections || [],
             zones: tagZones || [],
             positions: positions,
+            projectReview: appData?.projectReview || "",
+            projectReviewMeta: appData?.projectReviewMeta || { title: "Project Review", authors: "" },
             previewImage: previewImage
         };
         
@@ -332,7 +340,9 @@ export async function forceSaveToCloud() {
             nodes: appData?.articles || [],
             edges: appData?.connections || [],
             zones: tagZones || [],
-            positions: positions
+            positions: positions,
+            projectReview: appData?.projectReview || "",
+            projectReviewMeta: appData?.projectReviewMeta || { title: "Project Review", authors: "" }
         };
         
         await updateProject(currentProjectId, projectData);

@@ -1030,13 +1030,13 @@ function initializeGraph() {
     
     network.on('hoverNode', (params) => {
         if (connectionMode.active && params.node !== connectionMode.fromNodeId) {
-            network.canvas.body.container.style.cursor = "url('assets/cursors/pointer.svg'), pointer";
+            network.canvas.body.container.style.cursor = "pointer";
         }
     });
     
     network.on('blurNode', () => {
         if (connectionMode.active) {
-            network.canvas.body.container.style.cursor = "url('assets/cursors/crosshair.svg'), crosshair";
+            network.canvas.body.container.style.cursor = "crosshair";
         }
     });
     

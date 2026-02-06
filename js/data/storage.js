@@ -86,6 +86,18 @@ function loadFromLocalStorage() {
         const saved = localStorage.getItem('papermap_data');
         if (saved) {
             appData = JSON.parse(saved);
+            
+            // Ensure new fields exist for backward compatibility
+            if (!appData.projectReview) {
+                appData.projectReview = "";
+            }
+            if (!appData.projectReviewMeta) {
+                appData.projectReviewMeta = {
+                    title: "Project Review",
+                    authors: ""
+                };
+            }
+            
             console.log('✓ Loaded appData:', appData.articles.length, 'articles');
         }
         
