@@ -668,17 +668,40 @@ async function importFromArxiv(arxivId) {
         // Use arXiv API via Supabase Edge Function
         console.log('Fetching arXiv ID:', arxivId);
         
-        // CALL SUPABASE FUNCTION INSTEAD OF DIRECT FETCH
-        const { data: text, error } = await window.supabaseClient.functions.invoke('fetch-arxiv', {
-            body: { arxivId: arxivId }
-        });
+        let text;
         
-        if (error) {
-            console.error('Supabase function error:', error);
-            throw new Error('Impossible de contacter arXiv via Supabase');
+        // Try Supabase function first
+        try {
+            const { data, error } = await window.supabaseClient.functions.invoke('fetch-arxiv', {
+                body: { arxivId: arxivId }
+            });
+            
+            if (error) {
+                console.warn('Supabase function error:', error);
+                throw new Error('Supabase function failed');
+            }
+            
+            // Check if data is valid (not an error object and is a string)
+            if (typeof data !== 'string' || !data.includes('<?xml')) {
+                console.warn('Invalid response from Supabase function:', data);
+                throw new Error('Invalid XML response');
+            }
+            
+            text = data;
+            console.log('arXiv API response received via Supabase, length:', text.length);
+        } catch (supabaseError) {
+            // Fallback to direct arXiv API call
+            console.log('Falling back to direct arXiv API call...');
+            const arxivUrl = `https://export.arxiv.org/api/query?id_list=${arxivId}`;
+            const response = await fetch(arxivUrl);
+            
+            if (!response.ok) {
+                throw new Error(`arXiv API returned status ${response.status}`);
+            }
+            
+            text = await response.text();
+            console.log('arXiv API response received directly, length:', text.length);
         }
-        
-        console.log('arXiv API response received, length:', text.length);
         
         const parser = new DOMParser();
         const xml = parser.parseFromString(text, 'text/xml');

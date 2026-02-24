@@ -340,12 +340,31 @@ function extractArxivId(url) {
  */
 async function fetchArxivAbstract(arxivId) {
     try {
-        // CALL SUPABASE FUNCTION
-        const { data: xmlText, error } = await window.supabaseClient.functions.invoke('fetch-arxiv', {
-            body: { arxivId: arxivId }
-        });
+        let xmlText;
+        
+        // Try Supabase function first
+        try {
+            const { data, error } = await window.supabaseClient.functions.invoke('fetch-arxiv', {
+                body: { arxivId: arxivId }
+            });
 
-        if (error) throw error;
+            if (error || typeof data !== 'string' || !data.includes('<?xml')) {
+                throw new Error('Supabase function failed or returned invalid data');
+            }
+            
+            xmlText = data;
+        } catch (supabaseError) {
+            // Fallback to direct arXiv API call
+            console.log('Falling back to direct arXiv API for abstract...');
+            const arxivUrl = `https://export.arxiv.org/api/query?id_list=${arxivId}`;
+            const response = await fetch(arxivUrl);
+            
+            if (!response.ok) {
+                throw new Error(`arXiv API returned status ${response.status}`);
+            }
+            
+            xmlText = await response.text();
+        }
         
         // Parse XML to extract abstract
         const parser = new DOMParser();
