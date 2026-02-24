@@ -182,6 +182,13 @@ function saveArticle(e) {
             }
         }
         
+        // Position at the center of the current viewport (not project center)
+        if (typeof network !== 'undefined' && network) {
+            const viewCenter = network.getViewPosition();
+            newArticle.x = viewCenter.x;
+            newArticle.y = viewCenter.y;
+        }
+        
         appData.articles.push(newArticle);
         
         // If category filter is active and new article doesn't match, reset filter

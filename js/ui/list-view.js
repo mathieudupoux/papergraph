@@ -48,7 +48,8 @@ function renderListView(searchTerm = '') {
         filtered = filtered.filter(a => 
             (a.title && a.title.toLowerCase().includes(term)) || 
             (a.authors && a.authors.toLowerCase().includes(term)) ||
-            (a.bibtexId && a.bibtexId.toLowerCase().includes(term))
+            (a.bibtexId && a.bibtexId.toLowerCase().includes(term)) ||
+            (a.categories && a.categories.some(cat => cat.toLowerCase().includes(term)))
         );
     }
 

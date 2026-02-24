@@ -3,142 +3,97 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 serve(async (req) => {
-  // CORS headers
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      }
-    })
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
     // Parse request body
-    let arxivId;
-    try {
-      const body = await req.json()
-      arxivId = body.arxivId
-      console.log('Received request for arXiv ID:', arxivId)
-    } catch (parseError) {
-      console.error('Failed to parse request body:', parseError)
-      return new Response(
-        JSON.stringify({ error: 'Invalid request body' }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-          status: 400,
-        }
-      )
-    }
-    
+    const body = await req.json().catch(() => null)
+    const arxivId = body?.arxivId
+
     if (!arxivId) {
-      console.error('Missing arxivId in request')
       return new Response(
         JSON.stringify({ error: 'Missing arxivId parameter' }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-          status: 400,
-        }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
 
-    console.log('Fetching arXiv ID:', arxivId)
+    // Sanitize arXiv ID (only allow valid characters: digits, dots, slashes, hyphens, v+digits)
+    const sanitizedId = String(arxivId).replace(/[^a-zA-Z0-9.\-\/]/g, '')
 
-    // Fetch from arXiv API with retry logic
-    const arxivUrl = `https://export.arxiv.org/api/query?id_list=${arxivId}`
-    console.log('Fetching from URL:', arxivUrl)
-    
-    let response;
-    let retries = 0;
-    const maxRetries = 2;
-    
-    while (retries <= maxRetries) {
+    // arXiv API uses http:// per their official documentation
+    // See: https://info.arxiv.org/help/api/user-manual.html
+    const arxivUrl = `http://export.arxiv.org/api/query?search_query=id:${sanitizedId}&start=0&max_results=1`
+
+    let xmlText = ''
+    let lastError = ''
+
+    // Try fetching with retries (arXiv can rate-limit with 429)
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        response = await fetch(arxivUrl, {
-          headers: {
-            'User-Agent': 'PaperGraph/1.0 (https://papergraph.net)',
-          }
-        })
-        
-        if (response.ok) {
-          break; // Success!
+        if (attempt > 0) {
+          // Wait 3 seconds between retries as recommended by arXiv
+          await new Promise(r => setTimeout(r, 3000))
         }
-        
-        console.log(`arXiv API returned status ${response.status}, attempt ${retries + 1}/${maxRetries + 1}`)
-        
-        if (response.status === 429 && retries < maxRetries) {
-          // Rate limited, wait before retry
-          await new Promise(resolve => setTimeout(resolve, 1000 * (retries + 1)))
-          retries++
+
+        const response = await fetch(arxivUrl)
+
+        if (response.status === 429) {
+          lastError = 'Rate limited by arXiv (429)'
           continue
         }
-        
-        break // Don't retry for other errors
-      } catch (fetchError) {
-        console.error('Fetch error:', fetchError)
-        if (retries < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          retries++
-          continue
+
+        if (!response.ok) {
+          lastError = `arXiv returned HTTP ${response.status}`
+          continue 
         }
-        throw fetchError
+
+        xmlText = await response.text()
+        break // Success
+      } catch (fetchErr) {
+        lastError = `Fetch failed: ${String(fetchErr)}`
       }
     }
-    
-    if (!response || !response.ok) {
-      const status = response?.status || 'unknown'
-      console.error(`arXiv API request failed with status ${status}`)
-      return new Response(
-        JSON.stringify({ error: `arXiv API responded with status ${status}` }),
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-          status: 502,
+
+    // If all retries failed and we still have no XML, try the id_list variant
+    if (!xmlText) {
+      try {
+        const altUrl = `http://export.arxiv.org/api/query?id_list=${sanitizedId}`
+        const altResponse = await fetch(altUrl)
+        if (altResponse.ok) {
+          xmlText = await altResponse.text()
         }
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    if (!xmlText) {
+      return new Response(
+        JSON.stringify({ error: `Failed to fetch arXiv after retries. Last error: ${lastError}` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
       )
     }
 
-    const xmlText = await response.text()
-    
-    console.log('Successfully fetched arXiv metadata, length:', xmlText.length)
-
-    // Return the XML text as JSON
+    // Return the XML text as a JSON string
     return new Response(
       JSON.stringify(xmlText),
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
 
   } catch (error) {
-    console.error('Unhandled error in fetch-arxiv:', error)
-    
     return new Response(
-      JSON.stringify({
-        error: error.message || 'Failed to fetch arXiv metadata',
-        details: error.toString()
-      }),
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-        status: 500,
-      }
+      JSON.stringify({ error: String(error) }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }
 })

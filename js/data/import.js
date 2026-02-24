@@ -281,6 +281,11 @@ async function processBibTeXImport() {
             
             const numColumns = Math.ceil(articles.length / maxPerColumn);
             
+            // Get viewport center so nodes appear on screen, not at project origin
+            const viewCenter = (typeof network !== 'undefined' && network)
+                ? network.getViewPosition()
+                : { x: 0, y: 0 };
+            
             articles.forEach((article, index) => {
                 article.id = appData.nextArticleId++;
                 
@@ -289,9 +294,9 @@ async function processBibTeXImport() {
                 const rowIndex = index % maxPerColumn;
                 const articlesInColumn = Math.min(maxPerColumn, articles.length - columnIndex * maxPerColumn);
                 
-                // Position in grid (centered)
-                article.x = (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
-                article.y = (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
+                // Position in grid centered on the current viewport
+                article.x = viewCenter.x + (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
+                article.y = viewCenter.y + (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
                 
                 appData.articles.push(article);
             });
@@ -672,14 +677,23 @@ async function importFromArxiv(arxivId) {
         
         // Try Supabase function first
         try {
-            const { data, error } = await window.supabaseClient.functions.invoke('fetch-arxiv', {
+            const response = await window.supabaseClient.functions.invoke('fetch-arxiv', {
                 body: { arxivId: arxivId }
             });
+
+            const { data, error } = response;
             
             if (error) {
-                console.warn('Supabase function error:', error);
-                console.warn('Error details:', JSON.stringify(error));
-                throw new Error(`Supabase function failed: ${error.message || 'Unknown error'}`);
+                // Try to read the response body for more details
+                let errorDetails = error.message || 'Unknown error';
+                try {
+                    if (error.context && error.context.body) {
+                        const bodyText = await error.context.body.text();
+                        errorDetails += ' | Body: ' + bodyText;
+                    }
+                } catch (_) {}
+                console.warn('Supabase function error:', errorDetails);
+                throw new Error(`Supabase function failed: ${errorDetails}`);
             }
             
             // Check if data is valid
@@ -688,27 +702,33 @@ async function importFromArxiv(arxivId) {
                 throw new Error('Invalid response from Supabase function');
             }
             
-            // Check if it looks like XML (more flexible check)
-            if (!data.includes('<feed') && !data.includes('<?xml')) {
-                console.warn('Response does not appear to be XML:', data.substring(0, 200));
+            // Check if it looks like XML (flexible check for Atom feed)
+            if (!data.includes('<feed') && !data.includes('<?xml') && !data.includes('<entry')) {
+                console.warn('Response does not appear to be XML:', data.substring(0, 300));
                 throw new Error('Response is not valid XML');
             }
             
             text = data;
             console.log('arXiv API response received via Supabase, length:', text.length);
         } catch (supabaseError) {
-            // Fallback to direct arXiv API call
-            console.log('Falling back to direct arXiv API call...');
-            console.log('Supabase error was:', supabaseError.message);
-            const arxivUrl = `https://export.arxiv.org/api/query?id_list=${arxivId}`;
-            const response = await fetch(arxivUrl);
+            console.warn('Supabase fetch-arxiv failed:', supabaseError.message);
             
-            if (!response.ok) {
-                throw new Error(`arXiv API returned status ${response.status}`);
+            // Fallback: try using a CORS proxy
+            console.log('Trying CORS proxy fallback...');
+            try {
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`http://export.arxiv.org/api/query?id_list=${arxivId}`)}`;
+                const response = await fetch(proxyUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`CORS proxy returned status ${response.status}`);
+                }
+                
+                text = await response.text();
+                console.log('arXiv API response received via CORS proxy, length:', text.length);
+            } catch (proxyError) {
+                console.warn('CORS proxy also failed:', proxyError.message);
+                throw new Error(`Could not fetch arXiv metadata. Supabase: ${supabaseError.message}`);
             }
-            
-            text = await response.text();
-            console.log('arXiv API response received directly, length:', text.length);
         }
         
         const parser = new DOMParser();
@@ -938,6 +958,11 @@ async function importBibtexFile(event) {
         
         const numColumns = Math.ceil(articles.length / maxPerColumn);
         
+        // Get viewport center so nodes appear on screen, not at project origin
+        const viewCenter = (typeof network !== 'undefined' && network)
+            ? network.getViewPosition()
+            : { x: 0, y: 0 };
+        
         articles.forEach((article, index) => {
             article.id = appData.nextArticleId++;
             
@@ -946,9 +971,9 @@ async function importBibtexFile(event) {
             const rowIndex = index % maxPerColumn;
             const articlesInColumn = Math.min(maxPerColumn, articles.length - columnIndex * maxPerColumn);
             
-            // Position in grid (centered)
-            article.x = (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
-            article.y = (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
+            // Position in grid centered on the current viewport
+            article.x = viewCenter.x + (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
+            article.y = viewCenter.y + (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
             
             appData.articles.push(article);
         });

@@ -348,23 +348,26 @@ async function fetchArxivAbstract(arxivId) {
                 body: { arxivId: arxivId }
             });
 
-            if (error || !data || typeof data !== 'string' || (!data.includes('<?xml') && !data.includes('<feed'))) {
-                console.log('Supabase function failed for abstract fetch, using fallback');
+            if (error || !data || typeof data !== 'string' || (!data.includes('<?xml') && !data.includes('<feed') && !data.includes('<entry'))) {
                 throw new Error('Supabase function failed or returned invalid data');
             }
             
             xmlText = data;
         } catch (supabaseError) {
-            // Fallback to direct arXiv API call
-            console.log('Falling back to direct arXiv API for abstract...');
-            const arxivUrl = `https://export.arxiv.org/api/query?id_list=${arxivId}`;
-            const response = await fetch(arxivUrl);
-            
-            if (!response.ok) {
-                throw new Error(`arXiv API returned status ${response.status}`);
+            // Fallback to CORS proxy
+            console.log('Falling back to CORS proxy for abstract...');
+            try {
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`http://export.arxiv.org/api/query?id_list=${arxivId}`)}`;
+                const response = await fetch(proxyUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`CORS proxy returned status ${response.status}`);
+                }
+                
+                xmlText = await response.text();
+            } catch (proxyError) {
+                throw new Error('All fetch methods failed for arXiv abstract');
             }
-            
-            xmlText = await response.text();
         }
         
         // Parse XML to extract abstract
