@@ -348,7 +348,8 @@ async function fetchArxivAbstract(arxivId) {
                 body: { arxivId: arxivId }
             });
 
-            if (error || typeof data !== 'string' || !data.includes('<?xml')) {
+            if (error || !data || typeof data !== 'string' || (!data.includes('<?xml') && !data.includes('<feed'))) {
+                console.log('Supabase function failed for abstract fetch, using fallback');
                 throw new Error('Supabase function failed or returned invalid data');
             }
             

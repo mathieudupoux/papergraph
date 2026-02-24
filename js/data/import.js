@@ -678,13 +678,20 @@ async function importFromArxiv(arxivId) {
             
             if (error) {
                 console.warn('Supabase function error:', error);
-                throw new Error('Supabase function failed');
+                console.warn('Error details:', JSON.stringify(error));
+                throw new Error(`Supabase function failed: ${error.message || 'Unknown error'}`);
             }
             
-            // Check if data is valid (not an error object and is a string)
-            if (typeof data !== 'string' || !data.includes('<?xml')) {
-                console.warn('Invalid response from Supabase function:', data);
-                throw new Error('Invalid XML response');
+            // Check if data is valid
+            if (!data || typeof data !== 'string') {
+                console.warn('Invalid response type from Supabase function:', typeof data, data);
+                throw new Error('Invalid response from Supabase function');
+            }
+            
+            // Check if it looks like XML (more flexible check)
+            if (!data.includes('<feed') && !data.includes('<?xml')) {
+                console.warn('Response does not appear to be XML:', data.substring(0, 200));
+                throw new Error('Response is not valid XML');
             }
             
             text = data;
@@ -692,6 +699,7 @@ async function importFromArxiv(arxivId) {
         } catch (supabaseError) {
             // Fallback to direct arXiv API call
             console.log('Falling back to direct arXiv API call...');
+            console.log('Supabase error was:', supabaseError.message);
             const arxivUrl = `https://export.arxiv.org/api/query?id_list=${arxivId}`;
             const response = await fetch(arxivUrl);
             
