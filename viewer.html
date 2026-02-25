@@ -1374,15 +1374,65 @@
     <!-- Application Startup -->
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
-            // Check if this is a gallery viewer (sessionStorage takes priority)
-            const galleryProject = sessionStorage.getItem('galleryProject');
+            // Check for shareable gallery URL param first, then sessionStorage fallback
+            const startupParams = new URLSearchParams(window.location.search);
+            const gallerySlug = startupParams.get('gallery');
+            let galleryProject = sessionStorage.getItem('galleryProject');
+            
+            // If ?gallery= param is present, fetch project data from files
+            // URL param takes priority — clear stale sessionStorage from a different project
+            if (gallerySlug && galleryProject) {
+                try {
+                    const cached = JSON.parse(galleryProject);
+                    if (cached.metadata?.path !== gallerySlug) {
+                        sessionStorage.removeItem('galleryProject');
+                        galleryProject = null;
+                    }
+                } catch { galleryProject = null; }
+            }
+            if (gallerySlug && !galleryProject) {
+                try {
+                    const [metaResp, dataResp] = await Promise.all([
+                        fetch(`projects/${encodeURIComponent(gallerySlug)}/metadata.json`),
+                        fetch(`projects/${encodeURIComponent(gallerySlug)}/project.papergraph`)
+                    ]);
+                    if (!metaResp.ok || !dataResp.ok) throw new Error('Project not found');
+                    const metadata = await metaResp.json();
+                    const projectData = await dataResp.json();
+                    galleryProject = JSON.stringify({
+                        data: projectData,
+                        metadata: {
+                            id: `gallery_${metadata.path || gallerySlug}`,
+                            title: metadata.title,
+                            description: metadata.description,
+                            author: metadata.author,
+                            affiliation: metadata.affiliation,
+                            path: metadata.path || gallerySlug
+                        }
+                    });
+                    // Cache in sessionStorage for faster reload
+                    sessionStorage.setItem('galleryProject', galleryProject);
+                } catch (err) {
+                    console.error('❌ Failed to load gallery project from URL:', err);
+                    showNotification('Gallery project not found', 'error');
+                }
+            }
             
             if (galleryProject) {
                 // Set global flags for read-only viewer mode
                 window.isGalleryViewer = true;
                 window.isReadOnlyMode = true;
                 
-                // Gallery viewer mode - load from sessionStorage
+                // Ensure URL reflects the gallery slug for shareability
+                const { data: _checkData, metadata: _checkMeta } = JSON.parse(galleryProject);
+                const slug = _checkMeta.path;
+                if (slug && !startupParams.get('gallery')) {
+                    const newUrl = new URL(window.location);
+                    newUrl.searchParams.set('gallery', slug);
+                    window.history.replaceState({}, '', newUrl);
+                }
+                
+                // Gallery viewer mode - load from sessionStorage or fetched data
                 try {
                     const { data: projectData, metadata } = JSON.parse(galleryProject);
                     
