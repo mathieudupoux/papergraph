@@ -956,7 +956,6 @@ function generateLatexDocument() {
 \\usepackage{amssymb}
 \\usepackage{hyperref}
 \\usepackage{orcidlink}
-\\usepackage{cite}
 \\usepackage{parskip}
 \\usepackage[numbers]{natbib}
 
@@ -1052,23 +1051,26 @@ function generateLatexDocument() {
     if (affiliationsData && affiliationsData.length > 0) {
         latex += '\n';
         latex += '\\date{';
-        latex += '\\vspace{0.5em}';
         latex += '{\\small\\itshape\n';
-        latex += '\\begin{tabular}{@{}c@{}}\n';
+        latex += '\\begin{tabular}{@{}c@{}}';
         
         // Filter out empty affiliations and add line breaks only between non-empty ones
         const nonEmptyAffils = affiliationsData
             .map((affil, idx) => ({ text: affil.text, originalIdx: idx }))
             .filter(affil => affil.text && affil.text.trim());
         
-        nonEmptyAffils.forEach((affil, idx) => {
-            latex += `\\textsuperscript{${affil.originalIdx + 1}}${escapeLatex(affil.text)}`;
-            if (idx < nonEmptyAffils.length - 1) {
-                latex += ' \\\\\n';
-            }
-        });
+        if (nonEmptyAffils.length > 0) {
+            latex += '\n';
+            nonEmptyAffils.forEach((affil, idx) => {
+                latex += `\\textsuperscript{${affil.originalIdx + 1}}${escapeLatex(affil.text)}`;
+                if (idx < nonEmptyAffils.length - 1) {
+                    latex += ' \\\\\n';
+                }
+            });
+            latex += '\n';
+        }
         
-        latex += '\n\\end{tabular}}';
+        latex += '\\end{tabular}}';
         latex += '\\\\[1.5em]\n';
         latex += '\\today}\n';
     } else {
@@ -1168,6 +1170,11 @@ function generateLatexDocument() {
  * Generate BibTeX file content from articles
  */
 function generateBibtexContent() {
+    // Use pre-built cache if available (rebuilt in background when articles change)
+    if (window.cachedBibContent !== null && window.cachedBibContent !== undefined) {
+        return window.cachedBibContent;
+    }
+
     let bibtexContent = '';
     
     if (appData.articles && appData.articles.length > 0) {
@@ -1177,6 +1184,9 @@ function generateBibtexContent() {
             }
         });
     }
+
+    // Store in cache for next call
+    window.cachedBibContent = bibtexContent;
     
     return bibtexContent;
 }

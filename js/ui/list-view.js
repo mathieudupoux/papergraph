@@ -6,6 +6,37 @@ let latexEditor = null;
 // PDF cache for compiled documents (key: articleId or 'review', value: {pdfBlob, latexContent, bibContent, contentHash, timestamp})
 let pdfCache = {};
 
+// ===== BACKGROUND BIBLIOGRAPHY CACHE =====
+// Pre-built BibTeX content, rebuilt in the background whenever articles change.
+// Avoids regenerating 100+ entries synchronously at compile time.
+let cachedBibContent = null;
+let _bibRebuildTimer = null;
+
+/**
+ * Schedule a debounced background rebuild of the bibliography cache.
+ * Called automatically after every saveToLocalStorage and after initial load.
+ */
+function scheduleBibliographyRebuild() {
+    clearTimeout(_bibRebuildTimer);
+    _bibRebuildTimer = setTimeout(() => {
+        if (!appData || !appData.articles) return;
+        // Clear stale cache so generateBibtexContent actually rebuilds from scratch
+        window.cachedBibContent = null;
+        // Prefer the richer articleToBibTeX-based generator from export.js
+        let fresh = '';
+        if (typeof generateBibtexContent === 'function') {
+            fresh = generateBibtexContent();
+        } else {
+            // Fallback to local generator
+            fresh = generateBibliography(appData.articles);
+        }
+        cachedBibContent = fresh;
+        window.cachedBibContent = fresh;
+        console.log(`📚 Background bibliography cache rebuilt: ${appData.articles.length} entries`);
+    }, 300);
+}
+window.scheduleBibliographyRebuild = scheduleBibliographyRebuild;
+
 // Helper function to generate hash from content
 function generateContentHash(content) {
     // Simple hash function for content comparison
@@ -307,23 +338,83 @@ function addPreviewToggle() {
     downloadTexBtn.style.cssText = 'background: #6c757d; color: white; border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; font-size: 12px;';
 
     downloadTexBtn.onclick = async () => {
-        // Use cached data for current article/review
+        let latexContent = '';
+        let bibContent = '';
+
+        // Use cached data if available, otherwise generate on-the-fly
         const cachedData = pdfCache[activeNoteId];
-        
-        if (!cachedData || !cachedData.latexContent) {
-            showNotification('Please compile first', 'warning');
+        if (cachedData && cachedData.latexContent) {
+            latexContent = cachedData.latexContent;
+            bibContent = cachedData.bibContent || '';
+        } else {
+            try {
+                if (appData.articles && appData.articles.length > 0) {
+                    bibContent = generateBibliography(appData.articles);
+                }
+
+                if (activeNoteId === 'review') {
+                    latexContent = window.generateLatexDocument
+                        ? window.generateLatexDocument()
+                        : generateFallbackLatexDocument(latexEditor ? latexEditor.getValue() : '');
+                } else {
+                    const editorContent = latexEditor ? latexEditor.getValue() : '';
+                    if (!editorContent.trim()) {
+                        showNotification('No content to export', 'warning');
+                        return;
+                    }
+                    if (editorContent.includes('\\documentclass')) {
+                        latexContent = editorContent;
+                    } else {
+                        const currentArticle = appData.articles.find(a => a.id === activeNoteId);
+                        const articlesWithBibtex = appData.articles ? appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
+                        let preamble = `\\documentclass[11pt,a4paper]{article}\n\\usepackage{filecontents}\n\\usepackage[utf8]{inputenc}\n\\usepackage[margin=1in]{geometry}\n\\usepackage{amsmath}\n\\usepackage{amssymb}\n\\usepackage{hyperref}\n\\usepackage{orcidlink}\n\\usepackage[numbers,sort&compress]{natbib}\n\n`;
+                        if (articlesWithBibtex.length > 0 && bibContent && bibContent.trim()) {
+                            preamble += '\\begin{filecontents}{references.bib}\n' + bibContent + '\\end{filecontents}\n\n';
+                        }
+                        preamble += '\\begin{document}\n\n';
+                        if (currentArticle) {
+                            preamble += `\\section*{${escapeLatex(currentArticle.title || 'Untitled')}`;
+                            if (currentArticle.bibtexId && currentArticle.bibtexId.trim()) {
+                                const citationKey = window.sanitizeCitationKey ? window.sanitizeCitationKey(currentArticle.bibtexId) : currentArticle.bibtexId;
+                                preamble += ` \\cite{${citationKey}}`;
+                            }
+                            preamble += `}\n\n`;
+                            const metadataParts = [];
+                            if (currentArticle.authors && currentArticle.authors.trim()) metadataParts.push(escapeLatex(currentArticle.authors));
+                            if (currentArticle.year && currentArticle.year.trim()) metadataParts.push(`(${escapeLatex(currentArticle.year)})`);
+                            if (currentArticle.journal && currentArticle.journal.trim()) {
+                                let journalText = escapeLatex(currentArticle.journal);
+                                if (currentArticle.volume && currentArticle.volume.trim()) {
+                                    journalText += ` ${escapeLatex(currentArticle.volume)}`;
+                                    if (currentArticle.number && currentArticle.number.trim()) journalText += `(${escapeLatex(currentArticle.number)})`;
+                                }
+                                metadataParts.push(`\\textit{${journalText}}`);
+                            }
+                            if (metadataParts.length > 0) preamble += `{\\small ${metadataParts.join(', ')}}\n\n`;
+                        }
+                        const bibliography = articlesWithBibtex.length > 0 ? '\n\n\\bibliographystyle{plainnat}\n\\bibliography{references}\n\n' : '';
+                        latexContent = preamble + editorContent + bibliography + '\\end{document}';
+                    }
+                }
+            } catch (err) {
+                console.error('Error generating LaTeX for download:', err);
+                showNotification('Error generating LaTeX: ' + err.message, 'error');
+                return;
+            }
+        }
+
+        if (!latexContent.trim()) {
+            showNotification('No content to export', 'warning');
             return;
         }
 
         try {
             // Create ZIP file with main.tex and references.bib
             const zip = new JSZip();
-            zip.file('main.tex', cachedData.latexContent);
-            
-            if (cachedData.bibContent && cachedData.bibContent.trim()) {
-                zip.file('references.bib', cachedData.bibContent);
+            zip.file('main.tex', latexContent);
+            if (bibContent && bibContent.trim()) {
+                zip.file('references.bib', bibContent);
             }
-            
             const zipBlob = await zip.generateAsync({ type: 'blob' });
             const url = URL.createObjectURL(zipBlob);
             const a = document.createElement('a');
@@ -404,21 +495,36 @@ async function compileToPDFPreview() {
         let latexContent = '';
         let bibContent = '';
 
+        // console.log('⚠️ Bibliography cache not ready, generating synchronously (this may cause a delay if you have many articles)...');
+
         // Get content from editor (not contentEl - now using CodeMirror)
         if (latexEditor) {
+            // console.log('⚠️ Bibliography cache not ready, generating synchronously (this may cause a delay if you have many articles)...');
             latexContent = latexEditor.getValue();
         }
 
         if (!latexContent.trim()) {
-            showNotification('No content to compile', 'warning');
-            return;
-        }
+            // console.log('⚠️ Bibliography cache not ready, generating synchronously (this may cause a delay if you have many articles)...');
 
-        // Always generate BibTeX bibliography if there are articles
+            showNotification('No content to compile', 'warning');
+            // return;
+        }
+        // console.log('⚠️ Bibliography cache not ready, generating synchronously (this may cause a delay if you have many articles)...');
+        // Use pre-built bibliography cache (rebuilt in background when articles change)
         if (appData.articles && appData.articles.length > 0) {
-            bibContent = generateBibliography(appData.articles);
-            console.log(`📚 Generated bibliography with ${appData.articles.length} entries`);
-            console.log('📚 Bibliography preview:', bibContent.substring(0, 200) + '...');
+            if (cachedBibContent !== null) {
+                bibContent = cachedBibContent;
+                console.log(`📚 Using cached bibliography (${appData.articles.length} entries)`);
+            } else {
+                // Cache not ready yet – build synchronously as fallback
+                console.log('⚠️ Bibliography cache not ready, generating synchronously (this may cause a delay if you have many articles)...');
+                bibContent = (typeof generateBibtexContent === 'function')
+                    ? generateBibtexContent()
+                    : generateBibliography(appData.articles);
+                cachedBibContent = bibContent;
+                window.cachedBibContent = bibContent;
+                console.log(`📚 Bibliography built synchronously (${appData.articles.length} entries) – will be cached for next compile`);
+            }
         } else {
             console.log('⚠️ No articles found for bibliography');
         }
@@ -636,7 +742,8 @@ function generateBibliography(articles) {
 }
 
 /**
- * Escape special BibTeX characters
+ * Escape special BibTeX/LaTeX characters in a field value.
+ * Negative lookbehind ensures already-escaped sequences are not double-escaped.
  */
 function escapeBibTeX(text) {
     if (!text) return '';
@@ -644,7 +751,9 @@ function escapeBibTeX(text) {
         .replace(/\\/g, '\\\\')
         .replace(/{/g, '\\{')
         .replace(/}/g, '\\}')
-        .replace(/%/g, '\\%');
+        .replace(/%/g, '\\%')
+        .replace(/(?<!\\)&/g, '\\&')
+        .replace(/(?<!\\)_/g, '\\_');
 }
 
 /**
@@ -719,28 +828,28 @@ function generateFallbackLatexDocument(contentText) {
         });
     }
     latex += '}\n';
-    
-    // Output affiliations below authors
+
+    // Output affiliations below authors - always use tabular structure
+    latex += '\n';
+    latex += '\\date{';
+    latex += '{\\small\\itshape\n';
+    latex += '\\begin{tabular}{@{}c@{}}';
     if (affiliationsData && affiliationsData.length > 0) {
-        latex += '\n';
-        latex += '\\date{';
-        latex += '\\vspace{0.5em}';
-        latex += '{\\small\\itshape\n';
-        latex += '\\begin{tabular}{@{}c@{}}\n';
-        affiliationsData.forEach((affil, idx) => {
-            if (affil.text && affil.text.trim()) {
-                latex += `\\textsuperscript{${idx + 1}}${escapeLatex(affil.text)}`;
-                if (idx < affiliationsData.length - 1) {
+        const filledAffils = affiliationsData.filter(a => a.text && a.text.trim());
+        if (filledAffils.length > 0) {
+            latex += '\n';
+            filledAffils.forEach((affil, idx) => {
+                latex += `\\textsuperscript{${affiliationsData.indexOf(affil) + 1}}${escapeLatex(affil.text)}`;
+                if (idx < filledAffils.length - 1) {
                     latex += ' \\\\\n';
                 }
-            }
-        });
-        latex += '\n\\end{tabular}}';
-        latex += '\\\\[1.5em]\n';
-        latex += '\\today}\n';
-    } else {
-        latex += `\\date{\\today}\n`;
+            });
+            latex += '\n';
+        }
     }
+    latex += '\\end{tabular}}';
+    latex += '\\\\[1.5em]\n';
+    latex += '\\today}\n';
     
     latex += '\n\n';
     latex += `\\begin{document}\n\n`;

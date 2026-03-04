@@ -40,6 +40,11 @@ function saveToLocalStorage(silent = false) {
         if (!silent) {
             // showNotification('Projet sauvegardé!', 'success');
         }
+
+        // Trigger background bibliography rebuild whenever articles are saved
+        if (typeof window.scheduleBibliographyRebuild === 'function') {
+            window.scheduleBibliographyRebuild();
+        }
     } catch (e) {
         showNotification('Erreur lors de la sauvegarde: ' + e.message, 'error');
     }
@@ -118,7 +123,7 @@ function loadFromLocalStorage() {
             
             console.log('✓ Loaded appData:', appData.articles.length, 'articles');
         }
-        
+
         // Load tag zones from localStorage
         const savedZones = localStorage.getItem('papermap_zones');
         if (savedZones) {
@@ -151,6 +156,13 @@ function loadFromLocalStorage() {
             window.nextControlPointId = nextControlPointId;
         }
         
+        // Pre-build bibliography cache after initial load so it's ready for the first compile
+        setTimeout(() => {
+            if (typeof window.scheduleBibliographyRebuild === 'function') {
+                window.scheduleBibliographyRebuild();
+            }
+        }, 500);
+
         // Load saved node positions - CRITICAL for position persistence
         const savedPositions = localStorage.getItem('papermap_positions');
         if (savedPositions) {

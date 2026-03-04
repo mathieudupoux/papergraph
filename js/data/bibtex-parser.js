@@ -391,6 +391,21 @@ async function fetchArxivAbstract(arxivId) {
  * @param {object} article - Article object
  * @returns {string} BibTeX formatted string
  */
+/**
+ * Escape LaTeX special characters in a BibTeX text field value.
+ * Only escapes characters not already preceded by a backslash, so existing
+ * LaTeX commands (\textit{}, \&, etc.) are never double-escaped.
+ * Does NOT escape url/doi/numeric fields – call only for prose text fields.
+ */
+function sanitizeBibTextField(value) {
+    if (!value) return value;
+    return String(value)
+        // Escape bare & (ampersand), but not \& which is already escaped
+        .replace(/(?<!\\)&/g, '\\&')
+        // Escape bare _ (underscore), but not \_ which is already escaped
+        .replace(/(?<!\\)_/g, '\\_');
+}
+
 function articleToBibTeX(article) {
     if (!article) return '';
     
@@ -410,26 +425,36 @@ function articleToBibTeX(article) {
     // Convert comma-separated authors to 'and' separated for BibTeX
     const authorsFormatted = article.authors ? article.authors.split(',').map(a => a.trim()).join(' and ') : null;
     
-    const fieldMap = {
+    // Fields that contain prose text and need LaTeX escaping ( _ and & )
+    const textFields = {
         title: article.title,
         author: authorsFormatted,
-        year: article.year,
         month: article.month,
         journal: article.journal,
         booktitle: article.booktitle,
         publisher: article.publisher,
+        isbn: article.isbn,
+        keywords: article.keywords || (article.categories ? article.categories.join(', ') : ''),
+        note: article.note
+    };
+
+    // Fields that must remain unescaped (URLs, DOIs, numeric values)
+    const rawFields = {
+        year: article.year,
         volume: article.volume,
         number: article.number,
         pages: article.pages,
         doi: article.doi,
-        isbn: article.isbn,
-        url: article.link || article.url,
-        // abstract field excluded to keep filecontents clean
-        keywords: article.keywords || (article.categories ? article.categories.join(', ') : ''),
-        note: article.note
+        url: article.link || article.url
     };
     
-    for (const [field, value] of Object.entries(fieldMap)) {
+    for (const [field, value] of Object.entries(textFields)) {
+        if (value) {
+            bibtex += `  ${field} = {${sanitizeBibTextField(value)}},\n`;
+        }
+    }
+
+    for (const [field, value] of Object.entries(rawFields)) {
         if (value) {
             bibtex += `  ${field} = {${value}},\n`;
         }
