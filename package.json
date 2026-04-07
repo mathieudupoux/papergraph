@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "vite": "^6.3.0"
+    "vite": "^6.4.2"
   },
   "dependencies": {
     "zundo": "^2.3.0",
