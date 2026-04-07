@@ -1,0 +1,42 @@
+name: Deploy to GitHub Pages
+
+# Le robot se déclenche à chaque push sur la branche main
+on:
+  push:
+    branches:
+      - main
+
+# Donne les droits au robot de faire un "git push" vers gh-pages
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Télécharge ton code depuis main
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Installe l'environnement Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Utilise la version 20 (standard actuel)
+
+      # 3. Installe tes dépendances (npm, vite, etc.)
+      - name: Install dependencies
+        run: npm install
+
+      # 4. Construit ton projet (crée le fameux dossier dist)
+      - name: Build project
+        run: npm run build
+
+      # 5. Envoie UNIQUEMENT le dossier dist sur la branche gh-pages
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          force_orphan: true # Garde l'historique de gh-pages super propre (1 seul commit)
