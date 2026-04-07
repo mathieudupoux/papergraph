@@ -2,10 +2,13 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
+  base: '/', 
   root: '.',
   publicDir: 'public',
   build: {
     outDir: 'dist',
+    // --- ON CHANGE LE NOM DU DOSSIER GÉNÉRÉ ICI ---
+    assetsDir: 'build-assets', 
     rollupOptions: {
       input: {
         editor: resolve(__dirname, 'editor.html'),
