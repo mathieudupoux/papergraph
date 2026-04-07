@@ -19,22 +19,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm' # Active le cache pour éviter les bugs réseau npm
 
       - name: Install dependencies
-        # On utilise --no-audit pour accélérer et éviter des blocages inutiles
-        run: npm install --no-audit
+        # On force le registre public ici aussi par sécurité
+        run: |
+          npm config set registry https://registry.npmjs.org/
+          npm install
 
       - name: Build project
-        # On utilise npx pour être sûr de trouver vite
-        run: npx vite build
-
-      - name: Check if dist exists
-        # Cette étape vérifie si le dossier dist est bien là avant de continuer
-        run: ls -al dist
+        # On appelle vite directement depuis les modules installés
+        run: ./node_modules/.bin/vite build
 
       - name: Deploy to GitHub Pages
-        if: success() # Ne se lance que si tout ce qui précède est OK
+        if: success()
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
