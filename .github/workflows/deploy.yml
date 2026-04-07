@@ -27,11 +27,11 @@ jobs:
 
       # 3. Installe tes dépendances (npm, vite, etc.)
       - name: Install dependencies
-        run: npm install
+        run: yarn install
 
       # 4. Construit ton projet (crée le fameux dossier dist)
       - name: Build project
-        run: ./node_modules/.bin/vite build
+        run: yarn build
 
       # 5. Envoie UNIQUEMENT le dossier dist sur la branche gh-pages
       - name: Deploy to GitHub Pages
