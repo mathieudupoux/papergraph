@@ -1,8 +1,7 @@
 // Editor page entry point — single module that imports the full dependency tree
 // Vite resolves and bundles all imports automatically
 
-// Core state (must be first)
-import '../core/state.js';
+// Store is initialized on first import via appStore.js (imported by other modules)
 
 // Utilities
 import '../utils/helpers.js';

@@ -3,7 +3,7 @@
  * Enforces read-only mode for viewers
  */
 
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { showNotification } from './helpers.js';
 
 /**
@@ -12,12 +12,12 @@ import { showNotification } from './helpers.js';
  */
 export function canEdit() {
     // If no role is set, assume full permissions (local mode)
-    if (!state.currentUserRole) {
+    if (!getStore().currentUserRole) {
         return true;
     }
     
     // Viewers cannot edit
-    if (state.currentUserRole === 'viewer') {
+    if (getStore().currentUserRole === 'viewer') {
         return false;
     }
     
@@ -30,7 +30,7 @@ export function canEdit() {
  * @returns {boolean} True if user is in read-only mode
  */
 export function isReadOnly() {
-    return state.isReadOnly === true;
+    return getStore().isReadOnly === true;
 }
 
 /**
@@ -62,7 +62,7 @@ export function executeIfCanEdit(action, actionName = 'action') {
  * @returns {string|null} 'owner', 'editor', 'viewer', or null
  */
 export function getUserRole() {
-    return state.currentUserRole || null;
+    return getStore().currentUserRole || null;
 }
 
 /**
@@ -70,7 +70,7 @@ export function getUserRole() {
  * @returns {boolean} True if user is owner
  */
 export function isOwner() {
-    return state.currentUserRole === 'owner';
+    return getStore().currentUserRole === 'owner';
 }
 
 /**
@@ -78,5 +78,5 @@ export function isOwner() {
  * @returns {boolean} True if user can edit
  */
 export function isEditorOrOwner() {
-    return state.currentUserRole === 'owner' || state.currentUserRole === 'editor';
+    return getStore().currentUserRole === 'owner' || getStore().currentUserRole === 'editor';
 }

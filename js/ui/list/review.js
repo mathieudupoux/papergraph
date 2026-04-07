@@ -1,7 +1,7 @@
 // ===== PROJECT REVIEW PANE =====
 // Review editor, authors, and affiliations management
 
-import { state } from '../../core/state.js';
+import { getStore, getNetwork } from '../../store/appStore.js';
 import { initLatexEditor } from '../../utils/codemirror-latex.js';
 import { save } from '../../data/persistence.js';
 import { generateContentHash } from './sidebar.js';
@@ -13,8 +13,8 @@ export function loadReviewToEditor() {
     document.getElementById('articleEditorState').style.display = 'flex';
 
     // Initialize review metadata if not exists
-    if (!state.appData.projectReviewMeta) {
-        state.appData.projectReviewMeta = {
+    if (!getStore().appData.projectReviewMeta) {
+        getStore().appData.projectReviewMeta = {
             title: "Project Review",
             authorsData: [{name: "", affiliationNumbers: []}],
             affiliationsData: [{text: ""}],
@@ -22,11 +22,11 @@ export function loadReviewToEditor() {
         };
     }
     
-    if (!state.appData.projectReviewMeta.authorsData) {
-        state.appData.projectReviewMeta.authorsData = [{name: "", affiliationNumbers: []}];
+    if (!getStore().appData.projectReviewMeta.authorsData) {
+        getStore().appData.projectReviewMeta.authorsData = [{name: "", affiliationNumbers: []}];
     }
-    if (!state.appData.projectReviewMeta.affiliationsData) {
-        state.appData.projectReviewMeta.affiliationsData = [{text: ""}];
+    if (!getStore().appData.projectReviewMeta.affiliationsData) {
+        getStore().appData.projectReviewMeta.affiliationsData = [{text: ""}];
     }
 
     // Hide regular authors row (for articles only)
@@ -38,18 +38,18 @@ export function loadReviewToEditor() {
     document.getElementById('noteCitationKey').contentEditable = 'false';
     
     const titleEl = document.getElementById('noteTitle');
-    titleEl.textContent = state.appData.projectReviewMeta.title || 'Project Review';
+    titleEl.textContent = getStore().appData.projectReviewMeta.title || 'Project Review';
     
-    if (state.isReadOnlyMode) {
+    if (getStore().isReadOnlyMode) {
         titleEl.contentEditable = 'false';
         titleEl.style.cursor = 'default';
     } else {
         titleEl.contentEditable = 'true';
         titleEl.onblur = () => {
-            state.appData.projectReviewMeta.title = titleEl.textContent.trim();
+            getStore().appData.projectReviewMeta.title = titleEl.textContent.trim();
             save(true);
             const reviewItem = document.querySelector('.sidebar-item.review-item .sidebar-item-title');
-            if (reviewItem) reviewItem.textContent = '📄 ' + state.appData.projectReviewMeta.title;
+            if (reviewItem) reviewItem.textContent = '📄 ' + getStore().appData.projectReviewMeta.title;
         };
     }
     
@@ -61,12 +61,12 @@ export function loadReviewToEditor() {
         
         const addBtn = document.getElementById('addAuthorBtn');
         if (addBtn) {
-            if (state.isReadOnlyMode) {
+            if (getStore().isReadOnlyMode) {
                 addBtn.style.display = 'none';
             } else {
                 addBtn.style.display = '';
                 addBtn.onclick = () => {
-                    state.appData.projectReviewMeta.authorsData.push({name: "", affiliationNumbers: []});
+                    getStore().appData.projectReviewMeta.authorsData.push({name: "", affiliationNumbers: []});
                     renderAuthorsList();
                     save(true);
                 };
@@ -75,12 +75,12 @@ export function loadReviewToEditor() {
         
         const addAffilBtn = document.getElementById('addAffiliationBtn');
         if (addAffilBtn) {
-            if (state.isReadOnlyMode) {
+            if (getStore().isReadOnlyMode) {
                 addAffilBtn.style.display = 'none';
             } else {
                 addAffilBtn.style.display = '';
                 addAffilBtn.onclick = () => {
-                    state.appData.projectReviewMeta.affiliationsData.push({text: ""});
+                    getStore().appData.projectReviewMeta.affiliationsData.push({text: ""});
                     renderAffiliationsList();
                     renderAuthorsList();
                     save(true);
@@ -96,15 +96,15 @@ export function loadReviewToEditor() {
     const abstractEl = document.getElementById('noteAbstract');
     if (abstractRow && abstractEl) {
         abstractRow.style.display = 'flex';
-        abstractEl.textContent = state.appData.projectReviewMeta.abstract || '';
+        abstractEl.textContent = getStore().appData.projectReviewMeta.abstract || '';
         
-        if (state.isReadOnlyMode) {
+        if (getStore().isReadOnlyMode) {
             abstractEl.contentEditable = 'false';
             abstractEl.style.cursor = 'default';
         } else {
             abstractEl.contentEditable = 'true';
             abstractEl.onblur = () => {
-                state.appData.projectReviewMeta.abstract = abstractEl.textContent.trim();
+                getStore().appData.projectReviewMeta.abstract = abstractEl.textContent.trim();
                 save(true);
             };
         }
@@ -125,7 +125,7 @@ export function loadReviewToEditor() {
     if (previewContainer) {
         const cachedPdf = listState.pdfCache['review'];
         if (cachedPdf && cachedPdf.pdfBlob) {
-            const currentContentHash = generateContentHash(state.appData.projectReview || '');
+            const currentContentHash = generateContentHash(getStore().appData.projectReview || '');
             if (cachedPdf.contentHash === currentContentHash) {
                 console.log('📦 Loading cached PDF for project review');
                 previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">📄 Loading cached PDF preview...</div>';
@@ -147,20 +147,20 @@ export function loadReviewToEditor() {
         listState.latexEditor = null;
     }
 
-    const isReadOnly = state.isReadOnlyMode || state.isGalleryViewer || false;
-    listState.latexEditor = initLatexEditor(contentEl, state.appData.projectReview || '', isReadOnly ? null : (content) => {
-        if (state.isReadOnlyMode) return;
+    const isReadOnly = getStore().isReadOnlyMode || getStore().isGalleryViewer || false;
+    listState.latexEditor = initLatexEditor(contentEl, getStore().appData.projectReview || '', isReadOnly ? null : (content) => {
+        if (getStore().isReadOnlyMode) return;
         
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
-            if (state.appData.projectReview !== content) {
-                state.appData.projectReview = content;
+            if (getStore().appData.projectReview !== content) {
+                getStore().setProjectReview(content);
                 save(true);
             }
         }, 1000);
     }, isReadOnly);
     
-    if (state.isReadOnlyMode && listState.latexEditor && listState.latexEditor.element) {
+    if (getStore().isReadOnlyMode && listState.latexEditor && listState.latexEditor.element) {
         listState.latexEditor.element.readOnly = true;
         listState.latexEditor.element.style.cursor = 'default';
         listState.latexEditor.element.style.backgroundColor = '#f7f9fb';
@@ -173,8 +173,8 @@ export function renderAuthorsList() {
     const authorsList = document.getElementById('authorsList');
     if (!authorsList) return;
 
-    const authorsData = state.appData.projectReviewMeta.authorsData || [];
-    const affiliationsData = state.appData.projectReviewMeta.affiliationsData || [];
+    const authorsData = getStore().appData.projectReviewMeta.authorsData || [];
+    const affiliationsData = getStore().appData.projectReviewMeta.affiliationsData || [];
 
     authorsList.innerHTML = '';
 
@@ -194,13 +194,13 @@ export function renderAuthorsList() {
         nameInput.value = author.name || '';
         nameInput.style.cssText = 'flex: 1; padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 14px;';
         
-        if (state.isReadOnlyMode) {
+        if (getStore().isReadOnlyMode) {
             nameInput.readOnly = true;
             nameInput.style.backgroundColor = '#f7f9fb';
             nameInput.style.cursor = 'default';
         } else {
             nameInput.oninput = () => {
-                state.appData.projectReviewMeta.authorsData[authorIdx].name = nameInput.value.trim();
+                getStore().appData.projectReviewMeta.authorsData[authorIdx].name = nameInput.value.trim();
                 save(true);
             };
         }
@@ -211,13 +211,13 @@ export function renderAuthorsList() {
         removeBtn.innerHTML = '×';
         removeBtn.style.cssText = 'width: 28px; height: 28px; border: none; background: #ef5350; color: white; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; padding: 0;';
         
-        if (state.isReadOnlyMode) {
+        if (getStore().isReadOnlyMode) {
             removeBtn.style.display = 'none';
         } else {
             removeBtn.onclick = () => {
-                state.appData.projectReviewMeta.authorsData.splice(authorIdx, 1);
-                if (state.appData.projectReviewMeta.authorsData.length === 0) {
-                    state.appData.projectReviewMeta.authorsData = [{name: "", affiliationNumbers: [], orcid: ""}];
+                getStore().appData.projectReviewMeta.authorsData.splice(authorIdx, 1);
+                if (getStore().appData.projectReviewMeta.authorsData.length === 0) {
+                    getStore().appData.projectReviewMeta.authorsData = [{name: "", affiliationNumbers: [], orcid: ""}];
                 }
                 renderAuthorsList();
                 save(true);
@@ -243,14 +243,14 @@ export function renderAuthorsList() {
         orcidInput.value = author.orcid || '';
         orcidInput.style.cssText = 'flex: 1; padding: 6px 10px; border: 1px solid #dee2e6; border-radius: 4px; font-size: 12px; font-family: monospace;';
         
-        if (state.isReadOnlyMode) {
+        if (getStore().isReadOnlyMode) {
             orcidInput.readOnly = true;
             orcidInput.style.backgroundColor = '#f7f9fb';
             orcidInput.style.cursor = 'default';
         } else {
             orcidInput.oninput = () => {
                 let value = orcidInput.value.replace(/[^0-9X-]/g, '');
-                state.appData.projectReviewMeta.authorsData[authorIdx].orcid = value;
+                getStore().appData.projectReviewMeta.authorsData[authorIdx].orcid = value;
                 save(true);
                 const isValid = /^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]$/.test(value);
                 orcidInput.style.borderColor = value && !isValid ? '#ef5350' : '#dee2e6';
@@ -293,7 +293,7 @@ export function renderAuthorsList() {
             checkbox.checked = isChecked;
             checkbox.style.cssText = 'display: none;';
             
-            if (!state.isReadOnlyMode) {
+            if (!getStore().isReadOnlyMode) {
                 checkbox.onchange = () => {
                     let affiliationNumbers = author.affiliationNumbers || [];
                     const affilNum = affilIdx + 1;
@@ -307,7 +307,7 @@ export function renderAuthorsList() {
                         affiliationNumbers = affiliationNumbers.filter(n => n !== affilNum);
                     }
 
-                    state.appData.projectReviewMeta.authorsData[authorIdx].affiliationNumbers = affiliationNumbers;
+                    getStore().appData.projectReviewMeta.authorsData[authorIdx].affiliationNumbers = affiliationNumbers;
                     save(true);
                     renderAuthorsList();
                 };
@@ -319,7 +319,7 @@ export function renderAuthorsList() {
             badgeText.textContent = `${affilIdx + 1}`;
             badge.appendChild(badgeText);
 
-            if (!state.isReadOnlyMode) {
+            if (!getStore().isReadOnlyMode) {
                 badge.onclick = () => checkbox.click();
             } else {
                 badge.style.cursor = 'default';
@@ -337,7 +337,7 @@ export function renderAffiliationsList() {
     const affiliationsList = document.getElementById('affiliationsList');
     if (!affiliationsList) return;
 
-    const affiliationsData = state.appData.projectReviewMeta.affiliationsData || [];
+    const affiliationsData = getStore().appData.projectReviewMeta.affiliationsData || [];
 
     affiliationsList.innerHTML = '';
 
@@ -358,13 +358,13 @@ export function renderAffiliationsList() {
         textInput.value = affiliation.text || '';
         textInput.style.cssText = 'flex: 1; padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 13px;';
         
-        if (state.isReadOnlyMode) {
+        if (getStore().isReadOnlyMode) {
             textInput.readOnly = true;
             textInput.style.backgroundColor = '#f7f9fb';
             textInput.style.cursor = 'default';
         } else {
             textInput.oninput = () => {
-                state.appData.projectReviewMeta.affiliationsData[affilIdx].text = textInput.value.trim();
+                getStore().appData.projectReviewMeta.affiliationsData[affilIdx].text = textInput.value.trim();
                 save(true);
             };
         }
@@ -375,16 +375,16 @@ export function renderAffiliationsList() {
         removeBtn.innerHTML = '×';
         removeBtn.style.cssText = 'width: 28px; height: 28px; border: none; background: #ef5350; color: white; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; padding: 0;';
         
-        if (state.isReadOnlyMode) {
+        if (getStore().isReadOnlyMode) {
             removeBtn.style.display = 'none';
         } else {
             removeBtn.onclick = () => {
-                state.appData.projectReviewMeta.affiliationsData.splice(affilIdx, 1);
-                if (state.appData.projectReviewMeta.affiliationsData.length === 0) {
-                    state.appData.projectReviewMeta.affiliationsData = [{text: ""}];
+                getStore().appData.projectReviewMeta.affiliationsData.splice(affilIdx, 1);
+                if (getStore().appData.projectReviewMeta.affiliationsData.length === 0) {
+                    getStore().appData.projectReviewMeta.affiliationsData = [{text: ""}];
                 }
 
-                state.appData.projectReviewMeta.authorsData.forEach(author => {
+                getStore().appData.projectReviewMeta.authorsData.forEach(author => {
                     if (author.affiliationNumbers) {
                         author.affiliationNumbers = author.affiliationNumbers
                             .filter(n => n !== affilIdx + 1)

@@ -1,16 +1,16 @@
 // ===== ARTICLE PREVIEW =====
 // Preview panel display and management
 
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { getContrastColor, showNotification } from '../utils/helpers.js';
 import { renderListView } from './list/sidebar.js';
 import { save } from '../data/persistence.js';
 
 export function showArticlePreview(articleId) {
-    const article = state.appData.articles.find(a => a.id === articleId);
+    const article = getStore().appData.articles.find(a => a.id === articleId);
     if (!article) return;
     
-    state.currentPreviewArticleId = articleId;
+    getStore().setCurrentPreviewArticleId(articleId);
     console.log('showArticlePreview: Loading article', articleId, article);
     
     const preview = document.getElementById('articlePreview');
@@ -49,7 +49,7 @@ export function showArticlePreview(articleId) {
             badge.textContent = category;
             
             // Use zone color if available (same as graph)
-            const zone = state.tagZones.find(z => z.tag === category);
+            const zone = getStore().tagZones.find(z => z.tag === category);
             if (zone) {
                 badge.style.background = zone.color;
                 badge.style.borderColor = zone.color;
@@ -115,29 +115,29 @@ export function showArticlePreview(articleId) {
     preview.classList.add('active');
     
     // Setup inline editing once (but not in gallery viewer mode)
-    if (!state.inlineEditingSetup && !state.isGalleryViewer) {
+    if (!getStore().inlineEditingSetup && !getStore().isGalleryViewer) {
         setupInlineEditing();
-        state.inlineEditingSetup = true;
+        getStore().setInlineEditingSetup(true);
     }
 }
 
 export function closeArticlePreview() {
     // Save any ongoing edits before closing
-    if (state.currentEditingElement) {
+    if (getStore().currentEditingElement) {
         // Determine which field is being edited
         let field = null;
-        if (state.currentEditingElement.id === 'previewTitle') field = 'title';
-        else if (state.currentEditingElement.id === 'previewAuthors') field = 'authors';
-        else if (state.currentEditingElement.id === 'previewText') field = 'text';
+        if (getStore().currentEditingElement.id === 'previewTitle') field = 'title';
+        else if (getStore().currentEditingElement.id === 'previewAuthors') field = 'authors';
+        else if (getStore().currentEditingElement.id === 'previewText') field = 'text';
         
         if (field) {
-            saveInlineEdit(state.currentEditingElement, field);
+            saveInlineEdit(getStore().currentEditingElement, field);
         }
     }
     
     const preview = document.getElementById('articlePreview');
     preview.classList.remove('active');
-    state.currentPreviewArticleId = null;
+    getStore().setCurrentPreviewArticleId(null);
 }
 
 export function setupInlineEditing() {
@@ -146,13 +146,13 @@ export function setupInlineEditing() {
     bibtexIdElement.contentEditable = 'true';
     
     bibtexIdElement.addEventListener('focus', () => {
-        state.currentEditingElement = bibtexIdElement;
-        state.originalContent = bibtexIdElement.textContent;
+        getStore().setCurrentEditingElement(bibtexIdElement);
+        getStore().setOriginalContent(bibtexIdElement.textContent);
         bibtexIdElement.classList.add('editing');
     });
     
     bibtexIdElement.addEventListener('blur', () => {
-        if (state.currentEditingElement === bibtexIdElement) {
+        if (getStore().currentEditingElement === bibtexIdElement) {
             saveInlineEdit(bibtexIdElement, 'bibtexId');
         }
     });
@@ -164,9 +164,9 @@ export function setupInlineEditing() {
             bibtexIdElement.blur();
         }
         if (e.key === 'Escape') {
-            bibtexIdElement.textContent = state.originalContent;
+            bibtexIdElement.textContent = getStore().originalContent;
             bibtexIdElement.classList.remove('editing');
-            state.currentEditingElement = null;
+            getStore().setCurrentEditingElement(null);
             bibtexIdElement.blur();
         }
     });
@@ -176,13 +176,13 @@ export function setupInlineEditing() {
     titleElement.contentEditable = 'true';
     
     titleElement.addEventListener('focus', () => {
-        state.currentEditingElement = titleElement;
-        state.originalContent = titleElement.textContent;
+        getStore().setCurrentEditingElement(titleElement);
+        getStore().setOriginalContent(titleElement.textContent);
         titleElement.classList.add('editing');
     });
     
     titleElement.addEventListener('blur', () => {
-        if (state.currentEditingElement === titleElement) {
+        if (getStore().currentEditingElement === titleElement) {
             saveInlineEdit(titleElement, 'title');
         }
     });
@@ -194,9 +194,9 @@ export function setupInlineEditing() {
             titleElement.blur();
         }
         if (e.key === 'Escape') {
-            titleElement.textContent = state.originalContent;
+            titleElement.textContent = getStore().originalContent;
             titleElement.classList.remove('editing');
-            state.currentEditingElement = null;
+            getStore().setCurrentEditingElement(null);
             titleElement.blur();
         }
     });
@@ -206,13 +206,13 @@ export function setupInlineEditing() {
     authorsElement.contentEditable = 'true';
     
     authorsElement.addEventListener('focus', () => {
-        state.currentEditingElement = authorsElement;
-        state.originalContent = authorsElement.textContent;
+        getStore().setCurrentEditingElement(authorsElement);
+        getStore().setOriginalContent(authorsElement.textContent);
         authorsElement.classList.add('editing');
     });
     
     authorsElement.addEventListener('blur', () => {
-        if (state.currentEditingElement === authorsElement) {
+        if (getStore().currentEditingElement === authorsElement) {
             saveInlineEdit(authorsElement, 'authors');
         }
     });
@@ -224,9 +224,9 @@ export function setupInlineEditing() {
             authorsElement.blur();
         }
         if (e.key === 'Escape') {
-            authorsElement.textContent = state.originalContent;
+            authorsElement.textContent = getStore().originalContent;
             authorsElement.classList.remove('editing');
-            state.currentEditingElement = null;
+            getStore().setCurrentEditingElement(null);
             authorsElement.blur();
         }
     });
@@ -236,13 +236,13 @@ export function setupInlineEditing() {
     descriptionElement.contentEditable = 'true';
     
     descriptionElement.addEventListener('focus', () => {
-        state.currentEditingElement = descriptionElement;
-        state.originalContent = descriptionElement.textContent;
+        getStore().setCurrentEditingElement(descriptionElement);
+        getStore().setOriginalContent(descriptionElement.textContent);
         descriptionElement.classList.add('editing');
     });
     
     descriptionElement.addEventListener('blur', () => {
-        if (state.currentEditingElement === descriptionElement) {
+        if (getStore().currentEditingElement === descriptionElement) {
             saveInlineEdit(descriptionElement, 'text');
         }
     });
@@ -255,9 +255,9 @@ export function setupInlineEditing() {
             descriptionElement.blur();
         }
         if (e.key === 'Escape') {
-            descriptionElement.textContent = state.originalContent;
+            descriptionElement.textContent = getStore().originalContent;
             descriptionElement.classList.remove('editing');
-            state.currentEditingElement = null;
+            getStore().setCurrentEditingElement(null);
             descriptionElement.blur();
         }
     });
@@ -265,45 +265,45 @@ export function setupInlineEditing() {
 
 export function saveInlineEdit(element, field) {
     // Prevent double save
-    if (!state.currentEditingElement || state.currentEditingElement !== element) {
+    if (!getStore().currentEditingElement || getStore().currentEditingElement !== element) {
         return;
     }
     
     element.classList.remove('editing');
-    state.currentEditingElement = null;
+    getStore().setCurrentEditingElement(null);
     
-    if (!state.currentPreviewArticleId) return;
+    if (!getStore().currentPreviewArticleId) return;
     
-    const article = state.appData.articles.find(a => a.id === state.currentPreviewArticleId);
+    const article = getStore().appData.articles.find(a => a.id === getStore().currentPreviewArticleId);
     if (!article) return;
     
     const newValue = element.textContent.trim();
     
-    if (newValue !== state.originalContent.trim()) {
+    if (newValue !== getStore().originalContent.trim()) {
         article[field] = newValue;
         
         // Update graph node
-        if (state.network) {
+        if (getNetwork()) {
             if (field === 'title') {
                 const labelFormat = localStorage.getItem('nodeLabelFormat') || 'bibtexId';
                 if (labelFormat === 'title') {
-                    state.network.body.data.nodes.update({
-                        id: state.currentPreviewArticleId,
+                    getNetwork().body.data.nodes.update({
+                        id: getStore().currentPreviewArticleId,
                         label: newValue
                     });
                 }
             } else if (field === 'bibtexId') {
                 const labelFormat = localStorage.getItem('nodeLabelFormat') || 'bibtexId';
                 if (labelFormat === 'bibtexId') {
-                    state.network.body.data.nodes.update({
-                        id: state.currentPreviewArticleId,
+                    getNetwork().body.data.nodes.update({
+                        id: getStore().currentPreviewArticleId,
                         label: newValue
                     });
                 }
             } else if (field === 'text') {
                 const tooltipText = newValue ? newValue.substring(0, 100) + '...' : article.title;
-                state.network.body.data.nodes.update({
-                    id: state.currentPreviewArticleId,
+                getNetwork().body.data.nodes.update({
+                    id: getStore().currentPreviewArticleId,
                     title: tooltipText
                 });
             }

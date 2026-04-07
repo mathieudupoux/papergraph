@@ -1,4 +1,4 @@
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 
 // ===== SETTINGS & PROJECT TITLE =====
 // Manage settings modal and project title
@@ -105,16 +105,16 @@ export function applySettings() {
     }
     
     // Update node labels if network exists
-    if (state.network && appSettings.nodeLabelFormat !== 'title') {
+    if (getNetwork() && appSettings.nodeLabelFormat !== 'title') {
         updateNodeLabels();
     }
 }
 
 // ===== UPDATE NODE LABELS =====
 export function updateNodeLabels() {
-    if (!state.network) return;
+    if (!getNetwork()) return;
     
-    const nodesToUpdate = state.appData.articles.map(article => {
+    const nodesToUpdate = getStore().appData.articles.map(article => {
         let label = '';
         
         switch (appSettings.nodeLabelFormat) {
@@ -162,7 +162,7 @@ export function updateNodeLabels() {
         };
     });
     
-    state.network.body.data.nodes.update(nodesToUpdate);
+    getNetwork().body.data.nodes.update(nodesToUpdate);
 }
 
 // ===== GENERATE CITATION KEY =====

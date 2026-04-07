@@ -1,4 +1,4 @@
-import { state } from '../../core/state.js';
+import { getStore, getNetwork } from '../../store/appStore.js';
 import { getContrastColor } from '../../utils/helpers.js';
 import { initLatexEditor } from '../../utils/codemirror-latex.js';
 import { save } from '../../data/persistence.js';
@@ -11,7 +11,7 @@ import { listState } from './shared.js';
 // Article loading, field binding, and editor initialization
 
 export function loadArticleToEditor(id) {
-    const article = state.appData.articles.find(a => a.id === id);
+    const article = getStore().appData.articles.find(a => a.id === id);
     if (!article) return;
 
     document.getElementById('editorEmptyState').style.display = 'none';
@@ -101,20 +101,20 @@ export function loadArticleToEditor(id) {
     }
 
     let saveTimer = null;
-    const isReadOnly = state.isReadOnlyMode || state.isGalleryViewer || false;
+    const isReadOnly = getStore().isReadOnlyMode || getStore().isGalleryViewer || false;
     listState.latexEditor = initLatexEditor(contentEl, article.text || '', isReadOnly ? null : (content) => {
-        if (state.isReadOnlyMode) return;
+        if (getStore().isReadOnlyMode) return;
         
         clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
             if (article.text !== content) {
-                article.text = content;
+                getStore().updateArticle(article.id, { text: content });
                 save(true);
             }
         }, 1000);
     }, isReadOnly);
     
-    if (state.isReadOnlyMode && listState.latexEditor && listState.latexEditor.element) {
+    if (getStore().isReadOnlyMode && listState.latexEditor && listState.latexEditor.element) {
         listState.latexEditor.element.readOnly = true;
         listState.latexEditor.element.style.cursor = 'default';
         listState.latexEditor.element.style.backgroundColor = '#f7f9fb';
@@ -129,7 +129,7 @@ export function loadArticleToEditor(id) {
             tag.className = 'category-tag';
             tag.textContent = cat;
             
-            const zone = state.tagZones.find(z => z.tag === cat);
+            const zone = getStore().tagZones.find(z => z.tag === cat);
             if (zone) {
                 tag.style.background = zone.color;
                 tag.style.borderColor = zone.color;
@@ -148,7 +148,7 @@ export function bindEditableField(elementId, obj, prop) {
     if(!el) return;
     el.textContent = obj[prop] || '';
     
-    if (state.isReadOnlyMode) {
+    if (getStore().isReadOnlyMode) {
         el.contentEditable = 'false';
         el.style.cursor = 'default';
         return;

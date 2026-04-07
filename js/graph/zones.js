@@ -1,4 +1,4 @@
-import { state } from '../core/state.js';
+import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { darkenColor, getContrastColor, showNotification } from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
 import { renderListView } from '../ui/list/sidebar.js';
@@ -8,21 +8,21 @@ import { updateCategoryFilters } from '../ui/filters.js';
 // Zone visualization, interaction, and management
 
 export function drawTagZones(ctx) {
-    if (!state.tagZones || state.tagZones.length === 0) return;
+    if (!getStore().tagZones || getStore().tagZones.length === 0) return;
     
     // Track title positions to prevent overlaps
     const titleBounds = [];
     
     // Sort zones by size (largest first) so smaller zones are drawn on top
-    const sortedZones = [...state.tagZones].sort((a, b) => {
+    const sortedZones = [...getStore().tagZones].sort((a, b) => {
         const areaA = a.width * a.height;
         const areaB = b.width * b.height;
         return areaB - areaA; // Descending order (largest first)
     });
     
     sortedZones.forEach((zone, sortedIndex) => {
-        // Find the original index of this zone in state.tagZones array
-        const originalIndex = state.tagZones.findIndex(z => z === zone);
+        // Find the original index of this zone in getStore().tagZones array
+        const originalIndex = getStore().tagZones.findIndex(z => z === zone);
         
         // Convert color to rgba with low opacity
         const color = zone.color;
@@ -108,7 +108,7 @@ export function drawTagZones(ctx) {
         const finalTextWidth = finalTextMetrics.width;
         
         // Only draw background and text if NOT editing this zone (use original index)
-        if (!state.zoneEditing.active || state.zoneEditing.zoneIndex !== originalIndex) {
+        if (!getStore().zoneEditing.active || getStore().zoneEditing.zoneIndex !== originalIndex) {
             ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.2)`;
             ctx.fillRect(
                 titleX, 
@@ -134,10 +134,10 @@ export function drawTagZones(ctx) {
 
 // Helper function to find all zones that are inside a parent zone
 export function findNestedZones(parentZoneIndex) {
-    const parentZone = state.tagZones[parentZoneIndex];
+    const parentZone = getStore().tagZones[parentZoneIndex];
     const nestedZones = {};
     
-    state.tagZones.forEach((zone, idx) => {
+    getStore().tagZones.forEach((zone, idx) => {
         // Skip the parent itself
         if (idx === parentZoneIndex) return;
         
@@ -162,8 +162,8 @@ export function showZoneDeleteButton(zoneIndex) {
 }
 
 export function showZoneRadialMenu(zoneIndex) {
-    const zone = state.tagZones[zoneIndex];
-    const canvas = state.network.canvas.frame.canvas;
+    const zone = getStore().tagZones[zoneIndex];
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     
     // Calculate text width to center menu above title
@@ -178,7 +178,7 @@ export function showZoneRadialMenu(zoneIndex) {
         x: zone.x + 10 + textPadding + (textWidth / 2),
         y: zone.y + 10 - 35
     };
-    const menuDomPos = state.network.canvasToDOM(menuCanvasPos);
+    const menuDomPos = getNetwork().canvasToDOM(menuCanvasPos);
     const menuX = rect.left + menuDomPos.x;
     const menuY = rect.top + menuDomPos.y;
     
@@ -213,9 +213,9 @@ export function showZoneRadialMenu(zoneIndex) {
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             </svg>`,
             action: () => {
-                if (state.selectedZoneIndex !== -1) {
+                if (getStore().selectedZoneIndex !== -1) {
                     if (confirm('Delete this zone/tag?')) {
-                        deleteZone(state.selectedZoneIndex);
+                        deleteZone(getStore().selectedZoneIndex);
                         hideZoneDeleteButton();
                     }
                 }
@@ -284,7 +284,7 @@ export function openZoneColorDialog(zoneIndex) {
     // Close any existing modal first
     closeZoneColorDialog();
     
-    const zone = state.tagZones[zoneIndex];
+    const zone = getStore().tagZones[zoneIndex];
     
     const defaultColors = [
         '#e74c3c', '#f39c12', '#f1c40f', '#2ecc71',
@@ -457,22 +457,22 @@ export function closeZoneColorDialog() {
 }
 
 export function applyZoneColor(zoneIndex, newColor) {
-    if (zoneIndex < 0 || zoneIndex >= state.tagZones.length) return;
+    if (zoneIndex < 0 || zoneIndex >= getStore().tagZones.length) return;
     
-    const zone = state.tagZones[zoneIndex];
+    const zone = getStore().tagZones[zoneIndex];
     zone.color = newColor;
     
     save();
     
     // Update node colors with priority for smallest zone (same logic as checkNodeZoneMembership)
-    if (state.network) {
+    if (getNetwork()) {
         const nodesToUpdate = [];
         
-        state.appData.articles.forEach(article => {
+        getStore().appData.articles.forEach(article => {
             // Check if this article has this zone's tag in its categories
             if (article.categories && article.categories.includes(zone.tag)) {
                 // Find all zones containing this article's tags
-                const articleZones = state.tagZones.filter(z => article.categories.includes(z.tag));
+                const articleZones = getStore().tagZones.filter(z => article.categories.includes(z.tag));
                 
                 if (articleZones.length > 0) {
                     // Sort by area to find smallest zone (priority)
@@ -497,11 +497,11 @@ export function applyZoneColor(zoneIndex, newColor) {
         });
         
         if (nodesToUpdate.length > 0) {
-            state.network.body.data.nodes.update(nodesToUpdate);
+            getNetwork().body.data.nodes.update(nodesToUpdate);
         }
         
         // Also redraw to update zones and refresh list view
-        state.network.redraw();
+        getNetwork().redraw();
         renderListView();
     }
     
@@ -536,16 +536,16 @@ export function updateZoneSizes() {
     return;
     
     /* DISABLED - Automatic resizing
-    state.tagZones.forEach(zone => {
+    getStore().tagZones.forEach(zone => {
         // Find all nodes with this tag
-        const nodesWithTag = state.appData.articles.filter(a => a.categories.includes(zone.tag));
+        const nodesWithTag = getStore().appData.articles.filter(a => a.categories.includes(zone.tag));
         
         if (nodesWithTag.length === 0) return;
         
         // Calculate bounding box
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         nodesWithTag.forEach(article => {
-            const pos = state.network.getPositions([article.id])[article.id];
+            const pos = getNetwork().getPositions([article.id])[article.id];
             if (pos) {
                 minX = Math.min(minX, pos.x);
                 minY = Math.min(minY, pos.y);
@@ -562,7 +562,7 @@ export function updateZoneSizes() {
         zone.height = maxY - minY + padding * 2;
     });
     
-    state.network.redraw();
+    getNetwork().redraw();
     */
 }
 
@@ -570,8 +570,8 @@ export function checkNodeZoneMembership() {
     console.log('🎨 checkNodeZoneMembership called');
     let updatedCount = 0;
     
-    state.appData.articles.forEach(article => {
-        const pos = state.network.getPositions([article.id])[article.id];
+    getStore().appData.articles.forEach(article => {
+        const pos = getNetwork().getPositions([article.id])[article.id];
         if (!pos) {
             return;
         }
@@ -579,21 +579,21 @@ export function checkNodeZoneMembership() {
         // Find all zones containing this node
         const containingZones = [];
         
-        state.tagZones.forEach(zone => {
+        getStore().tagZones.forEach(zone => {
             const isInZone = isNodeInZone(pos, zone);
-            if (!article.categories) article.categories = [];
-            const hasTag = article.categories.includes(zone.tag);
+            if (!article.categories) getStore().updateArticle(article.id, { categories: [] });
+            const categories = getStore().appData.articles.find(a => a.id === article.id)?.categories || [];
+            const hasTag = categories.includes(zone.tag);
             
             if (isInZone) {
                 containingZones.push(zone);
-                
                 // Add tag if not present
                 if (!hasTag) {
-                    article.categories.push(zone.tag);
+                    getStore().addArticleCategory(article.id, zone.tag);
                 }
             } else if (hasTag) {
                 // Node exited zone - remove tag
-                article.categories = article.categories.filter(c => c !== zone.tag);
+                getStore().removeArticleCategory(article.id, zone.tag);
             }
         });
         
@@ -608,7 +608,7 @@ export function checkNodeZoneMembership() {
             
             // Apply color from smallest zone
             const smallestZone = containingZones[0];
-            state.network.body.data.nodes.update({
+            getNetwork().body.data.nodes.update({
                 id: article.id,
                 color: {
                     background: smallestZone.color,
@@ -619,7 +619,7 @@ export function checkNodeZoneMembership() {
             updatedCount++;
         } else {
             // Node not in any zone - use default color
-            state.network.body.data.nodes.update({
+            getNetwork().body.data.nodes.update({
                 id: article.id,
                 color: {
                     border: '#4a90e2',
@@ -639,23 +639,23 @@ export function checkNodeZoneMembership() {
 
 export function getZoneResizeHandle(event) {
     // Don't allow zone resizing in gallery viewer mode
-    if (state.isGalleryViewer) {
+    if (getStore().isGalleryViewer) {
         return { zone: null, zoneIndex: -1, handle: null };
     }
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
-    const mousePos = state.network.DOMtoCanvas({ x: mouseX, y: mouseY });
+    const mousePos = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
     
     // Detection zone: offset to the left and up from the visual border
     const handleMargin = 10; // Margin on each side of the border (total detection zone = 20)
     const offsetX = -5; // Shift detection zone to the left
     const offsetY = -5; // Shift detection zone up
     
-    for (let i = 0; i < state.tagZones.length; i++) {
-        const zone = state.tagZones[i];
+    for (let i = 0; i < getStore().tagZones.length; i++) {
+        const zone = getStore().tagZones[i];
         
         // Visual borders with offset adjustment
         const borderLeft = zone.x + offsetX;
@@ -706,7 +706,7 @@ export function getZoneResizeHandle(event) {
 }
 
 export function updateZoneCursor(event) {
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const resizeHandle = getZoneResizeHandle(event);
     
     if (resizeHandle.zoneIndex !== -1) {
@@ -727,19 +727,19 @@ export function updateZoneCursor(event) {
 }
 
 export function getZoneAtPosition(event) {
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
-    const mousePos = state.network.DOMtoCanvas({ x: mouseX, y: mouseY });
+    const mousePos = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
     
-    const handleSize = 20 / state.network.getScale();
+    const handleSize = 20 / getNetwork().getScale();
     
     // Find ALL zones that contain this point
     const matchingZones = [];
     
-    for (let i = 0; i < state.tagZones.length; i++) {
-        const zone = state.tagZones[i];
+    for (let i = 0; i < getStore().tagZones.length; i++) {
+        const zone = getStore().tagZones[i];
         
         if (mousePos.x >= zone.x && mousePos.x <= zone.x + zone.width &&
             mousePos.y >= zone.y && mousePos.y <= zone.y + zone.height) {
@@ -779,17 +779,17 @@ export function getZoneAtPosition(event) {
 }
 
 export function getZoneTitleClick(event) {
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
-    const mousePos = state.network.DOMtoCanvas({ x: mouseX, y: mouseY });
+    const mousePos = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
     
     // Find ALL zones whose title contains this point
     const matchingZones = [];
     
-    for (let i = 0; i < state.tagZones.length; i++) {
-        const zone = state.tagZones[i];
+    for (let i = 0; i < getStore().tagZones.length; i++) {
+        const zone = getStore().tagZones[i];
         
         const titleX = zone.x + 10;
         const titleY = zone.y + 10;
@@ -812,36 +812,36 @@ export function getZoneTitleClick(event) {
 }
 
 export function startZoneMove(event, zoneIndex) {
-    state.zoneMoving.active = true;
-    state.zoneMoving.zoneIndex = zoneIndex;
-    state.zoneMoving.originalZone = { ...tagZones[zoneIndex] };
+    pauseHistory();
+    getStore().updateZoneMoving({ active: true });
+    getStore().updateZoneMoving({ zoneIndex: zoneIndex });
+    getStore().updateZoneMoving({ originalZone: { ...getStore().tagZones[zoneIndex] } });
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
-    const mousePos = state.network.DOMtoCanvas({ x: mouseX, y: mouseY });
+    const mousePos = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
     
-    state.zoneMoving.startX = mousePos.x;
-    state.zoneMoving.startY = mousePos.y;
+    getStore().updateZoneMoving({ startX: mousePos.x });
+    getStore().updateZoneMoving({ startY: mousePos.y });
     
     // Store original positions of nodes in this zone
-    const zone = state.tagZones[zoneIndex];
-    state.zoneMoving.originalNodePositions = {};
-    state.appData.articles.forEach(article => {
+    const zone = getStore().tagZones[zoneIndex];
+    const origNodePositions = {};
+    getStore().appData.articles.forEach(article => {
         if ((article.categories || []).includes(zone.tag)) {
-            const pos = state.network.getPositions([article.id])[article.id];
-            if (pos) {
-                state.zoneMoving.originalNodePositions[article.id] = { x: pos.x, y: pos.y };
-            }
+            const pos = getNetwork().getPositions([article.id])[article.id];
+            if (pos) origNodePositions[article.id] = { x: pos.x, y: pos.y };
         }
     });
+    getStore().updateZoneMoving({ originalNodePositions: origNodePositions });
     
     // Store original positions of nested zones (zones completely inside this zone)
-    state.zoneMoving.originalNestedZones = {};
+    getStore().updateZoneMoving({ originalNestedZones: {} });
     const tolerance = 5; // Small tolerance for floating point errors
     
-    state.tagZones.forEach((otherZone, idx) => {
+    getStore().tagZones.forEach((otherZone, idx) => {
         if (idx !== zoneIndex) {
             // Check if otherZone is completely inside the moving zone (with tolerance)
             const isInside = otherZone.x >= (zone.x - tolerance) &&
@@ -850,7 +850,7 @@ export function startZoneMove(event, zoneIndex) {
                            (otherZone.y + otherZone.height) <= (zone.y + zone.height + tolerance);
             
             if (isInside) {
-                state.zoneMoving.originalNestedZones[idx] = {
+                getStore().zoneMoving.originalNestedZones[idx] = {
                     x: otherZone.x,
                     y: otherZone.y
                 };
@@ -858,10 +858,10 @@ export function startZoneMove(event, zoneIndex) {
         }
     });
     
-    console.log(`📦 Moving zone "${zone.tag}" with ${Object.keys(state.zoneMoving.originalNestedZones).length} nested zones`);
+    console.log(`📦 Moving zone "${zone.tag}" with ${Object.keys(getStore().zoneMoving.originalNestedZones).length} nested zones`);
     
-    // Disable state.network interactions
-    state.network.setOptions({
+    // Disable getNetwork() interactions
+    getNetwork().setOptions({
         interaction: {
             dragNodes: false,
             dragView: false,
@@ -871,61 +871,68 @@ export function startZoneMove(event, zoneIndex) {
 }
 
 export function updateZoneMove(event) {
-    if (!state.zoneMoving.active) return;
+    if (!getStore().zoneMoving.active) return;
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
-    const mousePos = state.network.DOMtoCanvas({ x: mouseX, y: mouseY });
+    const mousePos = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
     
-    const dx = mousePos.x - state.zoneMoving.startX;
-    const dy = mousePos.y - state.zoneMoving.startY;
+    const dx = mousePos.x - getStore().zoneMoving.startX;
+    const dy = mousePos.y - getStore().zoneMoving.startY;
     
-    const zone = state.tagZones[state.zoneMoving.zoneIndex];
-    const orig = state.zoneMoving.originalZone;
+    const zone = getStore().tagZones[getStore().zoneMoving.zoneIndex];
+    const orig = getStore().zoneMoving.originalZone;
     
     zone.x = orig.x + dx;
     zone.y = orig.y + dy;
     
     // Move nodes with this tag
-    if (state.zoneMoving.originalNodePositions) {
-        Object.keys(state.zoneMoving.originalNodePositions).forEach(nodeId => {
-            const origPos = state.zoneMoving.originalNodePositions[nodeId];
+    if (getStore().zoneMoving.originalNodePositions) {
+        Object.keys(getStore().zoneMoving.originalNodePositions).forEach(nodeId => {
+            const origPos = getStore().zoneMoving.originalNodePositions[nodeId];
             const newX = origPos.x + dx;
             const newY = origPos.y + dy;
-            state.network.moveNode(nodeId, newX, newY);
+            getNetwork().moveNode(nodeId, newX, newY);
         });
     }
     
     // Move nested zones
-    if (state.zoneMoving.originalNestedZones) {
-        const nestedCount = Object.keys(state.zoneMoving.originalNestedZones).length;
+    if (getStore().zoneMoving.originalNestedZones) {
+        const nestedCount = Object.keys(getStore().zoneMoving.originalNestedZones).length;
         if (nestedCount > 0) {
             console.log(`📦 Moving ${nestedCount} nested zones...`);
         }
-        Object.keys(state.zoneMoving.originalNestedZones).forEach(zoneIdx => {
+        Object.keys(getStore().zoneMoving.originalNestedZones).forEach(zoneIdx => {
             const idx = parseInt(zoneIdx);
-            const origZone = state.zoneMoving.originalNestedZones[zoneIdx];
-            state.tagZones[idx].x = origZone.x + dx;
-            state.tagZones[idx].y = origZone.y + dy;
-            console.log(`📦 Moved nested zone ${idx} (${state.tagZones[idx].tag}) by dx=${dx.toFixed(1)}, dy=${dy.toFixed(1)}`);
+            const origZone = getStore().zoneMoving.originalNestedZones[zoneIdx];
+            getStore().tagZones[idx].x = origZone.x + dx;
+            getStore().tagZones[idx].y = origZone.y + dy;
+            console.log(`📦 Moved nested zone ${idx} (${getStore().tagZones[idx].tag}) by dx=${dx.toFixed(1)}, dy=${dy.toFixed(1)}`);
         });
     }
     
-    state.network.redraw();
+    getNetwork().redraw();
 }
 
 export function endZoneMove() {
-    state.zoneMoving.active = false;
-    state.zoneMoving.readyToMove = false;
-    state.zoneMoving.zoneIndex = -1;
-    state.zoneMoving.originalZone = null;
-    state.zoneMoving.originalNodePositions = {};
-    state.zoneMoving.originalNestedZones = {};
+    const movedZoneIdx = getStore().zoneMoving.zoneIndex;
+    resumeHistory();
+    // Trigger a store snapshot with final zone positions
+    if (movedZoneIdx >= 0) {
+        const finalZone = getStore().tagZones[movedZoneIdx];
+        getStore().updateTagZone(movedZoneIdx, { x: finalZone.x, y: finalZone.y });
+    }
+    getStore().updateZoneMoving({ active: false });
+    getStore().updateZoneMoving({ readyToMove: false });
+    getStore().updateZoneMoving({ zoneIndex: -1 });
+    getStore().updateZoneMoving({ originalZone: null });
+    getStore().updateZoneMoving({ originalNodePositions: {} });
+    getStore().updateZoneMoving({ originalNestedZones: {} });
     
-    // Re-enable state.network interactions
-    state.network.setOptions({
+    // Re-enable getNetwork() interactions
+    getNetwork().setOptions({
         interaction: {
             dragNodes: true,
             dragView: false,
@@ -942,16 +949,16 @@ export function endZoneMove() {
 }
 
 export function startEditZoneTitle(event, zoneIndex) {
-    if (state.zoneEditing.active) return;
+    if (getStore().zoneEditing.active) return;
     
-    const zone = state.tagZones[zoneIndex];
-    const canvas = state.network.canvas.frame.canvas;
+    const zone = getStore().tagZones[zoneIndex];
+    const canvas = getNetwork().canvas.frame.canvas;
     
-    state.zoneEditing.active = true;
-    state.zoneEditing.zoneIndex = zoneIndex;
+    getStore().updateZoneEditing({ active: true });
+    getStore().updateZoneEditing({ zoneIndex: zoneIndex });
     
     // Disable interactions during editing
-    state.network.setOptions({
+    getNetwork().setOptions({
         interaction: {
             dragNodes: false,
             dragView: false,
@@ -976,7 +983,7 @@ export function startEditZoneTitle(event, zoneIndex) {
     const rect = canvas.getBoundingClientRect();
     const textPadding = 10;
     const titleCanvasPos = { x: zone.x + 10 + textPadding, y: zone.y + 10 + textPadding };
-    const titlePos = state.network.canvasToDOM(titleCanvasPos);
+    const titlePos = getNetwork().canvasToDOM(titleCanvasPos);
     
     // Create input element
     const input = document.createElement('input');
@@ -1001,10 +1008,10 @@ export function startEditZoneTitle(event, zoneIndex) {
     input.style.lineHeight = '1';
     
     document.body.appendChild(input);
-    state.zoneEditing.inputElement = input;
-    state.zoneEditing.backgroundElement = null;
+    getStore().updateZoneEditing({ inputElement: input });
+    getStore().updateZoneEditing({ backgroundElement: null });
     
-    state.network.redraw();
+    getNetwork().redraw();
     
     input.focus();
     input.select();
@@ -1021,23 +1028,15 @@ export function startEditZoneTitle(event, zoneIndex) {
     
     // Save on blur or enter
     const saveEdit = () => {
-        if (!state.zoneEditing.active) return;
+        if (!getStore().zoneEditing.active) return;
         
         const newTag = input.value.trim();
         const oldTag = zone.tag;
         
         if (newTag && newTag !== '' && newTag !== oldTag) {
-            // Update all articles with this tag
-            state.appData.articles.forEach(article => {
-                if (!article.categories) article.categories = [];
-                const index = article.categories.indexOf(oldTag);
-                if (index !== -1) {
-                    article.categories[index] = newTag;
-                }
-            });
-            
-            // Update zone
-            zone.tag = newTag;
+            // Update all articles with this tag and the zone
+            getStore().renameArticleCategory(oldTag, newTag);
+            getStore().updateTagZone(zoneIndex, { tag: newTag });
             
             save();
             updateCategoryFilters();
@@ -1046,15 +1045,15 @@ export function startEditZoneTitle(event, zoneIndex) {
         }
         
         input.remove();
-        state.zoneEditing.active = false;
-        state.zoneEditing.zoneIndex = -1;
-        state.zoneEditing.inputElement = null;
-        state.zoneEditing.backgroundElement = null;
+        getStore().updateZoneEditing({ active: false });
+        getStore().updateZoneEditing({ zoneIndex: -1 });
+        getStore().updateZoneEditing({ inputElement: null });
+        getStore().updateZoneEditing({ backgroundElement: null });
         
         document.removeEventListener('mousedown', handleClickOutside);
         
         // Re-enable interactions
-        state.network.setOptions({
+        getNetwork().setOptions({
             interaction: {
                 dragNodes: true,
                 dragView: false,
@@ -1067,7 +1066,7 @@ export function startEditZoneTitle(event, zoneIndex) {
             }
         });
         
-        state.network.redraw();
+        getNetwork().redraw();
     };
     
     const handleClickOutside = (e) => {
@@ -1086,14 +1085,14 @@ export function startEditZoneTitle(event, zoneIndex) {
             saveEdit();
         } else if (e.key === 'Escape') {
             input.remove();
-            state.zoneEditing.active = false;
-            state.zoneEditing.zoneIndex = -1;
-            state.zoneEditing.inputElement = null;
-            state.zoneEditing.backgroundElement = null;
+            getStore().updateZoneEditing({ active: false });
+            getStore().updateZoneEditing({ zoneIndex: -1 });
+            getStore().updateZoneEditing({ inputElement: null });
+            getStore().updateZoneEditing({ backgroundElement: null });
             
             document.removeEventListener('mousedown', handleClickOutside);
             
-            state.network.setOptions({
+            getNetwork().setOptions({
                 interaction: {
                     dragNodes: true,
                     dragView: false,
@@ -1106,29 +1105,27 @@ export function startEditZoneTitle(event, zoneIndex) {
                 }
             });
             
-            state.network.redraw();
+            getNetwork().redraw();
         }
     });
 }
 
 export function deleteZone(zoneIndex) {
-    const zone = state.tagZones[zoneIndex];
+    const zone = getStore().tagZones[zoneIndex];
     const tagToRemove = zone.tag;
     
     // Remove tag from all articles
-    state.appData.articles.forEach(article => {
-        article.categories = (article.categories || []).filter(c => c !== tagToRemove);
-    });
+    getStore().removeArticleCategoryGlobal(tagToRemove);
     
     // Remove zone
-    state.tagZones.splice(zoneIndex, 1);
-    state.selectedZoneIndex = -1;
+    getStore().deleteTagZone(zoneIndex);
+    getStore().setSelectedZoneIndex(-1);
     
     // Recalculate all node colors using the same logic as position updates
     // This ensures colors match the actual zone membership
     checkNodeZoneMembership();
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     if (canvas) {
         canvas.style.cursor = "default";
     }
@@ -1137,22 +1134,23 @@ export function deleteZone(zoneIndex) {
 }
 
 export function startZoneResize(event, zoneIndex, handle) {
-    state.zoneResizing.active = true;
-    state.zoneResizing.zoneIndex = zoneIndex;
-    state.zoneResizing.handle = handle;
-    state.zoneResizing.originalZone = { ...tagZones[zoneIndex] };
+    pauseHistory();
+    getStore().updateZoneResizing({ active: true });
+    getStore().updateZoneResizing({ zoneIndex: zoneIndex });
+    getStore().updateZoneResizing({ handle: handle });
+    getStore().updateZoneResizing({ originalZone: { ...tagZones[zoneIndex] } });
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
-    const mousePos = state.network.DOMtoCanvas({ x: mouseX, y: mouseY });
+    const mousePos = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
     
-    state.zoneResizing.startX = mousePos.x;
-    state.zoneResizing.startY = mousePos.y;
+    getStore().updateZoneResizing({ startX: mousePos.x });
+    getStore().updateZoneResizing({ startY: mousePos.y });
     
-    // Disable state.network interactions
-    state.network.setOptions({
+    // Disable getNetwork() interactions
+    getNetwork().setOptions({
         interaction: {
             dragNodes: false,
             dragView: false,
@@ -1162,21 +1160,21 @@ export function startZoneResize(event, zoneIndex, handle) {
 }
 
 export function updateZoneResize(event) {
-    if (!state.zoneResizing.active) return;
+    if (!getStore().zoneResizing.active) return;
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
-    const mousePos = state.network.DOMtoCanvas({ x: mouseX, y: mouseY });
+    const mousePos = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
     
-    const dx = mousePos.x - state.zoneResizing.startX;
-    const dy = mousePos.y - state.zoneResizing.startY;
+    const dx = mousePos.x - getStore().zoneResizing.startX;
+    const dy = mousePos.y - getStore().zoneResizing.startY;
     
-    const zone = state.tagZones[state.zoneResizing.zoneIndex];
-    const orig = state.zoneResizing.originalZone;
+    const zone = getStore().tagZones[getStore().zoneResizing.zoneIndex];
+    const orig = getStore().zoneResizing.originalZone;
     
-    switch (state.zoneResizing.handle) {
+    switch (getStore().zoneResizing.handle) {
         case 'nw':
             zone.x = orig.x + dx;
             zone.y = orig.y + dy;
@@ -1224,17 +1222,23 @@ export function updateZoneResize(event) {
         zone.y = orig.y;
     }
     
-    state.network.redraw();
+    getNetwork().redraw();
 }
 
 export function endZoneResize() {
-    state.zoneResizing.active = false;
-    state.zoneResizing.zoneIndex = -1;
-    state.zoneResizing.handle = null;
-    state.zoneResizing.originalZone = null;
+    const resizingIdx = getStore().zoneResizing.zoneIndex;
+    resumeHistory();
+    if (resizingIdx >= 0) {
+        const z = getStore().tagZones[resizingIdx];
+        getStore().updateTagZone(resizingIdx, { x: z.x, y: z.y, width: z.width, height: z.height });
+    }
+    getStore().updateZoneResizing({ active: false });
+    getStore().updateZoneResizing({ zoneIndex: -1 });
+    getStore().updateZoneResizing({ handle: null });
+    getStore().updateZoneResizing({ originalZone: null });
     
-    // Re-enable state.network interactions
-    state.network.setOptions({
+    // Re-enable getNetwork() interactions
+    getNetwork().setOptions({
         interaction: {
             dragNodes: true,
             dragView: false,

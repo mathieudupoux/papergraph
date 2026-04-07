@@ -1,7 +1,7 @@
 // ===== LIST VIEW SIDEBAR =====
 // Sidebar rendering, article list, and note selection
 
-import { state } from '../../core/state.js';
+import { getStore, getNetwork } from '../../store/appStore.js';
 import { getContrastColor } from '../../utils/helpers.js';
 import { loadReviewToEditor } from './review.js';
 import { loadArticleToEditor } from './editor.js';
@@ -34,8 +34,8 @@ export function renderListView(searchTerm = '') {
     sidebar.innerHTML = '';
 
     // 1. Always add Review as first item
-    const reviewTitle = (state.appData.projectReviewMeta && state.appData.projectReviewMeta.title) 
-        ? state.appData.projectReviewMeta.title 
+    const reviewTitle = (getStore().appData.projectReviewMeta && getStore().appData.projectReviewMeta.title) 
+        ? getStore().appData.projectReviewMeta.title 
         : 'Project Review';
     
     const reviewItem = document.createElement('div');
@@ -51,11 +51,11 @@ export function renderListView(searchTerm = '') {
     sidebar.appendChild(reviewItem);
 
     // 2. Filter Articles
-    let filtered = state.appData.articles;
+    let filtered = getStore().appData.articles;
     
     // Apply category filter to match graph view
-    if (state.currentCategoryFilter) {
-        filtered = filtered.filter(a => a.categories && a.categories.includes(state.currentCategoryFilter));
+    if (getStore().currentCategoryFilter) {
+        filtered = filtered.filter(a => a.categories && a.categories.includes(getStore().currentCategoryFilter));
     }
     
     if (searchTerm) {
@@ -83,7 +83,7 @@ export function renderListView(searchTerm = '') {
         if (article.categories && article.categories.length > 0) {
             tagsHTML = '<div class="sidebar-item-tags">';
             article.categories.forEach(cat => {
-                const zone = state.tagZones.find(z => z.tag === cat);
+                const zone = getStore().tagZones.find(z => z.tag === cat);
                 const bgColor = zone ? zone.color : '#e3f2fd';
                 const textColor = zone ? getContrastColor(zone.color) : '#1976d2';
                 tagsHTML += `<span class="sidebar-tag" style="background: ${bgColor}; color: ${textColor};">${cat}</span>`;
@@ -105,17 +105,17 @@ export function renderListView(searchTerm = '') {
     });
 
     // 4. Restore State or default to review
-    if (state.activeNoteId) {
-        const activeItem = sidebar.querySelector(`.sidebar-item[data-id="${state.activeNoteId}"]`);
+    if (getStore().activeNoteId) {
+        const activeItem = sidebar.querySelector(`.sidebar-item[data-id="${getStore().activeNoteId}"]`);
         if(activeItem) activeItem.classList.add('active');
         
-        if (state.activeNoteId === 'review') {
+        if (getStore().activeNoteId === 'review') {
             loadReviewToEditor();
         } else {
-            loadArticleToEditor(state.activeNoteId);
+            loadArticleToEditor(getStore().activeNoteId);
         }
     } else {
-        state.activeNoteId = 'review';
+        getStore().setActiveNoteId('review');
         const reviewItemEl = sidebar.querySelector('.sidebar-item[data-id="review"]');
         if (reviewItemEl) reviewItemEl.classList.add('active');
         loadReviewToEditor();
@@ -123,7 +123,7 @@ export function renderListView(searchTerm = '') {
 }
 
 export function selectNote(id) {
-    state.activeNoteId = id;
+    getStore().setActiveNoteId(id);
     
     document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
     const activeItem = document.querySelector(`.sidebar-item[data-id="${id}"]`);

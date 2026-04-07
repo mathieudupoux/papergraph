@@ -1,7 +1,7 @@
 // ===== ARTICLE MODAL =====
 // Article creation and editing modal
 
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
 import { hideSelectionBox } from '../graph/selection.js';
 import { resetImportZone } from '../data/import.js';
@@ -18,7 +18,7 @@ export function openArticleModal(articleId = null) {
     const form = document.getElementById('articleForm');
     const deleteBtn = document.getElementById('deleteArticleBtn');
     
-    state.currentEditingArticleId = articleId;
+    getStore().setCurrentEditingArticleId(articleId);
     
     // Hide selection box when opening modal
     hideSelectionBox();
@@ -40,7 +40,7 @@ export function openArticleModal(articleId = null) {
         modalTitle.textContent = 'Éditer l\'article';
         deleteBtn.style.display = 'inline-block';
         
-        const article = state.appData.articles.find(a => a.id === articleId);
+        const article = getStore().appData.articles.find(a => a.id === articleId);
         if (article) {
             document.getElementById('articleTitle').value = article.title || '';
             document.getElementById('articleAuthors').value = article.authors || '';
@@ -80,8 +80,8 @@ export function openArticleModal(articleId = null) {
 
 export function closeModal() {
     document.getElementById('articleModal').classList.remove('active');
-    state.currentEditingArticleId = null;
-    state.pendingImportArticle = null; // Clear pending import data
+    getStore().setCurrentEditingArticleId(null);
+    getStore().setPendingImportArticle(null); // Clear pending import data
     resetImportZone();
 }
 
@@ -110,38 +110,25 @@ export function saveArticle(e) {
         ? categoriesText.split(',').map(c => c.trim()).filter(c => c)
         : [];
     
-    if (state.currentEditingArticleId) {
+    if (getStore().currentEditingArticleId) {
         // Update existing article
-        const article = state.appData.articles.find(a => a.id === state.currentEditingArticleId);
+        const article = getStore().appData.articles.find(a => a.id === getStore().currentEditingArticleId);
         if (article) {
-            article.title = title;
-            article.authors = authors;
-            article.year = year;
-            article.entryType = entryType;
-            article.journal = journal;
-            article.volume = volume;
-            article.number = number;
-            article.pages = pages;
-            article.publisher = publisher;
-            article.doi = doi;
-            article.isbn = isbn;
-            article.issn = issn;
-            article.link = link;
-            article.pdf = pdf;
-            article.abstract = abstract;
-            article.note = note;
-            article.text = abstract || note; // Keep backward compatibility
-            article.categories = categories;
-            
-            // Generate BibTeX ID if missing
-            if (!article.bibtexId && (article.authors || article.title)) {
-                article.bibtexId = generateBibtexId(article);
+            const updates = {
+                title, authors, year, entryType, journal, volume, number, pages,
+                publisher, doi, isbn, issn, link, pdf, abstract, note,
+                text: abstract || note,
+                categories,
+            };
+            if (!article.bibtexId && (authors || title)) {
+                updates.bibtexId = generateBibtexId({ ...article, ...updates });
             }
+            getStore().updateArticle(getStore().currentEditingArticleId, updates);
         }
     } else {
         // Create new article
         const newArticle = {
-            id: state.appData.nextArticleId++,
+            id: (() => { const _id = getStore().appData.nextArticleId; getStore().setNextArticleId(_id + 1); return _id; })(),
             title,
             authors,
             year,
@@ -163,29 +150,29 @@ export function saveArticle(e) {
         };
         
         // If this is from a BibTeX import, preserve imported fields
-        if (state.pendingImportArticle) {
+        if (getStore().pendingImportArticle) {
             // Preserve important BibTeX fields
-            newArticle.bibtexId = state.pendingImportArticle.bibtexId;
-            newArticle.citationKey = state.pendingImportArticle.citationKey;
-            newArticle.entryType = state.pendingImportArticle.entryType;
-            newArticle.originalBibTeX = state.pendingImportArticle.originalBibTeX;
+            newArticle.bibtexId = getStore().pendingImportArticle.bibtexId;
+            newArticle.citationKey = getStore().pendingImportArticle.citationKey;
+            newArticle.entryType = getStore().pendingImportArticle.entryType;
+            newArticle.originalBibTeX = getStore().pendingImportArticle.originalBibTeX;
             
             // Preserve additional BibTeX fields that might not be in the form
-            if (state.pendingImportArticle.booktitle) newArticle.booktitle = state.pendingImportArticle.booktitle;
-            if (state.pendingImportArticle.month) newArticle.month = state.pendingImportArticle.month;
-            if (state.pendingImportArticle.date) newArticle.date = state.pendingImportArticle.date;
-            if (state.pendingImportArticle.institution) newArticle.institution = state.pendingImportArticle.institution;
-            if (state.pendingImportArticle.organization) newArticle.organization = state.pendingImportArticle.organization;
-            if (state.pendingImportArticle.school) newArticle.school = state.pendingImportArticle.school;
-            if (state.pendingImportArticle.edition) newArticle.edition = state.pendingImportArticle.edition;
-            if (state.pendingImportArticle.series) newArticle.series = state.pendingImportArticle.series;
-            if (state.pendingImportArticle.chapter) newArticle.chapter = state.pendingImportArticle.chapter;
-            if (state.pendingImportArticle.address) newArticle.address = state.pendingImportArticle.address;
-            if (state.pendingImportArticle.howpublished) newArticle.howpublished = state.pendingImportArticle.howpublished;
-            if (state.pendingImportArticle.keywords) newArticle.keywords = state.pendingImportArticle.keywords;
+            if (getStore().pendingImportArticle.booktitle) newArticle.booktitle = getStore().pendingImportArticle.booktitle;
+            if (getStore().pendingImportArticle.month) newArticle.month = getStore().pendingImportArticle.month;
+            if (getStore().pendingImportArticle.date) newArticle.date = getStore().pendingImportArticle.date;
+            if (getStore().pendingImportArticle.institution) newArticle.institution = getStore().pendingImportArticle.institution;
+            if (getStore().pendingImportArticle.organization) newArticle.organization = getStore().pendingImportArticle.organization;
+            if (getStore().pendingImportArticle.school) newArticle.school = getStore().pendingImportArticle.school;
+            if (getStore().pendingImportArticle.edition) newArticle.edition = getStore().pendingImportArticle.edition;
+            if (getStore().pendingImportArticle.series) newArticle.series = getStore().pendingImportArticle.series;
+            if (getStore().pendingImportArticle.chapter) newArticle.chapter = getStore().pendingImportArticle.chapter;
+            if (getStore().pendingImportArticle.address) newArticle.address = getStore().pendingImportArticle.address;
+            if (getStore().pendingImportArticle.howpublished) newArticle.howpublished = getStore().pendingImportArticle.howpublished;
+            if (getStore().pendingImportArticle.keywords) newArticle.keywords = getStore().pendingImportArticle.keywords;
             
             // Clear the pending import
-            state.pendingImportArticle = null;
+            getStore().setPendingImportArticle(null);
         } else {
             // Generate BibTeX ID for manually created article
             if (authors || title) {
@@ -194,17 +181,17 @@ export function saveArticle(e) {
         }
         
         // Position at the center of the current viewport (not project center)
-        if (typeof state.network !== 'undefined' && state.network) {
-            const viewCenter = state.network.getViewPosition();
+        if (typeof getNetwork() !== 'undefined' && getNetwork()) {
+            const viewCenter = getNetwork().getViewPosition();
             newArticle.x = viewCenter.x;
             newArticle.y = viewCenter.y;
         }
         
-        state.appData.articles.push(newArticle);
+        getStore().addArticle(newArticle);
         
         // If category filter is active and new article doesn't match, reset filter
-        if (state.currentCategoryFilter && !categories.includes(state.currentCategoryFilter)) {
-            state.currentCategoryFilter = '';
+        if (getStore().currentCategoryFilter && !categories.includes(getStore().currentCategoryFilter)) {
+            getStore().setCategoryFilter('');
             document.getElementById('categoryFilter').value = '';
         }
     }
@@ -217,47 +204,47 @@ export function saveArticle(e) {
     showNotification('Article saved!', 'success');
     
     // Update preview if it's open
-    if (state.currentEditingArticleId && state.selectedNodeId === state.currentEditingArticleId) {
-        showArticlePreview(state.currentEditingArticleId);
+    if (getStore().currentEditingArticleId && getStore().selectedNodeId === getStore().currentEditingArticleId) {
+        showArticlePreview(getStore().currentEditingArticleId);
     }
 }
 
 export function deleteArticle() {
-    if (!state.currentEditingArticleId) return;
+    if (!getStore().currentEditingArticleId) return;
     
     if (confirm('Delete this article?')) {
-        deleteArticleById(state.currentEditingArticleId);
+        deleteArticleById(getStore().currentEditingArticleId);
         closeModal();
     }
 }
 
 export function deleteArticleById(articleId) {
     // Remove article
-    state.appData.articles = state.appData.articles.filter(a => a.id !== articleId);
+    getStore().setArticles(getStore().appData.articles.filter(a => a.id !== articleId));
     
     // Find connections that will be removed
-    const connectionsToRemove = state.appData.connections.filter(c => 
+    const connectionsToRemove = getStore().appData.connections.filter(c => 
         c.from === articleId || c.to === articleId
     );
     
     // Clean up control points for these connections
     connectionsToRemove.forEach(conn => {
-        if (state.edgeControlPoints[conn.id]) {
-            const controlPointsToDelete = state.edgeControlPoints[conn.id];
+        if (getStore().edgeControlPoints[conn.id]) {
+            const controlPointsToDelete = getStore().edgeControlPoints[conn.id];
             console.log('🗑️ Cleaning up control points for connection', conn.id, ':', controlPointsToDelete);
             
             // Remove control point nodes from network
-            if (state.network && state.network.body && state.network.body.data) {
+            if (getNetwork() && getNetwork().body && getNetwork().body.data) {
                 controlPointsToDelete.forEach(cpId => {
                     try {
-                        state.network.body.data.nodes.remove(cpId);
+                        getNetwork().body.data.nodes.remove(cpId);
                     } catch (error) {
                         console.error('Error removing control point node:', cpId, error);
                     }
                 });
                 
                 // Remove segment edges - use exact matching to avoid removing wrong segments
-                const segmentEdges = state.network.body.data.edges.get({
+                const segmentEdges = getNetwork().body.data.edges.get({
                     filter: (edge) => {
                         const edgeIdStr = edge.id.toString();
                         if (!edgeIdStr.includes('_seg_')) return false;
@@ -267,20 +254,20 @@ export function deleteArticleById(articleId) {
                     }
                 });
                 if (segmentEdges.length > 0) {
-                    state.network.body.data.edges.remove(segmentEdges.map(e => e.id));
+                    getNetwork().body.data.edges.remove(segmentEdges.map(e => e.id));
                     console.log('🗑️ Removed', segmentEdges.length, 'segment edges for connection', conn.id);
                 }
             }
             
             // Remove from edgeControlPoints
-            delete state.edgeControlPoints[conn.id];
+            getStore().deleteEdgeControlPoints(conn.id);
         }
     });
     
     // Remove connections
-    state.appData.connections = state.appData.connections.filter(c => 
+    getStore().setConnections(getStore().appData.connections.filter(c => 
         c.from !== articleId && c.to !== articleId
-    );
+    ));
     
     updateCategoryFilters();
     updateGraph();

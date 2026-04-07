@@ -1,5 +1,5 @@
 ﻿import { supabase } from '../auth/config.js';
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { initCloudStorage, isCloudStorageEnabled } from '../data/cloud-storage.js';
 import { showNotification } from '../utils/helpers.js';
 import { initUserDropdown } from '../ui/user-dropdown.js';

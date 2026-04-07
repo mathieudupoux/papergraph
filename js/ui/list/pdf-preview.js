@@ -1,4 +1,4 @@
-import { state } from '../../core/state.js';
+import { getStore, getNetwork } from '../../store/appStore.js';
 import { showNotification } from '../../utils/helpers.js';
 import { save } from '../../data/persistence.js';
 import { getBibliography, escapeBibTeX, escapeLatex } from '../../data/bibliography.js';
@@ -49,17 +49,17 @@ export function addPreviewToggle() {
         let latexContent = '';
         let bibContent = '';
 
-        const cachedData = listState.pdfCache[state.activeNoteId];
+        const cachedData = listState.pdfCache[getStore().activeNoteId];
         if (cachedData && cachedData.latexContent) {
             latexContent = cachedData.latexContent;
             bibContent = cachedData.bibContent || '';
         } else {
             try {
-                if (state.appData.articles && state.appData.articles.length > 0) {
-                    bibContent = generateBibliography(state.appData.articles);
+                if (getStore().appData.articles && getStore().appData.articles.length > 0) {
+                    bibContent = generateBibliography(getStore().appData.articles);
                 }
 
-                if (state.activeNoteId === 'review') {
+                if (getStore().activeNoteId === 'review') {
                     latexContent = window.generateLatexDocument
                         ? window.generateLatexDocument()
                         : generateFallbackLatexDocument(listState.latexEditor ? listState.latexEditor.getValue() : '');
@@ -72,8 +72,8 @@ export function addPreviewToggle() {
                     if (editorContent.includes('\\documentclass')) {
                         latexContent = editorContent;
                     } else {
-                        const currentArticle = state.appData.articles.find(a => a.id === state.activeNoteId);
-                        const articlesWithBibtex = state.appData.articles ? state.appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
+                        const currentArticle = getStore().appData.articles.find(a => a.id === getStore().activeNoteId);
+                        const articlesWithBibtex = getStore().appData.articles ? getStore().appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
                         let preamble = `\\documentclass[11pt,a4paper]{article}\n\\usepackage{filecontents}\n\\usepackage[utf8]{inputenc}\n\\usepackage[margin=1in]{geometry}\n\\usepackage{amsmath}\n\\usepackage{amssymb}\n\\usepackage{hyperref}\n\\usepackage{orcidlink}\n\\usepackage[numbers,sort&compress]{natbib}\n\n`;
                         if (articlesWithBibtex.length > 0 && bibContent && bibContent.trim()) {
                             preamble += '\\begin{filecontents}{references.bib}\n' + bibContent + '\\end{filecontents}\n\n';
@@ -143,7 +143,7 @@ export function addPreviewToggle() {
     downloadPdfBtn.style.cssText = 'background: #28a745; color: white; border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; font-size: 12px;';
 
     downloadPdfBtn.onclick = () => {
-        const cachedData = listState.pdfCache[state.activeNoteId];
+        const cachedData = listState.pdfCache[getStore().activeNoteId];
         
         if (!cachedData || !cachedData.pdfBlob) {
             showNotification('Please compile first', 'warning');
@@ -205,11 +205,11 @@ export async function compileToPDFPreview() {
             showNotification('No content to compile', 'warning');
         }
 
-        if (state.appData.articles && state.appData.articles.length > 0) {
+        if (getStore().appData.articles && getStore().appData.articles.length > 0) {
             bibContent = getBibliography();
         }
 
-        if (state.activeNoteId === 'review') {
+        if (getStore().activeNoteId === 'review') {
             if (window.generateLatexDocument) {
                 latexContent = window.generateLatexDocument();
             } else {
@@ -217,7 +217,7 @@ export async function compileToPDFPreview() {
             }
         } else {
             if (!latexContent.includes('\\documentclass')) {
-                const currentArticle = state.appData.articles.find(a => a.id === state.activeNoteId);
+                const currentArticle = getStore().appData.articles.find(a => a.id === getStore().activeNoteId);
                 
                 let preamble = `\\documentclass[11pt,a4paper]{article}
 \\usepackage{filecontents}
@@ -231,7 +231,7 @@ export async function compileToPDFPreview() {
 
 `;
                 
-                const articlesWithBibtex = state.appData.articles ? state.appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
+                const articlesWithBibtex = getStore().appData.articles ? getStore().appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
                 if (articlesWithBibtex.length > 0 && bibContent && bibContent.trim()) {
                     preamble += '\\begin{filecontents}{references.bib}\n';
                     preamble += bibContent;
@@ -315,16 +315,16 @@ export async function compileToPDFPreview() {
 
         console.log(`✅ PDF generated (${pdfBlob.size} bytes)`);
 
-        const contentToHash = state.activeNoteId === 'review' ? (state.appData.projectReview || '') : (listState.latexEditor ? listState.latexEditor.getValue() : '');
+        const contentToHash = getStore().activeNoteId == 'review' ? (getStore().appData.projectReview || '') : (listState.latexEditor ? listState.latexEditor.getValue() : '');
         const contentHash = generateContentHash(contentToHash);
-        listState.pdfCache[state.activeNoteId] = {
+        listState.pdfCache[getStore().activeNoteId] = {
             pdfBlob: pdfBlob,
             latexContent: latexContent,
             bibContent: bibContent,
             contentHash: contentHash,
             timestamp: Date.now()
         };
-        console.log(`💾 Cached PDF for ${state.activeNoteId} (hash: ${contentHash})`);
+        console.log(`💾 Cached PDF for ${getStore().activeNoteId} (hash: ${contentHash})`);
 
         previewContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">📄 Rendering PDF preview...</div>';
 
@@ -372,10 +372,10 @@ export function generateFallbackLatexDocument(contentText) {
     const savedStyle = localStorage.getItem('papergraph_latex_style');
     const style = savedStyle || getDefaultLatexStyle();
     
-    const projectTitle = (state.appData.projectReviewMeta?.title) || 'Project Review';
-    const authorsData = state.appData.projectReviewMeta?.authorsData || [];
-    const affiliationsData = state.appData.projectReviewMeta?.affiliationsData || [];
-    const projectAbstract = (state.appData.projectReviewMeta?.abstract) || '';
+    const projectTitle = (getStore().appData.projectReviewMeta?.title) || 'Project Review';
+    const authorsData = getStore().appData.projectReviewMeta?.authorsData || [];
+    const affiliationsData = getStore().appData.projectReviewMeta?.affiliationsData || [];
+    const projectAbstract = (getStore().appData.projectReviewMeta?.abstract) || '';
     
     let latex = style + '\n\n';
     
@@ -436,7 +436,7 @@ export function generateFallbackLatexDocument(contentText) {
     
     latex += contentText;
     
-    const articlesWithBibtex = state.appData.articles ? state.appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
+    const articlesWithBibtex = getStore().appData.articles ? getStore().appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
     
     if (articlesWithBibtex.length > 0) {
         latex += '\\begin{thebibliography}{99}\n\n';
@@ -530,7 +530,7 @@ export function renderLatexPreview(text, containerId) {
         const keys = bibtexKeys.split(',').map(k => k.trim()).filter(k => k);
         
         const citations = keys.map(bibtexId => {
-            const article = state.appData.articles.find(a => a.bibtexId === bibtexId);
+            const article = getStore().appData.articles.find(a => a.bibtexId === bibtexId);
             if (!article) return { text: bibtexId, key: bibtexId, found: false };
             
             let authorName = 'Unknown';
@@ -681,7 +681,7 @@ ${processedText}
                             if (prefix) wrapper.appendChild(document.createTextNode(prefix));
                             
                             keys.forEach((key, idx) => {
-                                const article = state.appData.articles.find(a => a.bibtexId === key);
+                                const article = getStore().appData.articles.find(a => a.bibtexId === key);
                                 if (article) {
                                     const span = document.createElement('span');
                                     span.className = 'citation-link';
@@ -727,7 +727,7 @@ ${processedText}
                             if (suffix) wrapper.appendChild(document.createTextNode(suffix));
                         } else {
                             const key = keys[0];
-                            const article = state.appData.articles.find(a => a.bibtexId === key);
+                            const article = getStore().appData.articles.find(a => a.bibtexId === key);
                             const citationText = getCitation(citation.keys, citation.style);
                             const span = document.createElement('span');
                             span.className = 'citation-link';
@@ -830,7 +830,7 @@ export function renderLatexFallback(text, container, citationMap, authorMap, aff
             citationHtml = prefix;
             
             keys.forEach((key, idx) => {
-                const article = state.appData.articles.find(a => a.bibtexId === key);
+                const article = getStore().appData.articles.find(a => a.bibtexId === key);
                 if (article) {
                     let authorName = 'Unknown';
                     if (article.authors) {
@@ -857,7 +857,7 @@ export function renderLatexFallback(text, container, citationMap, authorMap, aff
             citationHtml += suffix;
         } else {
             const citationText = getCitation(citation.keys, citation.style);
-            const article = state.appData.articles.find(a => a.bibtexId === keys[0]);
+            const article = getStore().appData.articles.find(a => a.bibtexId === keys[0]);
             const color = article ? '#1976d2' : '#d32f2f';
             citationHtml = `<span class="citation-link" data-bibtex="${keys[0]}" style="color: ${color}; font-weight: 600; cursor: pointer; text-decoration: underline;">${citationText}</span>`;
         }
@@ -913,7 +913,7 @@ export function renderLatexFallback(text, container, citationMap, authorMap, aff
         citation.onclick = (e) => {
             e.preventDefault();
             const bibtexId = citation.getAttribute('data-bibtex');
-            const article = state.appData.articles.find(a => a.bibtexId === bibtexId);
+            const article = getStore().appData.articles.find(a => a.bibtexId === bibtexId);
             if (article) {
                 selectNote(article.id);
             }

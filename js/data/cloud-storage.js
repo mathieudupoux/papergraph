@@ -5,7 +5,7 @@
 
 import { loadProject, updateProject, autoSaveProject } from '../auth/projects.js';
 import { getCurrentUser } from '../auth/auth.js';
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
 
 // Current project ID (from URL parameter)
@@ -37,12 +37,12 @@ export async function initCloudStorage() {
         localStorage.removeItem('papermap_next_control_point_id');
         
         // Clear global variables
-        state.appData.articles = [];
-        state.appData.connections = [];
-        state.appData.nextArticleId = 1;
-        state.appData.nextConnectionId = 1;
-        state.tagZones.length = 0;
-        state.savedNodePositions = {};
+        getStore().setArticles([]);
+        getStore().setConnections([]);
+        getStore().setNextArticleId(1);
+        getStore().setNextConnectionId(1);
+        getStore().tagZones.length = 0;
+        getStore().setSavedNodePositions({});
         
         // Try to load project from cloud
         try {
@@ -85,40 +85,40 @@ async function loadProjectFromCloud() {
     // Load project data into app state
     if (project.data) {
         // Load nodes and edges
-        state.appData.articles = (project.data.nodes || []).map(a => ({
+        getStore().setArticles((project.data.nodes || []).map(a => ({
             ...a,
             categories: Array.isArray(a.categories) ? a.categories : []
-        }));
-        state.appData.connections = project.data.edges || [];
+        })));
+        getStore().setConnections(project.data.edges || []);
         
         // Load project review data
-        state.appData.projectReview = project.data.projectReview || "";
-        state.appData.projectReviewMeta = project.data.projectReviewMeta || { title: "Project Review", authors: "" };
+        getStore().setProjectReview(project.data.projectReview || "");
+        getStore().appData.projectReviewMeta = project.data.projectReviewMeta || { title: "Project Review", authors: "" };
         
         // Update next IDs based on existing data
-        if (state.appData.articles.length > 0) {
-            const maxId = Math.max(...state.appData.articles.map(a => parseInt(a.id) || 0));
-            state.appData.nextArticleId = maxId + 1;
+        if (getStore().appData.articles.length > 0) {
+            const maxId = Math.max(...getStore().appData.articles.map(a => parseInt(a.id) || 0));
+            getStore().setNextArticleId(maxId + 1);
         } else {
-            state.appData.nextArticleId = 1;
+            getStore().setNextArticleId(1);
         }
         
-        if (state.appData.connections.length > 0) {
-            const maxId = Math.max(...state.appData.connections.map(c => parseInt(c.id) || 0));
-            state.appData.nextConnectionId = maxId + 1;
+        if (getStore().appData.connections.length > 0) {
+            const maxId = Math.max(...getStore().appData.connections.map(c => parseInt(c.id) || 0));
+            getStore().setNextConnectionId(maxId + 1);
         } else {
-            state.appData.nextConnectionId = 1;
+            getStore().setNextConnectionId(1);
         }
         
         // For cloud projects, use project-specific localStorage keys
         const projectKey = `papermap_project_${currentProjectId}`;
-        localStorage.setItem(`${projectKey}_data`, JSON.stringify(state.appData));
+        localStorage.setItem(`${projectKey}_data`, JSON.stringify(getStore().appData));
         
         // Load tag zones if available
         const zones = project.data.zones || project.data.tagZones || [];
         if (zones.length > 0) {
-            state.tagZones.length = 0;
-            state.tagZones.push(...zones);
+            getStore().tagZones.length = 0;
+            getStore().addTagZone(...zones);
             localStorage.setItem(`${projectKey}_zones`, JSON.stringify(zones));
             console.log('🏷️ Loaded', zones.length, 'tag zones from cloud');
         }
@@ -127,14 +127,14 @@ async function loadProjectFromCloud() {
         const positions = project.data.positions || project.data.nodePositions || {};
         if (Object.keys(positions).length > 0) {
             localStorage.setItem(`${projectKey}_positions`, JSON.stringify(positions));
-            state.savedNodePositions = positions;
+            getStore().setSavedNodePositions(positions);
             console.log('📍 Loaded', Object.keys(positions).length, 'node positions from cloud');
         } else {
-            state.savedNodePositions = {};
+            getStore().setSavedNodePositions({});
         }
         
         console.log('✓ Project loaded from cloud:', project.name, 
-                   `(${state.appData.articles.length} nodes, ${state.appData.connections.length} edges)`);
+                   `(${getStore().appData.articles.length} nodes, ${getStore().appData.connections.length} edges)`);
         showNotification(`Loaded: ${project.name}`, 'success');
     }
     
@@ -145,7 +145,7 @@ async function loadProjectFromCloud() {
  * Generate preview image for project (direct PNG export from canvas)
  */
 async function generatePreviewImage() {
-    const network = state.network;
+    const network = getNetwork();
     console.log('🔍 generatePreviewImage called:', {
         networkExists: !!network
     });
@@ -199,7 +199,7 @@ export async function saveToCloud(silent = false) {
     try {
         // Get current positions from network or localStorage
         let positions = {};
-        const network = state.network;
+        const network = getNetwork();
         if (network) {
             positions = network.getPositions();
         } else {
@@ -213,12 +213,12 @@ export async function saveToCloud(silent = false) {
         
         // Gather current state (no preview image during auto-save to avoid flash)
         const projectData = {
-            nodes: state.appData?.articles || [],
-            edges: state.appData?.connections || [],
-            zones: state.tagZones || [],
+            nodes: getStore().appData?.articles || [],
+            edges: getStore().appData?.connections || [],
+            zones: getStore().tagZones || [],
             positions: positions,
-            projectReview: state.appData?.projectReview || "",
-            projectReviewMeta: state.appData?.projectReviewMeta || { title: "Project Review", authors: "" }
+            projectReview: getStore().appData?.projectReview || "",
+            projectReviewMeta: getStore().appData?.projectReviewMeta || { title: "Project Review", authors: "" }
         };
         
         // Save to cloud with auto-save (throttled)
@@ -249,7 +249,7 @@ export async function saveToCloudWithPreview(silent = false) {
     try {
         // Get current positions
         let positions = {};
-        const network = state.network;
+        const network = getNetwork();
         if (network) {
             positions = network.getPositions();
         } else {
@@ -265,12 +265,12 @@ export async function saveToCloudWithPreview(silent = false) {
         
         // Gather current state with preview
         const projectData = {
-            nodes: state.appData?.articles || [],
-            edges: state.appData?.connections || [],
-            zones: state.tagZones || [],
+            nodes: getStore().appData?.articles || [],
+            edges: getStore().appData?.connections || [],
+            zones: getStore().tagZones || [],
             positions: positions,
-            projectReview: state.appData?.projectReview || "",
-            projectReviewMeta: state.appData?.projectReviewMeta || { title: "Project Review", authors: "" },
+            projectReview: getStore().appData?.projectReview || "",
+            projectReviewMeta: getStore().appData?.projectReviewMeta || { title: "Project Review", authors: "" },
             previewImage: previewImage
         };
         
@@ -310,7 +310,7 @@ export async function forceSaveToCloud() {
     try {
         // Get current positions
         let positions = {};
-        const network = state.network;
+        const network = getNetwork();
         if (network) {
             positions = network.getPositions();
         } else {
@@ -324,12 +324,12 @@ export async function forceSaveToCloud() {
         
         // No preview image generation during force save (to avoid flash)
         const projectData = {
-            nodes: state.appData?.articles || [],
-            edges: state.appData?.connections || [],
-            zones: state.tagZones || [],
+            nodes: getStore().appData?.articles || [],
+            edges: getStore().appData?.connections || [],
+            zones: getStore().tagZones || [],
             positions: positions,
-            projectReview: state.appData?.projectReview || "",
-            projectReviewMeta: state.appData?.projectReviewMeta || { title: "Project Review", authors: "" }
+            projectReview: getStore().appData?.projectReview || "",
+            projectReviewMeta: getStore().appData?.projectReviewMeta || { title: "Project Review", authors: "" }
         };
         
         await updateProject(currentProjectId, projectData);

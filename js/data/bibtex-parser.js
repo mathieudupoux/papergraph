@@ -1,4 +1,4 @@
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 
 // ===== BIBTEX PARSER =====
 // Parse BibTeX entries and extract all fields
@@ -51,7 +51,7 @@ export function generateBibtexId(article) {
     // Check for duplicates and add suffix if needed
     let finalKey = key;
     let suffix = 0;
-    const existingKeys = state.appData.articles
+    const existingKeys = getStore().appData.articles
         .filter(a => a.id !== article.id && a.bibtexId)
         .map(a => a.bibtexId);
     

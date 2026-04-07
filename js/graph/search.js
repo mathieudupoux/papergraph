@@ -1,4 +1,4 @@
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { darkenColor } from '../utils/helpers.js';
 
 // ===== GRAPH SEARCH =====
@@ -7,7 +7,7 @@ let searchHighlightedNodes = [];
 
 export function searchInGraph(searchTerm = '') {
     console.log('[SEARCH] Function called with term:', searchTerm);
-    if (!state.network) return;
+    if (!getNetwork()) return;
     
     const resultCount = document.getElementById('searchResultCount');
     
@@ -15,14 +15,14 @@ export function searchInGraph(searchTerm = '') {
     if (searchHighlightedNodes.length > 0) {
         console.log('Clearing previous search highlights:', searchHighlightedNodes.length);
         const nodesToUpdate = searchHighlightedNodes.map(nodeId => {
-            const article = state.appData.articles.find(a => a.id === nodeId);
+            const article = getStore().appData.articles.find(a => a.id === nodeId);
             let resetBorder = '#4a90e2';
             let resetBackground = '#e3f2fd';
             
             // Restore original color based on category
             if (article && article.categories.length > 0) {
                 const firstCategory = article.categories[0];
-                const zone = state.tagZones.find(z => z.tag === firstCategory);
+                const zone = getStore().tagZones.find(z => z.tag === firstCategory);
                 if (zone) {
                     resetBackground = zone.color;
                     resetBorder = darkenColor(zone.color, 20);
@@ -42,9 +42,9 @@ export function searchInGraph(searchTerm = '') {
                 }
             };
         });
-        state.network.body.data.nodes.update(nodesToUpdate);
+        getNetwork().body.data.nodes.update(nodesToUpdate);
         searchHighlightedNodes = [];
-        state.network.redraw();  // Force redraw after clearing
+        getNetwork().redraw();  // Force redraw after clearing
     }
     
     if (!searchTerm || searchTerm.trim() === '') {
@@ -55,7 +55,7 @@ export function searchInGraph(searchTerm = '') {
     const term = searchTerm.toLowerCase().trim();
     const matchingArticles = [];
     
-    state.appData.articles.forEach(article => {
+    getStore().appData.articles.forEach(article => {
         let matches = false;
         
         if (article.title.toLowerCase().includes(term)) {
@@ -99,7 +99,7 @@ export function searchInGraph(searchTerm = '') {
     console.log('Highlighting nodes with yellow border:', matchingNodeIds.length);
     
     const nodesToUpdate = matchingNodeIds.map(nodeId => {
-        const article = state.appData.articles.find(a => a.id === nodeId);
+        const article = getStore().appData.articles.find(a => a.id === nodeId);
         
         // Get original border color
         let originalBorder = '#4a90e2';
@@ -107,7 +107,7 @@ export function searchInGraph(searchTerm = '') {
         
         if (article && article.categories.length > 0) {
             const firstCategory = article.categories[0];
-            const zone = state.tagZones.find(z => z.tag === firstCategory);
+            const zone = getStore().tagZones.find(z => z.tag === firstCategory);
             if (zone) {
                 originalBorder = darkenColor(zone.color, 20);
                 originalBackground = zone.color;
@@ -127,12 +127,12 @@ export function searchInGraph(searchTerm = '') {
             }
         };
     });
-    state.network.body.data.nodes.update(nodesToUpdate);
-    state.network.redraw();  // Force redraw after highlighting
+    getNetwork().body.data.nodes.update(nodesToUpdate);
+    getNetwork().redraw();  // Force redraw after highlighting
     
     if (matchingNodeIds.length === 1) {
-        state.network.selectNodes([matchingNodeIds[0]]);
-        state.network.focus(matchingNodeIds[0], {
+        getNetwork().selectNodes([matchingNodeIds[0]]);
+        getNetwork().focus(matchingNodeIds[0], {
             scale: 1.5,
             animation: {
                 duration: 500,
@@ -140,7 +140,7 @@ export function searchInGraph(searchTerm = '') {
             }
         });
     } else {
-        state.network.fit({
+        getNetwork().fit({
             nodes: matchingNodeIds,
             animation: {
                 duration: 500,

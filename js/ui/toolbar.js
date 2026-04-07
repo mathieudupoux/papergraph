@@ -1,4 +1,4 @@
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { darkenColor, showNotification } from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
 import { updateCategoryFilters } from './filters.js';
@@ -15,14 +15,14 @@ export function toggleCategoryDropdown() {
 }
 
 export function toggleGrid() {
-    if (!state.network) return;
+    if (!getNetwork()) return;
     
-    state.gridEnabled = !state.gridEnabled;
-    localStorage.setItem('gridEnabled', state.gridEnabled);
+    getStore().setGridEnabled(!getStore().gridEnabled);
+    localStorage.setItem('gridEnabled', getStore().gridEnabled);
     const btn = document.getElementById('toggleGridBtn');
     const label = btn.querySelector('.btn-label');
     
-    if (state.gridEnabled) {
+    if (getStore().gridEnabled) {
         btn.classList.add('active');
         btn.title = 'Hide grid';
         if (label) label.textContent = 'Grid';
@@ -32,11 +32,11 @@ export function toggleGrid() {
         if (label) label.textContent = 'Grid';
     }
     
-    state.network.redraw();
+    getNetwork().redraw();
 }
 
 export function openQuickTagModal(articleId) {
-    const article = state.appData.articles.find(a => a.id === articleId);
+    const article = getStore().appData.articles.find(a => a.id === articleId);
     if (!article) return;
     
     const newTag = prompt('Ajouter une catégorie:', '');
@@ -53,11 +53,11 @@ export function openQuickTagModal(articleId) {
 }
 
 export function openMultiTagDialog(isEmptyAreaMode = false) {
-    const savedSelectedNodes = isEmptyAreaMode ? [] : [...state.multiSelection.selectedNodes];
+    const savedSelectedNodes = isEmptyAreaMode ? [] : [...getStore().multiSelection.selectedNodes];
     
     if (!isEmptyAreaMode) {
         hideSelectionRadialMenu();
-        state.multiSelection.selectedNodes = savedSelectedNodes;
+        getStore().updateMultiSelection({ selectedNodes: savedSelectedNodes });
     }
     
     const defaultColors = [
@@ -91,7 +91,7 @@ export function openMultiTagDialog(isEmptyAreaMode = false) {
             ${isEmptyAreaMode ? 'Create a tag zone' : 'Add a tag'}
         </div>
         ${!isEmptyAreaMode ? `<div style="color: #666; margin-bottom: 15px; font-size: 0.9rem;">
-            ${state.multiSelection.selectedNodes.length} node(s) selected
+            ${getStore().multiSelection.selectedNodes.length} node(s) selected
         </div>` : ''}
         <div style="position: relative; margin-bottom: 15px;">
             <input type="text" id="multiTagInput" placeholder="Tag name" 
@@ -142,10 +142,10 @@ export function openMultiTagDialog(isEmptyAreaMode = false) {
     tagInput.addEventListener('input', (e) => {
         const tagName = e.target.value.trim();
         if (tagName) {
-            const existingTag = state.appData.articles.some(article => 
+            const existingTag = getStore().appData.articles.some(article => 
                 article.categories.some(cat => cat.toLowerCase() === tagName.toLowerCase())
             );
-            const existingZone = state.tagZones.some(zone => 
+            const existingZone = getStore().tagZones.some(zone => 
                 zone.tag.toLowerCase() === tagName.toLowerCase()
             );
             
@@ -262,17 +262,17 @@ export function closeMultiTagDialog() {
     const modal = document.getElementById('multiTagModal');
     if (modal) modal.remove();
     
-    if (state.multiSelection.selectionBox) {
-        state.multiSelection.selectionBox.style.display = 'none';
-        state.multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
+    if (getStore().multiSelection.selectionBox) {
+        getStore().multiSelection.selectionBox.style.display = 'none';
+        getStore().multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
     }
     
-    if (state.network) state.network.unselectAll();
-    state.multiSelection.selectedNodes = [];
+    if (getNetwork()) getNetwork().unselectAll();
+    getStore().updateMultiSelection({ selectedNodes: [] });
     
     // Clear empty area selection when dialog is closed/cancelled
-    if (state.multiSelection.emptyAreaSelection) {
-        state.multiSelection.emptyAreaSelection = null;
+    if (getStore().multiSelection.emptyAreaSelection) {
+        getStore().updateMultiSelection({ emptyAreaSelection: null });
         hideEmptyAreaMenu();
     }
 }
@@ -291,15 +291,15 @@ export function applyMultiTagFromDialog(tagColor) {
     let zone;
     
     // Use selection box bounds if available (DON'T fit to nodes)
-    if (state.multiSelection.selectionBox && state.multiSelection.selectionBox.style.display !== 'none') {
-        const boxLeft = parseFloat(state.multiSelection.selectionBox.style.left);
-        const boxTop = parseFloat(state.multiSelection.selectionBox.style.top);
-        const boxWidth = parseFloat(state.multiSelection.selectionBox.style.width);
-        const boxHeight = parseFloat(state.multiSelection.selectionBox.style.height);
+    if (getStore().multiSelection.selectionBox && getStore().multiSelection.selectionBox.style.display !== 'none') {
+        const boxLeft = parseFloat(getStore().multiSelection.selectionBox.style.left);
+        const boxTop = parseFloat(getStore().multiSelection.selectionBox.style.top);
+        const boxWidth = parseFloat(getStore().multiSelection.selectionBox.style.width);
+        const boxHeight = parseFloat(getStore().multiSelection.selectionBox.style.height);
         
         // Convert DOM coordinates to canvas coordinates
-        const topLeft = state.network.DOMtoCanvas({ x: boxLeft, y: boxTop });
-        const bottomRight = state.network.DOMtoCanvas({ x: boxLeft + boxWidth, y: boxTop + boxHeight });
+        const topLeft = getNetwork().DOMtoCanvas({ x: boxLeft, y: boxTop });
+        const bottomRight = getNetwork().DOMtoCanvas({ x: boxLeft + boxWidth, y: boxTop + boxHeight });
         
         let zoneWidth = bottomRight.x - topLeft.x;
         let zoneHeight = bottomRight.y - topLeft.y;
@@ -319,8 +319,8 @@ export function applyMultiTagFromDialog(tagColor) {
     } else {
         // Fallback: calculate bounding box from nodes (shouldn't happen normally)
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        state.multiSelection.selectedNodes.forEach(nodeId => {
-            const pos = state.network.getPositions([nodeId])[nodeId];
+        getStore().multiSelection.selectedNodes.forEach(nodeId => {
+            const pos = getNetwork().getPositions([nodeId])[nodeId];
             if (pos) {
                 minX = Math.min(minX, pos.x);
                 minY = Math.min(minY, pos.y);
@@ -347,21 +347,21 @@ export function applyMultiTagFromDialog(tagColor) {
         };
     }
     
-    const existingIndex = state.tagZones.findIndex(z => z.tag === tagName);
+    const existingIndex = getStore().tagZones.findIndex(z => z.tag === tagName);
     if (existingIndex >= 0) {
-        state.tagZones[existingIndex] = zone;
+        getStore().replaceTagZone(existingIndex, zone);
     } else {
-        state.tagZones.push(zone);
+        getStore().addTagZone(zone);
     }
     
     // Apply tag to nodes
-    state.multiSelection.selectedNodes.forEach(nodeId => {
-        const article = state.appData.articles.find(a => a.id === nodeId);
+    getStore().multiSelection.selectedNodes.forEach(nodeId => {
+        const article = getStore().appData.articles.find(a => a.id === nodeId);
         if (article) {
             if (!article.categories.includes(tagName)) {
                 article.categories.push(tagName);
             }
-            state.network.body.data.nodes.update({
+            getNetwork().body.data.nodes.update({
                 id: nodeId,
                 color: {
                     background: tagColor,
@@ -374,14 +374,14 @@ export function applyMultiTagFromDialog(tagColor) {
     save();
     updateCategoryFilters();
     renderListView();
-    state.network.redraw();
+    getNetwork().redraw();
     
-    if (state.multiSelection.selectionBox) {
-        state.multiSelection.selectionBox.style.display = 'none';
-        state.multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
+    if (getStore().multiSelection.selectionBox) {
+        getStore().multiSelection.selectionBox.style.display = 'none';
+        getStore().multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
     }
     
-    const appliedCount = state.multiSelection.selectedNodes.length;
+    const appliedCount = getStore().multiSelection.selectedNodes.length;
     showNotification(`Tag "${tagName}" appliqué à ${appliedCount} nœud(s)`, 'success');
     closeMultiTagDialog();
 }
@@ -394,12 +394,12 @@ export function applyEmptyAreaZoneFromDialog(zoneColor) {
         return;
     }
     
-    if (!state.multiSelection.emptyAreaSelection) {
+    if (!getStore().multiSelection.emptyAreaSelection) {
         showNotification('No zone selected', 'error');
         return;
     }
     
-    const area = state.multiSelection.emptyAreaSelection;
+    const area = getStore().multiSelection.emptyAreaSelection;
     const minZoneSize = 150; // Minimum zone size
     
     // Keep the selection area size as-is (don't fit to nodes)
@@ -420,24 +420,24 @@ export function applyEmptyAreaZoneFromDialog(zoneColor) {
     };
     
     // Check if zone with this tag already exists
-    const existingZoneIndex = state.tagZones.findIndex(z => z.tag === zoneName);
+    const existingZoneIndex = getStore().tagZones.findIndex(z => z.tag === zoneName);
     if (existingZoneIndex !== -1) {
         showNotification('A zone with this tag already exists', 'error');
         return;
     }
     
-    state.tagZones.push(zone);
+    getStore().addTagZone(zone);
     
     // Save current view position before updating graph
-    const currentView = state.network.getViewPosition();
-    const currentScale = state.network.getScale();
+    const currentView = getNetwork().getViewPosition();
+    const currentScale = getNetwork().getScale();
     
     save();
     updateCategoryFilters();
     updateGraph();
     
     // Restore view position to avoid camera movement
-    state.network.moveTo({
+    getNetwork().moveTo({
         position: currentView,
         scale: currentScale,
         animation: false
@@ -447,18 +447,18 @@ export function applyEmptyAreaZoneFromDialog(zoneColor) {
     hideEmptyAreaMenu();
     
     // Clear the empty area selection and hide selection box
-    state.multiSelection.emptyAreaSelection = null;
-    if (state.multiSelection.selectionBox) {
-        state.multiSelection.selectionBox.style.display = 'none';
+    getStore().updateMultiSelection({ emptyAreaSelection: null });
+    if (getStore().multiSelection.selectionBox) {
+        getStore().multiSelection.selectionBox.style.display = 'none';
     }
     
     showNotification(`Zone "${zoneName}" créée`, 'success');
 }
 
 export function deleteSelectedNodes() {
-    if (state.multiSelection.selectedNodes.length === 0) return;
+    if (getStore().multiSelection.selectedNodes.length === 0) return;
     
-    const count = state.multiSelection.selectedNodes.length;
+    const count = getStore().multiSelection.selectedNodes.length;
     const message = count === 1 
         ? 'Do you really want to delete this node?' 
         : `Do you really want to delete these ${count} nodes?`;
@@ -468,15 +468,15 @@ export function deleteSelectedNodes() {
         return;
     }
     
-    state.multiSelection.selectedNodes.forEach(nodeId => {
-        const articleIndex = state.appData.articles.findIndex(a => a.id === nodeId);
+    getStore().multiSelection.selectedNodes.forEach(nodeId => {
+        const articleIndex = getStore().appData.articles.findIndex(a => a.id === nodeId);
         if (articleIndex >= 0) {
-            state.appData.articles.splice(articleIndex, 1);
+            getStore().appData.articles.splice(articleIndex, 1);
         }
         
-        state.appData.connections = state.appData.connections.filter(
+        getStore().setConnections(getStore().appData.connections.filter(
             conn => conn.from !== nodeId && conn.to !== nodeId
-        );
+        ));
     });
     
     updateGraph();

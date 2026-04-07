@@ -1,20 +1,20 @@
 // ===== RADIAL MENU =====
 // Context menu for nodes and multi-selection
 
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { showArticlePreview } from './preview.js';
 import { openMultiTagDialog, deleteSelectedNodes, applyEmptyAreaZoneFromDialog } from './toolbar.js';
 
 export function openRadialMenuForNode(nodeId) {
-    state.selectedNodeId = nodeId;
-    state.selectedEdgeId = null;
+    getStore().setSelectedNodeId(nodeId);
+    getStore().setSelectedEdgeId(null);
     
     // Show article preview
     showArticlePreview(nodeId);
     
     // Get node position in canvas coordinates, then convert to DOM
-    const nodePosition = state.network.getPositions([nodeId])[nodeId];
-    const canvasPosition = state.network.canvasToDOM(nodePosition);
+    const nodePosition = getNetwork().getPositions([nodeId])[nodeId];
+    const canvasPosition = getNetwork().canvasToDOM(nodePosition);
     
     // Get container offset to calculate screen position
     const container = document.getElementById('graphContainer');
@@ -24,14 +24,14 @@ export function openRadialMenuForNode(nodeId) {
     const screenY = rect.top + canvasPosition.y;
     
     // Get node dimensions to position menu around it
-    const node = state.network.body.nodes[nodeId];
+    const node = getNetwork().body.nodes[nodeId];
     const nodeWidth = node.shape.width || 100;
     const nodeHeight = node.shape.height || 50;
     
     showRadialMenu(screenX, screenY, nodeId, nodeWidth, nodeHeight);
     
     // Keep drag enabled but disable panning and zoom when menu is open
-    state.network.setOptions({ 
+    getNetwork().setOptions({ 
         interaction: { 
             dragNodes: true,
             dragView: false,
@@ -44,21 +44,21 @@ export function openRadialMenuForNode(nodeId) {
 
 export function showRadialMenu(x, y, nodeId, nodeWidth = 100, nodeHeight = 50) {
     // Don't show radial menu in read-only mode or gallery viewer mode
-    if (state.isReadOnlyMode || state.isGalleryViewer) {
+    if (getStore().isReadOnlyMode || getStore().isGalleryViewer) {
         return;
     }
     
     const menu = document.getElementById('radialMenu');
     
     // Clear any previous pulse animation and reset previous node
-    if (state.currentPulseInterval) {
-        clearInterval(state.currentPulseInterval);
-        state.currentPulseInterval = null;
+    if (getStore().currentPulseInterval) {
+        clearInterval(getStore().currentPulseInterval);
+        getStore().setCurrentPulseInterval(null);
     }
     
     // Reset the previously selected node if any
-    if (state.selectedNodeId !== null && state.selectedNodeId !== nodeId && state.network && state.network.body.nodes[state.selectedNodeId]) {
-        const prevNode = state.network.body.nodes[state.selectedNodeId];
+    if (getStore().selectedNodeId !== null && getStore().selectedNodeId !== nodeId && getNetwork() && getNetwork().body.nodes[getStore().selectedNodeId]) {
+        const prevNode = getNetwork().body.nodes[getStore().selectedNodeId];
         if (prevNode && prevNode.options) {
             prevNode.options.shadow = false;
             prevNode.options.borderWidth = 3;
@@ -85,16 +85,16 @@ export function showRadialMenu(x, y, nodeId, nodeWidth = 100, nodeHeight = 50) {
     menu.classList.add('active');
     
     // Apply pulse effect to selected node
-    if (state.network && nodeId !== null) {
-        const node = state.network.body.nodes[nodeId];
+    if (getNetwork() && nodeId !== null) {
+        const node = getNetwork().body.nodes[nodeId];
         if (node) {
             let intensity = 0.2;
             let growing = true;
             
-            state.currentPulseInterval = setInterval(() => {
+            getStore().currentPulseInterval = setInterval(() => {
                 if (!document.getElementById('radialMenu').classList.contains('active')) {
-                    clearInterval(state.currentPulseInterval);
-                    state.currentPulseInterval = null;
+                    clearInterval(getStore().currentPulseInterval);
+                    getStore().setCurrentPulseInterval(null);
                     return;
                 }
                 
@@ -118,7 +118,7 @@ export function showRadialMenu(x, y, nodeId, nodeWidth = 100, nodeHeight = 50) {
                     node.options.borderWidth = 3 + intensity * 2;
                 }
                 
-                state.network.redraw();
+                getNetwork().redraw();
             }, 80);
         }
     }
@@ -140,14 +140,14 @@ export function updateRadialMenuPosition(x, y, nodeWidth, nodeHeight) {
 }
 
 export function updateRadialMenuIfActive() {
-    if (!document.getElementById('radialMenu').classList.contains('active') || !state.selectedNodeId) {
+    if (!document.getElementById('radialMenu').classList.contains('active') || !getStore().selectedNodeId) {
         return;
     }
     
-    const nodePosition = state.network.getPositions([state.selectedNodeId])[state.selectedNodeId];
+    const nodePosition = getNetwork().getPositions([getStore().selectedNodeId])[getStore().selectedNodeId];
     if (!nodePosition) return;
     
-    const canvasPosition = state.network.canvasToDOM(nodePosition);
+    const canvasPosition = getNetwork().canvasToDOM(nodePosition);
     
     const container = document.getElementById('graphContainer');
     const rect = container.getBoundingClientRect();
@@ -155,7 +155,7 @@ export function updateRadialMenuIfActive() {
     const screenX = rect.left + canvasPosition.x;
     const screenY = rect.top + canvasPosition.y;
     
-    const node = state.network.body.nodes[state.selectedNodeId];
+    const node = getNetwork().body.nodes[getStore().selectedNodeId];
     if (!node) return;
     
     const nodeWidth = node.shape.width || 100;
@@ -169,26 +169,26 @@ export function hideRadialMenu() {
     menu.classList.remove('active');
     
     // Clear pulse interval
-    if (state.currentPulseInterval) {
-        clearInterval(state.currentPulseInterval);
-        state.currentPulseInterval = null;
+    if (getStore().currentPulseInterval) {
+        clearInterval(getStore().currentPulseInterval);
+        getStore().setCurrentPulseInterval(null);
     }
     
     // Reset selected node
-    if (state.selectedNodeId !== null && state.network && state.network.body.nodes[state.selectedNodeId]) {
-        const node = state.network.body.nodes[state.selectedNodeId];
+    if (getStore().selectedNodeId !== null && getNetwork() && getNetwork().body.nodes[getStore().selectedNodeId]) {
+        const node = getNetwork().body.nodes[getStore().selectedNodeId];
         if (node && node.options) {
             node.options.shadow = false;
             node.options.borderWidth = 3;
         }
-        state.network.redraw();
+        getNetwork().redraw();
     }
     
-    state.selectedNodeId = null;
+    getStore().setSelectedNodeId(null);
     
     // Re-enable interactions
-    if (state.network) {
-        state.network.setOptions({ 
+    if (getNetwork()) {
+        getNetwork().setOptions({ 
             interaction: { 
                 dragNodes: true,
                 dragView: true,
@@ -202,11 +202,11 @@ export function hideRadialMenu() {
 
 export function showSelectionRadialMenu(x, y) {
     // Don't show selection radial menu in gallery viewer mode
-    if (state.isGalleryViewer) {
+    if (getStore().isGalleryViewer) {
         return;
     }
     
-    state.multiSelection.menuActive = true;
+    getStore().updateMultiSelection({ menuActive: true });
     
     const menuContainer = document.createElement('div');
     menuContainer.id = 'selectionRadialMenu';
@@ -294,7 +294,7 @@ export function showSelectionRadialMenu(x, y) {
     
     // Keyboard handler
     const keyHandler = (e) => {
-        if (state.multiSelection.menuActive && (e.key === 'Delete' || e.key === 'Backspace')) {
+        if (getStore().multiSelection.menuActive && (e.key === 'Delete' || e.key === 'Backspace')) {
             e.preventDefault();
             deleteSelectedNodes();
             document.removeEventListener('keydown', keyHandler);
@@ -313,12 +313,12 @@ export function hideSelectionRadialMenu() {
     if (menu) {
         menu.remove();
     }
-    state.multiSelection.menuActive = false;
+    getStore().updateMultiSelection({ menuActive: false });
 }
 
 export function showEmptyAreaMenu(x, y) {
     // Don't show empty area menu in gallery viewer mode
-    if (state.isGalleryViewer) {
+    if (getStore().isGalleryViewer) {
         return;
     }
     
@@ -374,9 +374,9 @@ export function showEmptyAreaMenu(x, y) {
     
     btn.addEventListener('click', () => {
         // Remove click outside handler when opening dialog
-        if (state.multiSelection.emptyAreaClickHandler) {
-            document.removeEventListener('click', state.multiSelection.emptyAreaClickHandler);
-            state.multiSelection.emptyAreaClickHandler = null;
+        if (getStore().multiSelection.emptyAreaClickHandler) {
+            document.removeEventListener('click', getStore().multiSelection.emptyAreaClickHandler);
+            getStore().updateMultiSelection({ emptyAreaClickHandler: null });
         }
         openMultiTagDialog(true); // true = isEmptyAreaMode
     });
@@ -395,16 +395,16 @@ export function showEmptyAreaMenu(x, y) {
         // Don't close if clicking inside the menu or if modal is open
         if ((menu && !menu.contains(e.target)) && !modal) {
             hideEmptyAreaMenu();
-            if (state.multiSelection.selectionBox) {
-                state.multiSelection.selectionBox.style.display = 'none';
+            if (getStore().multiSelection.selectionBox) {
+                getStore().multiSelection.selectionBox.style.display = 'none';
             }
-            state.multiSelection.emptyAreaSelection = null;
+            getStore().updateMultiSelection({ emptyAreaSelection: null });
             document.removeEventListener('click', clickHandler);
-            state.multiSelection.emptyAreaClickHandler = null;
+            getStore().updateMultiSelection({ emptyAreaClickHandler: null });
         }
     };
     // Store reference to the handler
-    state.multiSelection.emptyAreaClickHandler = clickHandler;
+    getStore().updateMultiSelection({ emptyAreaClickHandler: clickHandler });
     
     // Add listener after a short delay to avoid immediate triggering
     setTimeout(() => {
@@ -415,14 +415,14 @@ export function showEmptyAreaMenu(x, y) {
     const keyHandler = (e) => {
         if (e.key === 'Escape') {
             hideEmptyAreaMenu();
-            if (state.multiSelection.selectionBox) {
-                state.multiSelection.selectionBox.style.display = 'none';
+            if (getStore().multiSelection.selectionBox) {
+                getStore().multiSelection.selectionBox.style.display = 'none';
             }
-            state.multiSelection.emptyAreaSelection = null;
+            getStore().updateMultiSelection({ emptyAreaSelection: null });
             document.removeEventListener('keydown', keyHandler);
-            if (state.multiSelection.emptyAreaClickHandler) {
-                document.removeEventListener('click', state.multiSelection.emptyAreaClickHandler);
-                state.multiSelection.emptyAreaClickHandler = null;
+            if (getStore().multiSelection.emptyAreaClickHandler) {
+                document.removeEventListener('click', getStore().multiSelection.emptyAreaClickHandler);
+                getStore().updateMultiSelection({ emptyAreaClickHandler: null });
             }
         }
     };
@@ -436,9 +436,9 @@ export function hideEmptyAreaMenu() {
     }
     
     // Clean up click outside handler
-    if (state.multiSelection.emptyAreaClickHandler) {
-        document.removeEventListener('click', state.multiSelection.emptyAreaClickHandler);
-        state.multiSelection.emptyAreaClickHandler = null;
+    if (getStore().multiSelection.emptyAreaClickHandler) {
+        document.removeEventListener('click', getStore().multiSelection.emptyAreaClickHandler);
+        getStore().updateMultiSelection({ emptyAreaClickHandler: null });
     }
     
     // DON'T clear the empty area selection here - it needs to persist for zone creation
@@ -448,7 +448,7 @@ export function hideEmptyAreaMenu() {
 }
 
 export function openEmptyAreaZoneDialog() {
-    if (!state.multiSelection.emptyAreaSelection) return;
+    if (!getStore().multiSelection.emptyAreaSelection) return;
     
     hideEmptyAreaMenu();
     

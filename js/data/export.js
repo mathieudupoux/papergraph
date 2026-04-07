@@ -1,7 +1,7 @@
 // ===== EXPORT / IMPORT FUNCTIONS =====
 // Project export, import, and PDF generation
 
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { darkenColor, showNotification, getContrastColor } from '../utils/helpers.js';
 import { save } from './persistence.js';
 import { articleToBibTeX } from './bibtex-parser.js';
@@ -17,9 +17,9 @@ export function getExportFilename(extension = 'papergraph') {
     let authorName = '';
     
     // Check if we're in gallery viewer mode with metadata
-    if (state.galleryProjectMetadata) {
-        projectTitle = state.galleryProjectMetadata.title || projectTitle;
-        authorName = state.galleryProjectMetadata.author || '';
+    if (getStore().galleryProjectMetadata) {
+        projectTitle = getStore().galleryProjectMetadata.title || projectTitle;
+        authorName = getStore().galleryProjectMetadata.author || '';
     } else {
         // Normal editor mode - get title from input or localStorage
         const titleInput = document.getElementById('projectTitleInput') || document.getElementById('projectTitle');
@@ -45,34 +45,34 @@ export function getExportFilename(extension = 'papergraph') {
 
 export function newProject() {
     if (confirm('Créer un nouveau projet vide ? Les données non exportées seront perdues.')) {
-        state.appData = {
+        getStore().setAppData({
             articles: [],
             connections: [],
             nextArticleId: 1,
             nextConnectionId: 1
-        };
-        state.tagZones = [];
-        state.currentCategoryFilter = '';
-        state.selectedNodeId = null;
+        });
+        getStore().setTagZones([]);
+        getStore().currentCategoryFilter = '';
+        getStore().setSelectedNodeId(null);
         selectedEdgeIndex = -1;
         
         // Clear edge control points
-        state.edgeControlPoints = {};
-        state.nextControlPointId = -1;
+        getStore().setEdgeControlPoints({});
+        getStore().setNextControlPointId(-1);
         
         // Remove all control point nodes (negative IDs) from the network
-        if (state.network) {
-            const allNodes = state.network.body.data.nodes.get();
+        if (getNetwork()) {
+            const allNodes = getNetwork().body.data.nodes.get();
             const controlPointNodes = allNodes.filter(node => node.id < 0);
             if (controlPointNodes.length > 0) {
-                state.network.body.data.nodes.remove(controlPointNodes.map(n => n.id));
+                getNetwork().body.data.nodes.remove(controlPointNodes.map(n => n.id));
             }
             
             // Remove all segment edges (IDs containing _seg_)
-            const allEdges = state.network.body.data.edges.get();
+            const allEdges = getNetwork().body.data.edges.get();
             const segmentEdges = allEdges.filter(edge => edge.id.toString().includes('_seg_'));
             if (segmentEdges.length > 0) {
-                state.network.body.data.edges.remove(segmentEdges.map(e => e.id));
+                getNetwork().body.data.edges.remove(segmentEdges.map(e => e.id));
             }
         }
         
@@ -82,7 +82,7 @@ export function newProject() {
         localStorage.removeItem('papermap_positions');
         localStorage.removeItem('papermap_edge_control_points');
         localStorage.removeItem('papermap_next_control_point_id');
-        state.savedNodePositions = {};
+        getStore().setSavedNodePositions({});
         
         save();
         updateCategoryFilters();
@@ -97,9 +97,9 @@ export function newProject() {
 export function exportProject() {
     // Include tagZones and node positions in the export
     const exportData = {
-        ...state.appData,
-        tagZones: state.tagZones,
-        nodePositions: state.savedNodePositions || {}
+        ...getStore().appData,
+        tagZones: getStore().tagZones,
+        nodePositions: getStore().savedNodePositions || {}
     };
     const dataStr = JSON.stringify(exportData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
@@ -115,12 +115,12 @@ export function exportProject() {
 }
 
 export function exportToImage() {
-    if (!state.network) {
+    if (!getNetwork()) {
         showNotification('Le graphe n\'est pas encore initialisé', 'error');
         return;
     }
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const url = canvas.toDataURL('image/png');
     
     const a = document.createElement('a');
@@ -132,39 +132,39 @@ export function exportToImage() {
 }
 
 export function exportToSVG() {
-    if (!state.network) {
+    if (!getNetwork()) {
         showNotification('Le graphe n\'est pas encore initialisé', 'error');
         return;
     }
     
     try {
-        const canvas = state.network.canvas.frame.canvas;
+        const canvas = getNetwork().canvas.frame.canvas;
         
         // Use the actual canvas dimensions (what's visible)
         const width = canvas.width;
         const height = canvas.height;
         
         // Get all positions in canvas coordinates
-        const positions = state.network.getPositions();
-        const scale = state.network.getScale();
-        const viewPosition = state.network.getViewPosition();
+        const positions = getNetwork().getPositions();
+        const scale = getNetwork().getScale();
+        const viewPosition = getNetwork().getViewPosition();
         
         let svgElements = [];
         
         // Get nodes data first (needed for edge arrow positioning)
-        const nodes = state.network.body.data.nodes.get();
+        const nodes = getNetwork().body.data.nodes.get();
         
         // Draw zones first (background)
-        if (state.tagZones && state.tagZones.length > 0) {
-            const sortedZones = [...state.tagZones].sort((a, b) => {
+        if (getStore().tagZones && getStore().tagZones.length > 0) {
+            const sortedZones = [...getStore().tagZones].sort((a, b) => {
                 const areaA = a.width * a.height;
                 const areaB = b.width * b.height;
                 return areaB - areaA;
             });
             
             sortedZones.forEach(zone => {
-                const topLeft = state.network.canvasToDOM({ x: zone.x, y: zone.y });
-                const bottomRight = state.network.canvasToDOM({ x: zone.x + zone.width, y: zone.y + zone.height });
+                const topLeft = getNetwork().canvasToDOM({ x: zone.x, y: zone.y });
+                const bottomRight = getNetwork().canvasToDOM({ x: zone.x + zone.width, y: zone.y + zone.height });
                 
                 const x = topLeft.x;
                 const y = topLeft.y;
@@ -189,7 +189,7 @@ export function exportToSVG() {
                 if (zone.tag && zone.tag.trim() !== '') {
                     const titleCanvasX = zone.x + 10;
                     const titleCanvasY = zone.y + 10;
-                    const titlePos = state.network.canvasToDOM({ x: titleCanvasX, y: titleCanvasY });
+                    const titlePos = getNetwork().canvasToDOM({ x: titleCanvasX, y: titleCanvasY });
                     const titleX = titlePos.x;
                     const titleY = titlePos.y;
                     const textPadding = 10 * scale;
@@ -199,7 +199,7 @@ export function exportToSVG() {
                     const fontSize = 24 * scale;
                     
                     // Measure text width accurately using canvas
-                    const ctx = state.network.canvas.frame.canvas.getContext('2d');
+                    const ctx = getNetwork().canvas.frame.canvas.getContext('2d');
                     ctx.save();
                     ctx.font = `bold ${fontSize}px Arial`;
                     const textWidth = ctx.measureText(zone.tag).width;
@@ -223,14 +223,14 @@ export function exportToSVG() {
         }
         
         // Draw edges
-        const edges = state.network.body.data.edges.get();
+        const edges = getNetwork().body.data.edges.get();
         edges.forEach(edge => {
             const fromPos = positions[edge.from];
             const toPos = positions[edge.to];
             
             if (fromPos && toPos) {
-                const from = state.network.canvasToDOM(fromPos);
-                const to = state.network.canvasToDOM(toPos);
+                const from = getNetwork().canvasToDOM(fromPos);
+                const to = getNetwork().canvasToDOM(toPos);
                 
                 let x1 = from.x;
                 let y1 = from.y;
@@ -253,14 +253,14 @@ export function exportToSVG() {
                 
                 // Check if edge has control points (smooth curve)
                 const edgeId = `${edge.from}_${edge.to}`;
-                const controlPointIds = state.edgeControlPoints?.[edgeId];
+                const controlPointIds = getStore().edgeControlPoints?.[edgeId];
                 
                 if (controlPointIds && controlPointIds.length > 0) {
                     // Draw smooth curve using quadratic/cubic bezier
                     const controlPoints = controlPointIds.map(cpId => {
                         const cpPos = positions[cpId];
                         if (cpPos) {
-                            const cpDom = state.network.canvasToDOM(cpPos);
+                            const cpDom = getNetwork().canvasToDOM(cpPos);
                             return { x: cpDom.x, y: cpDom.y };
                         }
                         return null;
@@ -343,7 +343,7 @@ export function exportToSVG() {
                 
                 // Draw arrow only if target is not a control point (subnode)
                 if (edge.to >= 0) {
-                    const visToNode = state.network.body.nodes[edge.to];
+                    const visToNode = getNetwork().body.nodes[edge.to];
                     if (!visToNode || !visToNode.shape) {
                         return;
                     }
@@ -369,8 +369,8 @@ export function exportToSVG() {
                     // Transform node dimensions to DOM space using scale
                     // The scale factor is already embedded in the network transformation
                     // We need to convert a size difference in canvas to DOM
-                    const topLeft = state.network.canvasToDOM({ x: toPos.x - nodeCanvasW/2, y: toPos.y - nodeCanvasH/2 });
-                    const bottomRight = state.network.canvasToDOM({ x: toPos.x + nodeCanvasW/2, y: toPos.y + nodeCanvasH/2 });
+                    const topLeft = getNetwork().canvasToDOM({ x: toPos.x - nodeCanvasW/2, y: toPos.y - nodeCanvasH/2 });
+                    const bottomRight = getNetwork().canvasToDOM({ x: toPos.x + nodeCanvasW/2, y: toPos.y + nodeCanvasH/2 });
                     const nodeW = bottomRight.x - topLeft.x;
                     const nodeH = bottomRight.y - topLeft.y;
                     
@@ -440,7 +440,7 @@ export function exportToSVG() {
             const pos = positions[node.id];
             if (!pos) return;
             
-            const domPos = state.network.canvasToDOM(pos);
+            const domPos = getNetwork().canvasToDOM(pos);
             const x = domPos.x;
             const y = domPos.y;
             
@@ -454,7 +454,7 @@ export function exportToSVG() {
             }
             
             // Get the actual rendered node from vis-network
-            const visNode = state.network.body.nodes[node.id];
+            const visNode = getNetwork().body.nodes[node.id];
             if (!visNode) return;
             
             // Get node visual properties
@@ -544,8 +544,8 @@ export function escapeXml(text) {
  * Returns the SVG string - uses the full export SVG logic
  */
 export function generateSVGContent() {
-    // network is available from state.js
-    const networkInstance = state.network;
+    // network is available via getNetwork() from appStore.js
+    const networkInstance = getNetwork();
     
     if (!networkInstance) {
         console.warn('generateSVGContent: No network instance available');
@@ -564,8 +564,8 @@ export function generateSVGContent() {
         const edges = networkInstance.body.data.edges.get();
         
         // Draw zones first (background)
-        if (state.tagZones && state.tagZones.length > 0) {
-            const sortedZones = [...state.tagZones].sort((a, b) => {
+        if (getStore().tagZones && getStore().tagZones.length > 0) {
+            const sortedZones = [...getStore().tagZones].sort((a, b) => {
                 const areaA = a.width * a.height;
                 const areaB = b.width * b.height;
                 return areaB - areaA;
@@ -737,29 +737,29 @@ export function importProject(e) {
             if (confirm('This will replace the current project. Continue?')) {
                 // Extract tagZones if present
                 if (imported.tagZones) {
-                    state.tagZones = imported.tagZones;
+                    getStore().setTagZones(imported.tagZones);
                     delete imported.tagZones;  // Remove from appData
                 } else {
                     // If no zones in file, they will be created from tags
-                    state.tagZones = [];
+                    getStore().setTagZones([]);
                 }
                 
                 // Extract node positions if present
                 if (imported.nodePositions) {
-                    state.savedNodePositions = imported.nodePositions;
+                    getStore().setSavedNodePositions(imported.nodePositions);
                     delete imported.nodePositions;  // Remove from appData
                 } else {
-                    state.savedNodePositions = {};
+                    getStore().setSavedNodePositions({});
                 }
                 
-                state.appData = imported;
+                getStore().setAppData(imported);
                 
                 // Ensure new fields exist for backward compatibility
-                if (!state.appData.projectReview) {
-                    state.appData.projectReview = "";
+                if (!getStore().appData.projectReview) {
+                    getStore().setProjectReview("");
                 }
-                if (!state.appData.reviewMetadata) {
-                    state.appData.reviewMetadata = {
+                if (!getStore().appData.reviewMetadata) {
+                    getStore().appData.reviewMetadata = {
                         title: '',
                         author: '',
                         date: ''
@@ -771,7 +771,7 @@ export function importProject(e) {
                 updateCategoryFilters();
                 
                 // Initialize zones if none were imported
-                if (state.tagZones.length === 0) {
+                if (getStore().tagZones.length === 0) {
                     initializeZonesFromTags();
                 }
                 
@@ -800,14 +800,14 @@ export function importProject(e) {
 // ===== BIBTEX EXPORT =====
 
 export function exportToBibtex() {
-    if (state.appData.articles.length === 0) {
+    if (getStore().appData.articles.length === 0) {
         showNotification('Aucun article à exporter', 'warning');
         return;
     }
     
     let bibtexContent = '';
     
-    state.appData.articles.forEach(article => {
+    getStore().appData.articles.forEach(article => {
         bibtexContent += articleToBibTeX(article) + '\n';
     });
     
@@ -821,7 +821,7 @@ export function exportToBibtex() {
     a.click();
     
     URL.revokeObjectURL(url);
-    showNotification(`${state.appData.articles.length} article(s) exporté(s) en BibTeX!`, 'success');
+    showNotification(`${getStore().appData.articles.length} article(s) exporté(s) en BibTeX!`, 'success');
 }
 
 
@@ -988,11 +988,11 @@ export function generateLatexDocument() {
 }`;
     
     // Get project metadata
-    const projectTitle = (state.appData.projectReviewMeta?.title) || 'Project Review';
-    const authorsData = state.appData.projectReviewMeta?.authorsData || [];
-    const affiliationsData = state.appData.projectReviewMeta?.affiliationsData || [];
-    const projectAbstract = (state.appData.projectReviewMeta?.abstract) || '';
-    const projectContent = state.appData.projectReview || '';
+    const projectTitle = (getStore().appData.projectReviewMeta?.title) || 'Project Review';
+    const authorsData = getStore().appData.projectReviewMeta?.authorsData || [];
+    const affiliationsData = getStore().appData.projectReviewMeta?.affiliationsData || [];
+    const projectAbstract = (getStore().appData.projectReviewMeta?.abstract) || '';
+    const projectContent = getStore().appData.projectReview || '';
     
     // Start LaTeX document
     let latex = style + '\n\n';
@@ -1070,7 +1070,7 @@ export function generateLatexDocument() {
     }
     
     // Add embedded bibliography using filecontents
-    const articlesWithBibtex = state.appData.articles ? state.appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
+    const articlesWithBibtex = getStore().appData.articles ? getStore().appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
     if (articlesWithBibtex.length > 0) {
         const bibContent = generateBibtexContent();
         if (bibContent && bibContent.trim()) {
@@ -1098,8 +1098,8 @@ export function generateLatexDocument() {
     }
     
     // Concatenate each article's LaTeX content
-    if (state.appData.articles && state.appData.articles.length > 0) {
-        state.appData.articles.forEach((article, index) => {
+    if (getStore().appData.articles && getStore().appData.articles.length > 0) {
+        getStore().appData.articles.forEach((article, index) => {
             // Reset section numbering for each article
             latex += `\\setcounter{section}{0}\n`;
             latex += `\\setcounter{subsection}{0}\n`;

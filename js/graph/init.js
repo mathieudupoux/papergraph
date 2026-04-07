@@ -1,7 +1,7 @@
 // ===== GRAPH INITIALIZATION =====
 // Network creation, options, and graph setup
 
-import { state } from '../core/state.js';
+import { getStore, getNetwork, setNetwork } from '../store/appStore.js';
 import { getGraphData } from './render.js';
 import { setupCanvasEvents, setupNetworkEvents } from './events.js';
 
@@ -9,9 +9,7 @@ export function initializeGraph() {
     const container = document.getElementById('graphContainer');
     const graphData = getGraphData();
     
-    const isReadOnly = state.isReadOnlyMode || state.isGalleryViewer;
-    console.log(`📊 Initializing graph - Gallery viewer: ${state.isGalleryViewer}, Read-only mode: ${isReadOnly}`);
-    
+    const isReadOnly = getStore().isReadOnlyMode || getStore().isGalleryViewer;
     const options = {
         nodes: {
             shape: 'box',
@@ -95,14 +93,11 @@ export function initializeGraph() {
         }
     };
     
-    console.log('Initializing graph with container:', container);
-    console.log('Data:', graphData);
-    
-    state.network = new vis.Network(container, graphData, options);
+    setNetwork(new vis.Network(container, graphData, options));
     
     // Force disable node dragging in gallery viewer mode
-    if (state.isGalleryViewer) {
-        state.network.setOptions({
+    if (getStore().isGalleryViewer) {
+        getNetwork().setOptions({
             interaction: {
                 dragNodes: false,
                 dragView: false,
@@ -113,9 +108,9 @@ export function initializeGraph() {
             }
         });
         
-        const allNodes = state.network.body.data.nodes.get();
+        const allNodes = getNetwork().body.data.nodes.get();
         allNodes.forEach(node => {
-            state.network.body.data.nodes.update({
+            getNetwork().body.data.nodes.update({
                 id: node.id,
                 fixed: { x: true, y: true }
             });
@@ -126,5 +121,4 @@ export function initializeGraph() {
     setupCanvasEvents();
     setupNetworkEvents();
     
-    console.log('Graph initialized successfully');
 }

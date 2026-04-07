@@ -6,7 +6,7 @@
 
 import { supabase } from '../auth/config.js';
 import { generateColorFromString, showNotification } from '../utils/helpers.js';
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { drawTagZones } from '../graph/zones.js';
 
 let realtimeChannel = null;
@@ -311,40 +311,40 @@ export function handleProjectUpdate(newData, updatedAt) {
     console.log('🔄 Applying remote project update...');
     
     // Update appData
-    if (typeof state.appData !== 'undefined') {
+    if (typeof getStore().appData !== 'undefined') {
         // Nodes
         if (newData.nodes && Array.isArray(newData.nodes)) {
-            state.appData.articles = newData.nodes;
-            if (state.appData.articles.length > 0) {
-                const maxId = Math.max(...state.appData.articles.map(a => parseInt(a.id) || 0));
-                state.appData.nextArticleId = maxId + 1;
+            getStore().setArticles(newData.nodes);
+            if (getStore().appData.articles.length > 0) {
+                const maxId = Math.max(...getStore().appData.articles.map(a => parseInt(a.id) || 0));
+                getStore().setNextArticleId(maxId + 1);
             }
         }
         
         // Edges
         if (newData.edges && Array.isArray(newData.edges)) {
-            state.appData.connections = newData.edges;
-            if (state.appData.connections.length > 0) {
-                const maxId = Math.max(...state.appData.connections.map(c => parseInt(c.id) || 0));
-                state.appData.nextConnectionId = maxId + 1;
+            getStore().setConnections(newData.edges);
+            if (getStore().appData.connections.length > 0) {
+                const maxId = Math.max(...getStore().appData.connections.map(c => parseInt(c.id) || 0));
+                getStore().setNextConnectionId(maxId + 1);
             }
         }
     }
     
     // Update positions
-    if (newData.positions && typeof state.savedNodePositions !== 'undefined') {
-        state.savedNodePositions = newData.positions;
+    if (newData.positions && typeof getStore().savedNodePositions !== 'undefined') {
+        getStore().setSavedNodePositions(newData.positions);
     }
     
     // Update zones
-    if (newData.zones && Array.isArray(newData.zones) && typeof state.tagZones !== 'undefined') {
-        state.tagZones.length = 0;
-        state.tagZones.push(...newData.zones);
+    if (newData.zones && Array.isArray(newData.zones) && typeof getStore().tagZones !== 'undefined') {
+        getStore().tagZones.length = 0;
+        getStore().addTagZone(...newData.zones);
     }
     
     // Update edge control points
-    if (newData.edgeControlPoints && typeof state.edgeControlPoints !== 'undefined') {
-        state.edgeControlPoints = newData.edgeControlPoints;
+    if (newData.edgeControlPoints && typeof getStore().edgeControlPoints !== 'undefined') {
+        getStore().setEdgeControlPoints(newData.edgeControlPoints);
     }
     
     // Refresh the graph visualization
@@ -360,18 +360,18 @@ export function handleProjectUpdate(newData, updatedAt) {
  * Refresh the graph with current data
  */
 function refreshGraph() {
-    if (!state.network || typeof state.appData === 'undefined') {
+    if (!getNetwork() || typeof getStore().appData === 'undefined') {
         console.warn('Cannot refresh graph: network or appData not available');
         return;
     }
     
     try {
         // Get current view state
-        const currentView = state.network.getViewPosition();
-        const currentScale = state.network.getScale();
+        const currentView = getNetwork().getViewPosition();
+        const currentScale = getNetwork().getScale();
         
         // Update graph data
-        const nodes = state.appData.articles.map(article => ({
+        const nodes = getStore().appData.articles.map(article => ({
             id: article.id,
             label: article.title || 'Untitled',
             title: article.authors || '',
@@ -381,7 +381,7 @@ function refreshGraph() {
             }
         }));
         
-        const edges = state.appData.connections.map(conn => ({
+        const edges = getStore().appData.connections.map(conn => ({
             id: conn.id,
             from: conn.from,
             to: conn.to,
@@ -389,16 +389,16 @@ function refreshGraph() {
             smooth: conn.smooth || { type: 'curvedCW', roundness: 0.2 }
         }));
         
-        state.network.setData({
+        getNetwork().setData({
             nodes: new vis.DataSet(nodes),
             edges: new vis.DataSet(edges)
         });
         
         // Restore node positions
-        if (state.savedNodePositions) {
-            Object.entries(state.savedNodePositions).forEach(([nodeId, pos]) => {
+        if (getStore().savedNodePositions) {
+            Object.entries(getStore().savedNodePositions).forEach(([nodeId, pos]) => {
                 try {
-                    state.network.moveNode(nodeId, pos.x, pos.y);
+                    getNetwork().moveNode(nodeId, pos.x, pos.y);
                 } catch (e) {
                     // Node might not exist anymore
                 }
@@ -406,7 +406,7 @@ function refreshGraph() {
         }
         
         // Restore view
-        state.network.moveTo({
+        getNetwork().moveTo({
             position: currentView,
             scale: currentScale,
             animation: false

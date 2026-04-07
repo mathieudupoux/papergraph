@@ -1,4 +1,4 @@
-import { state } from './state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
 import { exportProject, exportToBibtex, exportToPDF, exportToLatex, exportToImage, exportToSVG, newProject, importProject } from '../data/export.js';
 import { importBibtexFile, setupImportZone, toggleManualForm } from '../data/import.js';
@@ -20,12 +20,12 @@ import { setupLogoDropdown } from '../ui/logo-dropdown.js';
 // Check if we're in read-only mode (gallery project via ?mode=readonly)
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('mode') === 'readonly') {
-    state.isReadOnlyMode = true;
+    getStore().setIsReadOnlyMode(true);
 
     // Load gallery project from sessionStorage
     const galleryData = sessionStorage.getItem('galleryProject');
     if (galleryData) {
-        state.galleryProjectData = JSON.parse(galleryData);
+        getStore().setGalleryProjectData(JSON.parse(galleryData));
         console.log('📖 Read-only mode active - Gallery project loaded');
     }
 }
@@ -230,14 +230,14 @@ export function initializeEventListeners() {
     document.getElementById('categoryFilterBtn').addEventListener('click', toggleCategoryDropdown);
     // Function to recenter/fit the graph view
     function fitGraphView() {
-        if (!state.network) return;
+        if (!getNetwork()) return;
         
         // Calculate bounding box including both nodes and tagzones
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         let hasContent = false;
         
         // Include nodes
-        const positions = state.network.getPositions();
+        const positions = getNetwork().getPositions();
         Object.values(positions).forEach(pos => {
             minX = Math.min(minX, pos.x);
             minY = Math.min(minY, pos.y);
@@ -247,8 +247,8 @@ export function initializeEventListeners() {
         });
         
         // Include tagzones
-        if (state.tagZones && state.tagZones.length > 0) {
-            state.tagZones.forEach(zone => {
+        if (getStore().tagZones && getStore().tagZones.length > 0) {
+            getStore().tagZones.forEach(zone => {
                 minX = Math.min(minX, zone.x);
                 minY = Math.min(minY, zone.y);
                 maxX = Math.max(maxX, zone.x + zone.width);
@@ -263,14 +263,14 @@ export function initializeEventListeners() {
             const paddingY = (maxY - minY) * 0.2;
             
             // Adjust view to include tagzones with padding
-            state.network.moveTo({
+            getNetwork().moveTo({
                 position: {
                     x: (minX + maxX) / 2,
                     y: (minY + maxY) / 2
                 },
                 scale: Math.min(
-                    state.network.canvas.frame.canvas.width / (maxX - minX + 2 * paddingX),
-                    state.network.canvas.frame.canvas.height / (maxY - minY + 2 * paddingY)
+                    getNetwork().canvas.frame.canvas.width / (maxX - minX + 2 * paddingX),
+                    getNetwork().canvas.frame.canvas.height / (maxY - minY + 2 * paddingY)
                 ) * 0.85
             });
         }
@@ -286,7 +286,7 @@ export function initializeEventListeners() {
     // Load grid state from localStorage
     const savedGridState = localStorage.getItem('gridEnabled');
     if (savedGridState === 'true') {
-        state.gridEnabled = true;
+        getStore().setGridEnabled(true);
         const btn = document.getElementById('toggleGridBtn');
         btn.classList.add('active');
     }
@@ -351,8 +351,8 @@ export function initializeEventListeners() {
     
     // Category filter
     document.getElementById('categoryFilter').addEventListener('change', (e) => {
-        state.currentCategoryFilter = e.target.value;
-        state.activeFilters.category = e.target.value || null;
+        getStore().currentCategoryFilter = e.target.value;
+        getStore().activeFilters.category = e.target.value || null;
         
         const graphView = document.getElementById('graphView');
         if (graphView.classList.contains('active')) {
@@ -385,20 +385,20 @@ export function initializeEventListeners() {
             
             e.preventDefault();
             
-            if (state.selectedNodeId !== null) {
+            if (getStore().selectedNodeId !== null) {
                 if (confirm('Delete this article?')) {
-                    deleteArticleById(state.selectedNodeId);
-                    state.selectedNodeId = null;
+                    deleteArticleById(getStore().selectedNodeId);
+                    getStore().setSelectedNodeId(null);
                     hideRadialMenu();
                 }
-            } else if (state.selectedEdgeId !== null) {
+            } else if (getStore().selectedEdgeId !== null) {
                 if (confirm('Delete this connection?')) {
-                    deleteConnection(state.selectedEdgeId);
+                    deleteConnection(getStore().selectedEdgeId);
                     hideEdgeMenu();
                 }
-            } else if (state.selectedZoneIndex !== -1) {
+            } else if (getStore().selectedZoneIndex !== -1) {
                 if (confirm('Delete this zone/tag?')) {
-                    deleteZone(state.selectedZoneIndex);
+                    deleteZone(getStore().selectedZoneIndex);
                 }
             }
         }
@@ -406,15 +406,15 @@ export function initializeEventListeners() {
     
     // Radial menu actions
     document.querySelector('.radial-connect').addEventListener('click', () => {
-        if (state.selectedNodeId) {
-            startConnectionMode(state.selectedNodeId);
+        if (getStore().selectedNodeId) {
+            startConnectionMode(getStore().selectedNodeId);
             hideRadialMenu();
         }
     });
     
     document.querySelector('.radial-delete').addEventListener('click', () => {
-        if (state.selectedNodeId) {
-            deleteArticleById(state.selectedNodeId);
+        if (getStore().selectedNodeId) {
+            deleteArticleById(getStore().selectedNodeId);
             hideRadialMenu();
         }
     });
@@ -494,8 +494,8 @@ export function switchView(view) {
             });
         });
         
-        if (state.network) {
-            state.network.fit();
+        if (getNetwork()) {
+            getNetwork().fit();
         }
     } else {
         graphView.classList.remove('active');
