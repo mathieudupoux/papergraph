@@ -1,11 +1,16 @@
 // ===== ARTICLE PREVIEW =====
 // Preview panel display and management
 
-function showArticlePreview(articleId) {
-    const article = appData.articles.find(a => a.id === articleId);
+import { state } from '../core/state.js';
+import { getContrastColor, showNotification } from '../utils/helpers.js';
+import { renderListView } from './list/sidebar.js';
+import { save } from '../data/persistence.js';
+
+export function showArticlePreview(articleId) {
+    const article = state.appData.articles.find(a => a.id === articleId);
     if (!article) return;
     
-    currentPreviewArticleId = articleId;
+    state.currentPreviewArticleId = articleId;
     console.log('showArticlePreview: Loading article', articleId, article);
     
     const preview = document.getElementById('articlePreview');
@@ -44,7 +49,7 @@ function showArticlePreview(articleId) {
             badge.textContent = category;
             
             // Use zone color if available (same as graph)
-            const zone = tagZones.find(z => z.tag === category);
+            const zone = state.tagZones.find(z => z.tag === category);
             if (zone) {
                 badge.style.background = zone.color;
                 badge.style.borderColor = zone.color;
@@ -110,44 +115,44 @@ function showArticlePreview(articleId) {
     preview.classList.add('active');
     
     // Setup inline editing once (but not in gallery viewer mode)
-    if (!inlineEditingSetup && !window.isGalleryViewer) {
+    if (!state.inlineEditingSetup && !state.isGalleryViewer) {
         setupInlineEditing();
-        inlineEditingSetup = true;
+        state.inlineEditingSetup = true;
     }
 }
 
-function closeArticlePreview() {
+export function closeArticlePreview() {
     // Save any ongoing edits before closing
-    if (currentEditingElement) {
+    if (state.currentEditingElement) {
         // Determine which field is being edited
         let field = null;
-        if (currentEditingElement.id === 'previewTitle') field = 'title';
-        else if (currentEditingElement.id === 'previewAuthors') field = 'authors';
-        else if (currentEditingElement.id === 'previewText') field = 'text';
+        if (state.currentEditingElement.id === 'previewTitle') field = 'title';
+        else if (state.currentEditingElement.id === 'previewAuthors') field = 'authors';
+        else if (state.currentEditingElement.id === 'previewText') field = 'text';
         
         if (field) {
-            saveInlineEdit(currentEditingElement, field);
+            saveInlineEdit(state.currentEditingElement, field);
         }
     }
     
     const preview = document.getElementById('articlePreview');
     preview.classList.remove('active');
-    currentPreviewArticleId = null;
+    state.currentPreviewArticleId = null;
 }
 
-function setupInlineEditing() {
+export function setupInlineEditing() {
     // Make BibTeX ID editable
     const bibtexIdElement = document.getElementById('previewCitationKey');
     bibtexIdElement.contentEditable = 'true';
     
     bibtexIdElement.addEventListener('focus', () => {
-        currentEditingElement = bibtexIdElement;
-        originalContent = bibtexIdElement.textContent;
+        state.currentEditingElement = bibtexIdElement;
+        state.originalContent = bibtexIdElement.textContent;
         bibtexIdElement.classList.add('editing');
     });
     
     bibtexIdElement.addEventListener('blur', () => {
-        if (currentEditingElement === bibtexIdElement) {
+        if (state.currentEditingElement === bibtexIdElement) {
             saveInlineEdit(bibtexIdElement, 'bibtexId');
         }
     });
@@ -159,9 +164,9 @@ function setupInlineEditing() {
             bibtexIdElement.blur();
         }
         if (e.key === 'Escape') {
-            bibtexIdElement.textContent = originalContent;
+            bibtexIdElement.textContent = state.originalContent;
             bibtexIdElement.classList.remove('editing');
-            currentEditingElement = null;
+            state.currentEditingElement = null;
             bibtexIdElement.blur();
         }
     });
@@ -171,13 +176,13 @@ function setupInlineEditing() {
     titleElement.contentEditable = 'true';
     
     titleElement.addEventListener('focus', () => {
-        currentEditingElement = titleElement;
-        originalContent = titleElement.textContent;
+        state.currentEditingElement = titleElement;
+        state.originalContent = titleElement.textContent;
         titleElement.classList.add('editing');
     });
     
     titleElement.addEventListener('blur', () => {
-        if (currentEditingElement === titleElement) {
+        if (state.currentEditingElement === titleElement) {
             saveInlineEdit(titleElement, 'title');
         }
     });
@@ -189,9 +194,9 @@ function setupInlineEditing() {
             titleElement.blur();
         }
         if (e.key === 'Escape') {
-            titleElement.textContent = originalContent;
+            titleElement.textContent = state.originalContent;
             titleElement.classList.remove('editing');
-            currentEditingElement = null;
+            state.currentEditingElement = null;
             titleElement.blur();
         }
     });
@@ -201,13 +206,13 @@ function setupInlineEditing() {
     authorsElement.contentEditable = 'true';
     
     authorsElement.addEventListener('focus', () => {
-        currentEditingElement = authorsElement;
-        originalContent = authorsElement.textContent;
+        state.currentEditingElement = authorsElement;
+        state.originalContent = authorsElement.textContent;
         authorsElement.classList.add('editing');
     });
     
     authorsElement.addEventListener('blur', () => {
-        if (currentEditingElement === authorsElement) {
+        if (state.currentEditingElement === authorsElement) {
             saveInlineEdit(authorsElement, 'authors');
         }
     });
@@ -219,9 +224,9 @@ function setupInlineEditing() {
             authorsElement.blur();
         }
         if (e.key === 'Escape') {
-            authorsElement.textContent = originalContent;
+            authorsElement.textContent = state.originalContent;
             authorsElement.classList.remove('editing');
-            currentEditingElement = null;
+            state.currentEditingElement = null;
             authorsElement.blur();
         }
     });
@@ -231,13 +236,13 @@ function setupInlineEditing() {
     descriptionElement.contentEditable = 'true';
     
     descriptionElement.addEventListener('focus', () => {
-        currentEditingElement = descriptionElement;
-        originalContent = descriptionElement.textContent;
+        state.currentEditingElement = descriptionElement;
+        state.originalContent = descriptionElement.textContent;
         descriptionElement.classList.add('editing');
     });
     
     descriptionElement.addEventListener('blur', () => {
-        if (currentEditingElement === descriptionElement) {
+        if (state.currentEditingElement === descriptionElement) {
             saveInlineEdit(descriptionElement, 'text');
         }
     });
@@ -250,62 +255,62 @@ function setupInlineEditing() {
             descriptionElement.blur();
         }
         if (e.key === 'Escape') {
-            descriptionElement.textContent = originalContent;
+            descriptionElement.textContent = state.originalContent;
             descriptionElement.classList.remove('editing');
-            currentEditingElement = null;
+            state.currentEditingElement = null;
             descriptionElement.blur();
         }
     });
 }
 
-function saveInlineEdit(element, field) {
+export function saveInlineEdit(element, field) {
     // Prevent double save
-    if (!currentEditingElement || currentEditingElement !== element) {
+    if (!state.currentEditingElement || state.currentEditingElement !== element) {
         return;
     }
     
     element.classList.remove('editing');
-    currentEditingElement = null;
+    state.currentEditingElement = null;
     
-    if (!currentPreviewArticleId) return;
+    if (!state.currentPreviewArticleId) return;
     
-    const article = appData.articles.find(a => a.id === currentPreviewArticleId);
+    const article = state.appData.articles.find(a => a.id === state.currentPreviewArticleId);
     if (!article) return;
     
     const newValue = element.textContent.trim();
     
-    if (newValue !== originalContent.trim()) {
+    if (newValue !== state.originalContent.trim()) {
         article[field] = newValue;
         
         // Update graph node
-        if (network) {
+        if (state.network) {
             if (field === 'title') {
                 const labelFormat = localStorage.getItem('nodeLabelFormat') || 'bibtexId';
                 if (labelFormat === 'title') {
-                    network.body.data.nodes.update({
-                        id: currentPreviewArticleId,
+                    state.network.body.data.nodes.update({
+                        id: state.currentPreviewArticleId,
                         label: newValue
                     });
                 }
             } else if (field === 'bibtexId') {
                 const labelFormat = localStorage.getItem('nodeLabelFormat') || 'bibtexId';
                 if (labelFormat === 'bibtexId') {
-                    network.body.data.nodes.update({
-                        id: currentPreviewArticleId,
+                    state.network.body.data.nodes.update({
+                        id: state.currentPreviewArticleId,
                         label: newValue
                     });
                 }
             } else if (field === 'text') {
                 const tooltipText = newValue ? newValue.substring(0, 100) + '...' : article.title;
-                network.body.data.nodes.update({
-                    id: currentPreviewArticleId,
+                state.network.body.data.nodes.update({
+                    id: state.currentPreviewArticleId,
                     title: tooltipText
                 });
             }
         }
         
         renderListView();
-        saveToLocalStorage(true);
+        save(true);
         showNotification('Article mis à jour!', 'success');
     }
 }

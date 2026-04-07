@@ -2,7 +2,7 @@
 // General helper functions used throughout the application
 
 // Generate consistent color from string (for tag colors)
-function generateColorFromString(str) {
+export function generateColorFromString(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
         hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -27,7 +27,7 @@ function generateColorFromString(str) {
 }
 
 // Darken a hex color by a percentage
-function darkenColor(color, percent) {
+export function darkenColor(color, percent) {
     const num = parseInt(color.replace('#', ''), 16);
     const amt = Math.round(2.55 * percent);
     const R = (num >> 16) - amt;
@@ -40,15 +40,26 @@ function darkenColor(color, percent) {
 }
 
 // Highlight search terms in text
-function highlightSearchTerm(text, searchTerm) {
+export function highlightSearchTerm(text, searchTerm) {
     if (!searchTerm || !text) return text;
     
     const regex = new RegExp(`(${searchTerm})`, 'gi');
     return text.replace(regex, '<mark>$1</mark>');
 }
 
+// Contrast color from hex background (luminance-based)
+export function getContrastColor(hexColor) {
+    if (!hexColor) return '#333333';
+    const hex = hexColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? '#333333' : '#ffffff';
+}
+
 // Show notification message
-function showNotification(message, type = 'info') {
+export function showNotification(message, type = 'info') {
     // Notifications disabled
     return;
 }

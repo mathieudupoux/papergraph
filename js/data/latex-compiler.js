@@ -17,7 +17,7 @@
  * @param {function} options.onProgress - Progress callback
  * @returns {Promise<Blob>} - PDF blob
  */
-async function compileLatexOnline(latexContent, bibtexContent = '', options = {}) {
+export async function compileLatexOnline(latexContent, bibtexContent = '', options = {}) {
     const {
         compiler = 'pdflatex',
         service = 'auto',
@@ -48,7 +48,7 @@ async function compileLatexOnline(latexContent, bibtexContent = '', options = {}
  * @param {string} compiler - Compiler to use
  * @returns {Promise<Blob>} - PDF blob
  */
-async function compileWithUnivHalle(latexContent, bibtexContent, compiler) {
+export async function compileWithUnivHalle(latexContent, bibtexContent, compiler) {
 
     if (!window.supabaseClient) {
         throw new Error('Supabase client not initialized');
@@ -106,7 +106,7 @@ async function compileWithUnivHalle(latexContent, bibtexContent, compiler) {
  * @param {string} compiler - Compiler to use
  * @returns {Promise<Blob>} - PDF blob
  */
-async function compileWithYtoTech(latexContent, bibtexContent, compiler) {
+export async function compileWithYtoTech(latexContent, bibtexContent, compiler) {
     const resources = [
         {
             content: latexContent,
@@ -142,4 +142,5 @@ async function compileWithYtoTech(latexContent, bibtexContent, compiler) {
 }
 
 // Make functions globally available
+// Legacy bridge
 window.compileLatexOnline = compileLatexOnline;

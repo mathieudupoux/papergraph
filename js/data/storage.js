@@ -1,205 +1,31 @@
-// ===== LOCAL STORAGE =====
-// Functions for saving and loading application data
+import { state } from '../core/state.js';
+import { generateColorFromString, showNotification } from '../utils/helpers.js';
+import { save } from './persistence.js';
 
-function saveToLocalStorage(silent = false) {
-    try {
-        // Check if we're in gallery read-only mode
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('source') === 'gallery') {
-            if (!silent) {
-                showNotification('Gallery projects are read-only. Use Export to save your own copy.', 'info');
-            }
-            return;
-        }
-        
-        // Save node positions if network exists
-        if (network) {
-            const positions = network.getPositions();
-            localStorage.setItem('papermap_positions', JSON.stringify(positions));
-            // Also update global saved positions
-            window.savedNodePositions = positions;
-            console.log('Positions saved to localStorage:', Object.keys(positions).length, 'nodes');
-        }
-        
-        localStorage.setItem('papermap_data', JSON.stringify(appData));
-        localStorage.setItem('papermap_zones', JSON.stringify(tagZones));
-        localStorage.setItem('papermap_edge_control_points', JSON.stringify(edgeControlPoints));
-        localStorage.setItem('papermap_next_control_point_id', nextControlPointId.toString());
-        console.log('Data saved to localStorage');
-        
-        // Also save to cloud if enabled (async, non-blocking)
-        if (typeof window.isCloudStorageEnabled === 'function' && window.isCloudStorageEnabled()) {
-            // Dynamically import and call cloud save
-            import('./cloud-storage.js').then(module => {
-                module.saveToCloud(true); // Silent cloud save
-            }).catch(err => {
-                console.warn('Cloud save skipped:', err.message);
-            });
-        }
-        
-        if (!silent) {
-            // showNotification('Projet sauvegardé!', 'success');
-        }
-
-        // Trigger background bibliography rebuild whenever articles are saved
-        if (typeof window.scheduleBibliographyRebuild === 'function') {
-            window.scheduleBibliographyRebuild();
-        }
-    } catch (e) {
-        showNotification('Erreur lors de la sauvegarde: ' + e.message, 'error');
-    }
-}
-
-function loadFromLocalStorage() {
-    try {
-        // Check if we're loading a gallery project
-        if (window.isReadOnlyMode && window.galleryProjectData) {
-            console.log('📖 Loading gallery project in read-only mode');
-            const galleryData = window.galleryProjectData.data;
-            
-            // Load project data structure - support both formats
-            if (galleryData.nodes && galleryData.edges) {
-                // Cloud format (nodes/edges)
-                appData = {
-                    articles: galleryData.nodes || [],
-                    connections: galleryData.edges || [],
-                    projectReview: galleryData.projectReview || "",
-                    projectReviewMeta: galleryData.projectReviewMeta || {
-                        title: "Project Review",
-                        authorsData: [{name: "", affiliationNumbers: []}],
-                        affiliationsData: [{text: ""}],
-                        abstract: ""
-                    },
-                    nextArticleId: Math.max(0, ...(galleryData.nodes || []).map(n => n.id || 0)) + 1,
-                    nextConnectionId: Math.max(0, ...(galleryData.edges || []).map(e => e.id || 0)) + 1
-                };
-                tagZones = galleryData.zones || [];
-                window.savedNodePositions = galleryData.positions || {};
-            } else if (galleryData.articles && galleryData.connections) {
-                // Editor format (articles/connections)
-                appData = {
-                    articles: galleryData.articles || [],
-                    connections: galleryData.connections || [],
-                    projectReview: galleryData.projectReview || "",
-                    projectReviewMeta: galleryData.projectReviewMeta || {
-                        title: "Project Review",
-                        authorsData: [{name: "", affiliationNumbers: []}],
-                        affiliationsData: [{text: ""}],
-                        abstract: ""
-                    },
-                    nextArticleId: galleryData.nextArticleId || Math.max(0, ...(galleryData.articles || []).map(n => n.id || 0)) + 1,
-                    nextConnectionId: galleryData.nextConnectionId || Math.max(0, ...(galleryData.connections || []).map(e => e.id || 0)) + 1
-                };
-                tagZones = galleryData.tagZones || galleryData.zones || [];
-                window.savedNodePositions = galleryData.nodePositions || galleryData.positions || {};
-            }
-            
-            console.log('✓ Loaded gallery project:', appData.articles.length, 'articles');
-            console.log('✓ Loaded gallery zones:', tagZones.length, 'zones');
-            
-            // Initialize control points
-            edgeControlPoints = {};
-            window.edgeControlPoints = edgeControlPoints;
-            nextControlPointId = -1;
-            window.nextControlPointId = nextControlPointId;
-            
-            return;
-        }
-        
-        const saved = localStorage.getItem('papermap_data');
-        if (saved) {
-            appData = JSON.parse(saved);
-            
-            // Ensure new fields exist for backward compatibility
-            if (!appData.projectReview) {
-                appData.projectReview = "";
-            }
-            if (!appData.projectReviewMeta) {
-                appData.projectReviewMeta = {
-                    title: "Project Review",
-                    authors: ""
-                };
-            }
-            
-            console.log('✓ Loaded appData:', appData.articles.length, 'articles');
-        }
-
-        // Load tag zones from localStorage
-        const savedZones = localStorage.getItem('papermap_zones');
-        if (savedZones) {
-            tagZones = JSON.parse(savedZones);
-            console.log('✓ Loaded tagZones:', tagZones.length, 'zones');
-        } else {
-            // Create zones from existing tags if no zones saved
-            initializeZonesFromTags();
-        }
-        
-        // Load edge control points
-        const savedControlPoints = localStorage.getItem('papermap_edge_control_points');
-        if (savedControlPoints) {
-            edgeControlPoints = JSON.parse(savedControlPoints);
-            window.edgeControlPoints = edgeControlPoints; // Update global reference
-            console.log('✓ Loaded edge control points:', Object.keys(edgeControlPoints).length, 'edges with control points');
-        } else {
-            edgeControlPoints = {};
-            window.edgeControlPoints = edgeControlPoints;
-        }
-        
-        // Load next control point ID
-        const savedNextId = localStorage.getItem('papermap_next_control_point_id');
-        if (savedNextId) {
-            nextControlPointId = parseInt(savedNextId);
-            window.nextControlPointId = nextControlPointId; // Update global reference
-            console.log('✓ Loaded next control point ID:', nextControlPointId);
-        } else {
-            nextControlPointId = -1;
-            window.nextControlPointId = nextControlPointId;
-        }
-        
-        // Pre-build bibliography cache after initial load so it's ready for the first compile
-        setTimeout(() => {
-            if (typeof window.scheduleBibliographyRebuild === 'function') {
-                window.scheduleBibliographyRebuild();
-            }
-        }, 500);
-
-        // Load saved node positions - CRITICAL for position persistence
-        const savedPositions = localStorage.getItem('papermap_positions');
-        if (savedPositions) {
-            window.savedNodePositions = JSON.parse(savedPositions);
-            console.log('✓ Loaded node positions:', Object.keys(window.savedNodePositions).length, 'nodes');
-            console.log('Sample positions:', Object.entries(window.savedNodePositions).slice(0, 3));
-        } else {
-            window.savedNodePositions = {};
-            console.log('⚠ No saved positions found in localStorage');
-        }
-    } catch (e) {
-        console.error('Error loading from localStorage:', e);
-        showNotification('Erreur lors du chargement: ' + e.message, 'error');
-    }
-}
+// Re-export persistence functions under legacy names for backward compat
+export { save as saveToLocalStorage, load as loadFromLocalStorage } from './persistence.js';
 
 // Initialize tag zones from existing article tags
-function initializeZonesFromTags() {
-    if (!network || appData.articles.length === 0) return;
+export function initializeZonesFromTags() {
+    if (!state.network || state.appData.articles.length === 0) return;
     
     // Get all unique tags
     const allTags = new Set();
-    appData.articles.forEach(article => {
+    state.appData.articles.forEach(article => {
         article.categories.forEach(tag => allTags.add(tag));
     });
     
     // Create a zone for each tag
     allTags.forEach(tag => {
         // Find all nodes with this tag
-        const nodesWithTag = appData.articles.filter(a => a.categories.includes(tag));
+        const nodesWithTag = state.appData.articles.filter(a => a.categories.includes(tag));
         
         if (nodesWithTag.length === 0) return;
         
         // Calculate bounding box
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         nodesWithTag.forEach(article => {
-            const pos = network.getPositions([article.id])[article.id];
+            const pos = state.network.getPositions([article.id])[article.id];
             if (pos) {
                 minX = Math.min(minX, pos.x);
                 minY = Math.min(minY, pos.y);
@@ -222,20 +48,20 @@ function initializeZonesFromTags() {
             height: maxY - minY + padding * 2
         };
         
-        tagZones.push(zone);
+        state.tagZones.push(zone);
     });
     
     // Save zones
-    saveToLocalStorage(true);
+    save(true);
 }
 
 // Position nodes inside their zones after loading project
-function positionNodesInZones() {
-    if (!network) return;
+export function positionNodesInZones() {
+    if (!state.network) return;
     
     // Get current positions of ALL nodes to avoid overlap
-    const currentPositions = network.getPositions();
-    const savedPositions = window.savedNodePositions || {};
+    const currentPositions = state.network.getPositions();
+    const savedPositions = state.savedNodePositions || {};
     const occupiedPositions = [];
     
     // Record all existing node positions (from saved or current)
@@ -266,10 +92,10 @@ function positionNodesInZones() {
     const nodesToUpdate = [];
     
     // Handle nodes WITH tags (position in zones)
-    if (tagZones.length > 0) {
-        tagZones.forEach(zone => {
+    if (state.tagZones.length > 0) {
+        state.tagZones.forEach(zone => {
             // Find all articles with this tag
-            const articlesWithTag = appData.articles.filter(a => a.categories.includes(zone.tag));
+            const articlesWithTag = state.appData.articles.filter(a => a.categories.includes(zone.tag));
             
             if (articlesWithTag.length === 0) return;
             
@@ -335,7 +161,7 @@ function positionNodesInZones() {
     }
     
     // Handle nodes WITHOUT tags (position in grid)
-    const untaggedArticles = appData.articles.filter(a => !a.categories || a.categories.length === 0);
+    const untaggedArticles = state.appData.articles.filter(a => !a.categories || a.categories.length === 0);
     
     if (untaggedArticles.length > 0) {
         // Create a grid layout for untagged nodes
@@ -396,12 +222,12 @@ function positionNodesInZones() {
     
     // Apply all position updates at once
     if (nodesToUpdate.length > 0) {
-        network.body.data.nodes.update(nodesToUpdate);
-        saveToLocalStorage(true);
+        state.network.body.data.nodes.update(nodesToUpdate);
+        save(true);
     }
 }
 
-function findFreePositionInZone(preferredX, preferredY, zone, nodeId, occupiedPositions, isPositionOccupied) {
+export function findFreePositionInZone(preferredX, preferredY, zone, nodeId, occupiedPositions, isPositionOccupied) {
     const padding = 120;
     const maxAttempts = 100;
     const spiralStep = 40;
@@ -446,3 +272,4 @@ function findFreePositionInZone(preferredX, preferredY, zone, nodeId, occupiedPo
         y: zone.y + padding + Math.random() * (zone.height - 2 * padding)
     };
 }
+

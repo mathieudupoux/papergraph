@@ -1,29 +1,29 @@
+import { state } from '../core/state.js';
+import { showNotification } from '../utils/helpers.js';
+import { updateGraph } from './render.js';
+import { save } from '../data/persistence.js';
+
 // ===== CONNECTIONS =====
 // Connection/edge management and creation
 
-function createConnection(label) {
-    if (!connectionMode.fromNodeId || !connectionMode.toNodeId) return;
+export function createConnection(label) {
+    if (!state.connectionMode.fromNodeId || !state.connectionMode.toNodeId) return;
     
-    appData.connections.push({
-        id: appData.nextConnectionId++,
-        from: connectionMode.fromNodeId,
-        to: connectionMode.toNodeId,
+    state.appData.connections.push({
+        id: state.appData.nextConnectionId++,
+        from: state.connectionMode.fromNodeId,
+        to: state.connectionMode.toNodeId,
         label: label
     });
     
     cancelConnectionMode();
     updateGraph();
-    saveToLocalStorage();
+    save();
     showNotification('Connexion créée!', 'success');
-    
-    // Close onboarding if it's open
-    if (typeof window.closeOnboarding === 'function') {
-        window.closeOnboarding();
-    }
 }
 
-function editConnectionLabel(edgeId) {
-    const connection = appData.connections.find(c => c.id === edgeId);
+export function editConnectionLabel(edgeId) {
+    const connection = state.appData.connections.find(c => c.id === edgeId);
     if (!connection) return;
     
     const currentLabel = connection.label || '';
@@ -32,18 +32,18 @@ function editConnectionLabel(edgeId) {
     if (newLabel !== null) {
         connection.label = newLabel.trim();
         updateGraph();
-        saveToLocalStorage();
+        save();
         showNotification('Label mis à jour!', 'success');
     }
 }
 
-function editEdgeLabelInline(edgeId, edge, pointerDOM) {
+export function editEdgeLabelInline(edgeId, edge, pointerDOM) {
     // Don't allow editing in gallery viewer mode
-    if (window.isGalleryViewer) {
+    if (state.isGalleryViewer) {
         return;
     }
     
-    const connection = appData.connections.find(c => c.id === edgeId);
+    const connection = state.appData.connections.find(c => c.id === edgeId);
     if (!connection) {
         console.log('Connection not found:', edgeId);
         return;
@@ -84,16 +84,16 @@ function editEdgeLabelInline(edgeId, edge, pointerDOM) {
     input.focus();
     input.select();
     
-    isEditingEdgeLabel = true;
+    state.isEditingEdgeLabel = true;
     
     const save = () => {
         connection.label = input.value.trim();
-        isEditingEdgeLabel = false;
+        state.isEditingEdgeLabel = false;
         
         // Just rebuild this specific edge instead of calling updateGraph
         rebuildEdgeWithControlPoints(edgeId);
         
-        saveToLocalStorage();
+        save();
         input.remove();
         if (connection.label) {
             showNotification('Label mis à jour!', 'success');
@@ -105,7 +105,7 @@ function editEdgeLabelInline(edgeId, edge, pointerDOM) {
         if (e.key === 'Enter') {
             save();
         } else if (e.key === 'Escape') {
-            isEditingEdgeLabel = false;
+            state.isEditingEdgeLabel = false;
             input.remove();
         }
     });
@@ -122,7 +122,7 @@ function editEdgeLabelInline(edgeId, edge, pointerDOM) {
     }, 100);
 }
 
-function deleteConnection(edgeId) {
+export function deleteConnection(edgeId) {
     console.log('🗑️ Deleting connection:', edgeId);
     
     // Check if edgeId is a segment, extract actual edge ID
@@ -133,14 +133,14 @@ function deleteConnection(edgeId) {
     }
     
     // Delete all control points for THIS SPECIFIC edge only
-    if (edgeControlPoints[actualEdgeId]) {
-        const controlPointsToDelete = edgeControlPoints[actualEdgeId];
+    if (state.edgeControlPoints[actualEdgeId]) {
+        const controlPointsToDelete = state.edgeControlPoints[actualEdgeId];
         console.log('🗑️ Deleting', controlPointsToDelete.length, 'control points for edge', actualEdgeId, ':', controlPointsToDelete);
         
         // Remove control point nodes from network
         controlPointsToDelete.forEach(cpId => {
             try {
-                network.body.data.nodes.remove(cpId);
+                state.network.body.data.nodes.remove(cpId);
                 console.log('✅ Removed control point node:', cpId);
             } catch (error) {
                 console.error('❌ Error removing control point node:', cpId, error);
@@ -149,7 +149,7 @@ function deleteConnection(edgeId) {
         
         // Remove segment edges for THIS SPECIFIC edge only
         // Use exact matching to avoid removing segments from other edges
-        const segmentEdgesToRemove = network.body.data.edges.get({
+        const segmentEdgesToRemove = state.network.body.data.edges.get({
             filter: (edge) => {
                 const edgeIdStr = edge.id.toString();
                 if (!edgeIdStr.includes('_seg_')) return false;
@@ -161,18 +161,18 @@ function deleteConnection(edgeId) {
         
         if (segmentEdgesToRemove.length > 0) {
             console.log('🗑️ Removing', segmentEdgesToRemove.length, 'segment edges for edge', actualEdgeId);
-            network.body.data.edges.remove(segmentEdgesToRemove.map(e => e.id));
+            state.network.body.data.edges.remove(segmentEdgesToRemove.map(e => e.id));
         }
         
         // Remove from edgeControlPoints map
-        delete edgeControlPoints[actualEdgeId];
+        delete state.edgeControlPoints[actualEdgeId];
         console.log('✅ Cleared control points for edge', actualEdgeId);
     }
     
     // Remove the main edge if it exists (it might not if it has control points)
     try {
-        if (network.body.data.edges.get(actualEdgeId)) {
-            network.body.data.edges.remove(actualEdgeId);
+        if (state.network.body.data.edges.get(actualEdgeId)) {
+            state.network.body.data.edges.remove(actualEdgeId);
             console.log('✅ Removed main edge:', actualEdgeId);
         }
     } catch (error) {
@@ -180,17 +180,17 @@ function deleteConnection(edgeId) {
     }
     
     // Remove the connection from appData
-    appData.connections = appData.connections.filter(c => c.id !== actualEdgeId);
+    state.appData.connections = state.appData.connections.filter(c => c.id !== actualEdgeId);
     console.log('✅ Connection removed from appData');
     
     updateGraph();
-    saveToLocalStorage();
+    save();
     showNotification('Connexion supprimée', 'info');
 }
 
-function showEdgeMenu(x, y, edgeId) {
+export function showEdgeMenu(x, y, edgeId) {
     // Don't show edge menu in gallery viewer mode
-    if (window.isGalleryViewer) {
+    if (state.isGalleryViewer) {
         return;
     }
     
@@ -247,7 +247,7 @@ function showEdgeMenu(x, y, edgeId) {
                 // Get the original click position and convert to canvas coordinates
                 const originalX = parseFloat(menu.dataset.originalX);
                 const originalY = parseFloat(menu.dataset.originalY);
-                const canvasPos = network.DOMtoCanvas({ x: originalX, y: originalY });
+                const canvasPos = state.network.DOMtoCanvas({ x: originalX, y: originalY });
                 
                 console.log('📍 Canvas position for control point:', canvasPos);
                 addControlPointToEdge(edgeId, canvasPos);
@@ -278,18 +278,18 @@ function showEdgeMenu(x, y, edgeId) {
     
     // Store edgeId for the menu actions
     menu.dataset.edgeId = edgeId;
-    selectedEdgeId = edgeId;
-    console.log('✓ Edge menu shown, selectedEdgeId:', selectedEdgeId);
+    state.selectedEdgeId = edgeId;
+    console.log('✓ Edge menu shown, selectedEdgeId:', state.selectedEdgeId);
 }
 
-function hideEdgeMenu() {
+export function hideEdgeMenu() {
     const menu = document.getElementById('edgeMenu');
     menu.classList.remove('active');
-    selectedEdgeId = null;
+    state.selectedEdgeId = null;
     
     // Re-enable interactions
-    if (network) {
-        network.setOptions({ 
+    if (state.network) {
+        state.network.setOptions({ 
             interaction: { 
                 dragNodes: true,
                 dragView: true,
@@ -301,24 +301,24 @@ function hideEdgeMenu() {
     }
 }
 
-function startConnectionMode(fromNodeId) {
+export function startConnectionMode(fromNodeId) {
     // Cannot start connection from a control point
     if (fromNodeId < 0) {
         console.log('⚠️ Cannot start connection from control point:', fromNodeId);
         return;
     }
     
-    connectionMode.active = true;
-    connectionMode.fromNodeId = fromNodeId;
-    connectionMode.hoveredNodeId = null;
+    state.connectionMode.active = true;
+    state.connectionMode.fromNodeId = fromNodeId;
+    state.connectionMode.hoveredNodeId = null;
     
     // Show indicator
     document.getElementById('connectionModeIndicator').classList.add('active');
     
     // Change cursor
-    if (network) {
-        network.canvas.body.container.style.cursor = 'crosshair';
-        network.setOptions({
+    if (state.network) {
+        state.network.canvas.body.container.style.cursor = 'crosshair';
+        state.network.setOptions({
             interaction: {
                 hover: true,
                 hoverConnectedEdges: false,
@@ -335,11 +335,11 @@ function startConnectionMode(fromNodeId) {
         
         // Create temporary invisible node for cursor tracking
         const tempNodeId = 'temp-cursor-node';
-        connectionMode.tempNode = tempNodeId;
+        state.connectionMode.tempNode = tempNodeId;
         
-        const sourcePos = network.getPositions([fromNodeId])[fromNodeId];
+        const sourcePos = state.network.getPositions([fromNodeId])[fromNodeId];
         
-        network.body.data.nodes.add({
+        state.network.body.data.nodes.add({
             id: tempNodeId,
             x: sourcePos.x,
             y: sourcePos.y,
@@ -355,9 +355,9 @@ function startConnectionMode(fromNodeId) {
         
         // Create temporary preview edge
         const tempEdgeId = 'temp-connection-preview';
-        connectionMode.tempEdge = tempEdgeId;
+        state.connectionMode.tempEdge = tempEdgeId;
         
-        network.body.data.edges.add({
+        state.network.body.data.edges.add({
             id: tempEdgeId,
             from: fromNodeId,
             to: tempNodeId,
@@ -378,18 +378,18 @@ function startConnectionMode(fromNodeId) {
         });
         
         // Update temp node on mouse move
-        const canvas = network.canvas.frame.canvas;
-        connectionMode.mouseMoveHandler = function(event) {
-            if (!connectionMode.active) return;
+        const canvas = state.network.canvas.frame.canvas;
+        state.connectionMode.mouseMoveHandler = function(event) {
+            if (!state.connectionMode.active) return;
             
             const rect = canvas.getBoundingClientRect();
             const x = event.clientX - rect.left;
             const y = event.clientY - rect.top;
             
-            const canvasPos = network.DOMtoCanvas({x: x, y: y});
+            const canvasPos = state.network.DOMtoCanvas({x: x, y: y});
             
-            if (!connectionMode.hoveredNodeId) {
-                network.body.data.nodes.update({
+            if (!state.connectionMode.hoveredNodeId) {
+                state.network.body.data.nodes.update({
                     id: tempNodeId,
                     x: canvasPos.x,
                     y: canvasPos.y
@@ -397,13 +397,13 @@ function startConnectionMode(fromNodeId) {
             }
         };
         
-        canvas.addEventListener('mousemove', connectionMode.mouseMoveHandler);
+        canvas.addEventListener('mousemove', state.connectionMode.mouseMoveHandler);
         
         // Track hover for snapping
-        connectionMode.hoverHandler = function(params) {
-            if (connectionMode.active && params.node !== connectionMode.fromNodeId) {
-                connectionMode.hoveredNodeId = params.node;
-                network.body.data.edges.update({
+        state.connectionMode.hoverHandler = function(params) {
+            if (state.connectionMode.active && params.node !== state.connectionMode.fromNodeId) {
+                state.connectionMode.hoveredNodeId = params.node;
+                state.network.body.data.edges.update({
                     id: tempEdgeId,
                     to: params.node,
                     color: {
@@ -414,10 +414,10 @@ function startConnectionMode(fromNodeId) {
             }
         };
         
-        connectionMode.blurHandler = function() {
-            if (connectionMode.active) {
-                connectionMode.hoveredNodeId = null;
-                network.body.data.edges.update({
+        state.connectionMode.blurHandler = function() {
+            if (state.connectionMode.active) {
+                state.connectionMode.hoveredNodeId = null;
+                state.network.body.data.edges.update({
                     id: tempEdgeId,
                     to: tempNodeId,
                     color: {
@@ -428,14 +428,14 @@ function startConnectionMode(fromNodeId) {
             }
         };
         
-        network.on('hoverNode', connectionMode.hoverHandler);
-        network.on('blurNode', connectionMode.blurHandler);
+        state.network.on('hoverNode', state.connectionMode.hoverHandler);
+        state.network.on('blurNode', state.connectionMode.blurHandler);
     }
     
     showNotification('Cliquez sur un nœud pour créer la connexion', 'info');
 }
 
-function handleConnectionModeClick(params) {
+export function handleConnectionModeClick(params) {
     if (params.nodes.length > 0) {
         const toNodeId = params.nodes[0];
         
@@ -445,18 +445,18 @@ function handleConnectionModeClick(params) {
             return;
         }
         
-        if (toNodeId === connectionMode.tempNode) {
+        if (toNodeId === state.connectionMode.tempNode) {
             return;
         }
         
-        if (toNodeId === connectionMode.fromNodeId) {
+        if (toNodeId === state.connectionMode.fromNodeId) {
             showNotification('Un article ne peut pas se connecter à lui-même', 'error');
             return;
         }
         
         // Check if connection exists
-        const exists = appData.connections.some(c => 
-            c.from === connectionMode.fromNodeId && c.to === toNodeId
+        const exists = state.appData.connections.some(c => 
+            c.from === state.connectionMode.fromNodeId && c.to === toNodeId
         );
         
         if (exists) {
@@ -466,23 +466,23 @@ function handleConnectionModeClick(params) {
         }
         
         // Remove temporary preview
-        if (connectionMode.tempEdge && network) {
+        if (state.connectionMode.tempEdge && state.network) {
             try {
-                network.body.data.edges.remove(connectionMode.tempEdge);
+                state.network.body.data.edges.remove(state.connectionMode.tempEdge);
             } catch (e) {}
-            connectionMode.tempEdge = null;
+            state.connectionMode.tempEdge = null;
         }
         
         // Remove temporary node
-        if (connectionMode.tempNode && network) {
+        if (state.connectionMode.tempNode && state.network) {
             try {
-                network.body.data.nodes.remove(connectionMode.tempNode);
+                state.network.body.data.nodes.remove(state.connectionMode.tempNode);
             } catch (e) {}
-            connectionMode.tempNode = null;
+            state.connectionMode.tempNode = null;
         }
         
         // Create connection
-        connectionMode.toNodeId = toNodeId;
+        state.connectionMode.toNodeId = toNodeId;
         createConnection('');
     } else {
         // Cancel on empty click
@@ -490,49 +490,49 @@ function handleConnectionModeClick(params) {
     }
 }
 
-function cancelConnectionMode() {
-    connectionMode.active = false;
-    connectionMode.fromNodeId = null;
-    connectionMode.toNodeId = null;
-    connectionMode.hoveredNodeId = null;
+export function cancelConnectionMode() {
+    state.connectionMode.active = false;
+    state.connectionMode.fromNodeId = null;
+    state.connectionMode.toNodeId = null;
+    state.connectionMode.hoveredNodeId = null;
     
     // Remove listeners
-    if (connectionMode.mouseMoveHandler && network) {
-        const canvas = network.canvas.frame.canvas;
-        canvas.removeEventListener('mousemove', connectionMode.mouseMoveHandler);
-        connectionMode.mouseMoveHandler = null;
+    if (state.connectionMode.mouseMoveHandler && state.network) {
+        const canvas = state.network.canvas.frame.canvas;
+        canvas.removeEventListener('mousemove', state.connectionMode.mouseMoveHandler);
+        state.connectionMode.mouseMoveHandler = null;
     }
     
-    if (connectionMode.hoverHandler && network) {
-        network.off('hoverNode', connectionMode.hoverHandler);
-        connectionMode.hoverHandler = null;
+    if (state.connectionMode.hoverHandler && state.network) {
+        state.network.off('hoverNode', state.connectionMode.hoverHandler);
+        state.connectionMode.hoverHandler = null;
     }
-    if (connectionMode.blurHandler && network) {
-        network.off('blurNode', connectionMode.blurHandler);
-        connectionMode.blurHandler = null;
+    if (state.connectionMode.blurHandler && state.network) {
+        state.network.off('blurNode', state.connectionMode.blurHandler);
+        state.connectionMode.blurHandler = null;
     }
     
     // Remove temporary edge
-    if (connectionMode.tempEdge && network) {
+    if (state.connectionMode.tempEdge && state.network) {
         try {
-            network.body.data.edges.remove(connectionMode.tempEdge);
+            state.network.body.data.edges.remove(state.connectionMode.tempEdge);
         } catch (e) {}
     }
-    connectionMode.tempEdge = null;
+    state.connectionMode.tempEdge = null;
     
     // Remove temporary node
-    if (connectionMode.tempNode && network) {
+    if (state.connectionMode.tempNode && state.network) {
         try {
-            network.body.data.nodes.remove(connectionMode.tempNode);
+            state.network.body.data.nodes.remove(state.connectionMode.tempNode);
         } catch (e) {}
     }
-    connectionMode.tempNode = null;
+    state.connectionMode.tempNode = null;
     
     document.getElementById('connectionModeIndicator').classList.remove('active');
     
-    if (network) {
-        network.canvas.body.container.style.cursor = "default";
-        network.setOptions({
+    if (state.network) {
+        state.network.canvas.body.container.style.cursor = "default";
+        state.network.setOptions({
             interaction: {
                 hover: true,
                 hoverConnectedEdges: true,
@@ -553,21 +553,15 @@ function cancelConnectionMode() {
 
 // ===== EDGE CONTROL POINTS =====
 // System for adding/removing control points on edges to route them around nodes
-
-let edgeControlPoints = {}; // { edgeId: [controlPointNodeId, ...] }
-let nextControlPointId = -1; // Negative IDs for control points
-
-// Expose globally for access from other modules
-window.edgeControlPoints = edgeControlPoints;
-window.nextControlPointId = nextControlPointId;
+// Variables edgeControlPoints and nextControlPointId are declared in state.js
 
 // Add control point to an edge
-function addControlPointToEdge(edgeId, clickPosition = null) {
+export function addControlPointToEdge(edgeId, clickPosition = null) {
     console.log('🔵 ========== ADD CONTROL POINT TO EDGE ==========');
     console.log('🔵 Called with edgeId:', edgeId, 'Type:', typeof edgeId);
     console.log('🔵 Click position:', clickPosition);
-    console.log('� Current edgeControlPoints:', JSON.stringify(edgeControlPoints));
-    console.log('� Next control point ID:', nextControlPointId);
+    console.log('� Current edgeControlPoints:', JSON.stringify(state.edgeControlPoints));
+    console.log('� Next control point ID:', state.nextControlPointId);
     console.log('🔵 ================================================');
     
     // Check if this is a segment edge (contains _seg_)
@@ -582,10 +576,10 @@ function addControlPointToEdge(edgeId, clickPosition = null) {
         console.log('📍 Detected segment edge. Original edge:', actualEdgeId, 'Segment:', segmentIndex);
     }
     
-    const connection = appData.connections.find(c => c.id === actualEdgeId);
+    const connection = state.appData.connections.find(c => c.id === actualEdgeId);
     if (!connection) {
         console.error('❌ Connection not found for edgeId:', actualEdgeId);
-        console.log('Available connections:', appData.connections);
+        console.log('Available connections:', state.appData.connections);
         return;
     }
     
@@ -595,16 +589,16 @@ function addControlPointToEdge(edgeId, clickPosition = null) {
     let edge;
     if (segmentIndex >= 0) {
         // Get the segment edge
-        edge = network.body.data.edges.get(edgeId);
+        edge = state.network.body.data.edges.get(edgeId);
         console.log('📍 Using segment edge:', edgeId, edge);
     } else {
-        edge = network.body.data.edges.get(actualEdgeId);
+        edge = state.network.body.data.edges.get(actualEdgeId);
         console.log('📍 Using main edge:', actualEdgeId, edge);
     }
     
     if (!edge) {
         console.error('❌ Edge not found in vis-network:', edgeId);
-        console.log('Available edges:', network.body.data.edges.get());
+        console.log('Available edges:', state.network.body.data.edges.get());
         return;
     }
     
@@ -621,8 +615,8 @@ function addControlPointToEdge(edgeId, clickPosition = null) {
         }
     }
     
-    const fromPos = network.getPositions([edge.from])[edge.from];
-    const toPos = network.getPositions([edge.to])[edge.to];
+    const fromPos = state.network.getPositions([edge.from])[edge.from];
+    const toPos = state.network.getPositions([edge.to])[edge.to];
     
     console.log('📍 From node', edge.from, 'position:', fromPos);
     console.log('📍 To node', edge.to, 'position:', toPos);
@@ -633,8 +627,7 @@ function addControlPointToEdge(edgeId, clickPosition = null) {
     }
     
     // Create control point node at click position or middle of the segment
-    const controlPointId = nextControlPointId--;
-    window.nextControlPointId = nextControlPointId; // Sync with global
+    const controlPointId = state.nextControlPointId--;
     
     const controlPoint = clickPosition ? {
         x: clickPosition.x,
@@ -649,7 +642,7 @@ function addControlPointToEdge(edgeId, clickPosition = null) {
     
     // Add control point node - small center with transparent border for larger interaction
     try {
-        network.body.data.nodes.add({
+        state.network.body.data.nodes.add({
             id: controlPointId,
             x: controlPoint.x,
             y: controlPoint.y,
@@ -691,20 +684,20 @@ function addControlPointToEdge(edgeId, clickPosition = null) {
     }
     
     // Store control point at the right position - ONLY for this specific edge
-    if (!edgeControlPoints[actualEdgeId]) {
-        edgeControlPoints[actualEdgeId] = [];
+    if (!state.edgeControlPoints[actualEdgeId]) {
+        state.edgeControlPoints[actualEdgeId] = [];
         console.log('📝 Created new control points array for edge', actualEdgeId);
     }
     
     // Double-check that this control point doesn't already exist in ANY edge
-    for (const [existingEdgeId, existingPoints] of Object.entries(edgeControlPoints)) {
+    for (const [existingEdgeId, existingPoints] of Object.entries(state.edgeControlPoints)) {
         if (existingPoints.includes(controlPointId)) {
             console.error('❌ Control point', controlPointId, 'already exists in edge', existingEdgeId);
             return;
         }
     }
     
-    if (segmentIndex >= 0 && edgeControlPoints[actualEdgeId].length > 0) {
+    if (segmentIndex >= 0 && state.edgeControlPoints[actualEdgeId].length > 0) {
         // We're clicking on a segment between existing control points
         // segmentIndex corresponds to the position in the chain
         // Chain is: from -> cp[0] -> cp[1] -> ... -> to
@@ -713,23 +706,23 @@ function addControlPointToEdge(edgeId, clickPosition = null) {
         // Segment N: cp[N-1] -> to
         // So clicking on segment i means we want to insert AFTER cp[i-1]
         // which is at position i in the array
-        edgeControlPoints[actualEdgeId].splice(segmentIndex, 0, controlPointId);
+        state.edgeControlPoints[actualEdgeId].splice(segmentIndex, 0, controlPointId);
         console.log('✅ Control point', controlPointId, 'inserted at index', segmentIndex, 'in existing chain for edge', actualEdgeId);
     } else {
         // First control point or clicking on original edge
-        edgeControlPoints[actualEdgeId].push(controlPointId);
+        state.edgeControlPoints[actualEdgeId].push(controlPointId);
         console.log('✅ Control point', controlPointId, 'added to edge', actualEdgeId, '(first or at end)');
     }
     
-    console.log('✅ Edge', actualEdgeId, 'now has points:', edgeControlPoints[actualEdgeId]);
-    console.log('📊 All edgeControlPoints:', edgeControlPoints);
+    console.log('✅ Edge', actualEdgeId, 'now has points:', state.edgeControlPoints[actualEdgeId]);
+    console.log('📊 All edgeControlPoints:', state.edgeControlPoints);
     
     // Rebuild edges through control points
     console.log('🔄 Calling rebuildEdgeWithControlPoints...');
     rebuildEdgeWithControlPoints(actualEdgeId);
     
     console.log('💾 Saving to localStorage...');
-    saveToLocalStorage();
+    save();
     
     showNotification('Point de contrôle ajouté', 'success');
     console.log('✅ addControlPointToEdge complete');
@@ -743,7 +736,7 @@ function removeControlPointFromEdge(controlPointId) {
     let edgeId = null;
     let pointIndex = -1;
     
-    for (const [eid, points] of Object.entries(edgeControlPoints)) {
+    for (const [eid, points] of Object.entries(state.edgeControlPoints)) {
         const idx = points.indexOf(controlPointId);
         if (idx !== -1) {
             edgeId = parseInt(eid);
@@ -758,39 +751,39 @@ function removeControlPointFromEdge(controlPointId) {
     }
     
     // Remove control point node
-    network.body.data.nodes.remove(controlPointId);
+    state.network.body.data.nodes.remove(controlPointId);
     
     // Remove from array
-    edgeControlPoints[edgeId].splice(pointIndex, 1);
+    state.edgeControlPoints[edgeId].splice(pointIndex, 1);
     
     // Remove entry if no more control points
-    if (edgeControlPoints[edgeId].length === 0) {
-        delete edgeControlPoints[edgeId];
+    if (state.edgeControlPoints[edgeId].length === 0) {
+        delete state.edgeControlPoints[edgeId];
     }
     
     // Rebuild edges
     rebuildEdgeWithControlPoints(edgeId);
-    saveToLocalStorage();
+    save();
     showNotification('Point de contrôle supprimé', 'success');
 }
 
 // Rebuild edge path through control points
-function rebuildEdgeWithControlPoints(edgeId) {
+export function rebuildEdgeWithControlPoints(edgeId) {
     console.log('🔄 rebuildEdgeWithControlPoints called for edge:', edgeId);
     
-    const connection = appData.connections.find(c => c.id === edgeId);
+    const connection = state.appData.connections.find(c => c.id === edgeId);
     if (!connection) {
         console.error('❌ Connection not found for edge:', edgeId);
         return;
     }
     
-    const controlPoints = edgeControlPoints[edgeId] || [];
+    const controlPoints = state.edgeControlPoints[edgeId] || [];
     
     console.log('� Edge', edgeId, 'has', controlPoints.length, 'control points:', controlPoints);
     console.log('📊 Connection:', connection);
     
     // Remove all intermediate edges for this connection - use exact matching
-    const edgesToRemove = network.body.data.edges.get({
+    const edgesToRemove = state.network.body.data.edges.get({
         filter: (edge) => {
             const edgeIdStr = edge.id.toString();
             if (!edgeIdStr.includes('_seg_')) return false;
@@ -801,13 +794,13 @@ function rebuildEdgeWithControlPoints(edgeId) {
     });
     
     console.log('🗑️ Removing', edgesToRemove.length, 'segment edges for edge', edgeId);
-    network.body.data.edges.remove(edgesToRemove.map(e => e.id));
+    state.network.body.data.edges.remove(edgesToRemove.map(e => e.id));
     
     if (controlPoints.length === 0) {
         // No control points - restore original edge with label
         console.log('⚪ No control points - restoring original edge');
-        if (!network.body.data.edges.get(edgeId)) {
-            network.body.data.edges.add({
+        if (!state.network.body.data.edges.get(edgeId)) {
+            state.network.body.data.edges.add({
                 id: edgeId,
                 from: connection.from,
                 to: connection.to,
@@ -821,7 +814,7 @@ function rebuildEdgeWithControlPoints(edgeId) {
             console.log('✅ Original edge restored with label:', connection.label);
         } else {
             // Edge exists, just update its label and smooth
-            network.body.data.edges.update({
+            state.network.body.data.edges.update({
                 id: edgeId,
                 label: connection.label || '',
                 smooth: {
@@ -837,8 +830,8 @@ function rebuildEdgeWithControlPoints(edgeId) {
         console.log('🔗 Building edge chain with control points');
         
         // Remove original edge if it exists
-        if (network.body.data.edges.get(edgeId)) {
-            network.body.data.edges.remove(edgeId);
+        if (state.network.body.data.edges.get(edgeId)) {
+            state.network.body.data.edges.remove(edgeId);
             console.log('🗑️ Removed original edge', edgeId);
         }
         
@@ -851,8 +844,8 @@ function rebuildEdgeWithControlPoints(edgeId) {
         let maxDistance = 0;
         
         for (let i = 0; i < chain.length - 1; i++) {
-            const fromPos = network.getPositions([chain[i]])[chain[i]];
-            const toPos = network.getPositions([chain[i + 1]])[chain[i + 1]];
+            const fromPos = state.network.getPositions([chain[i]])[chain[i]];
+            const toPos = state.network.getPositions([chain[i + 1]])[chain[i + 1]];
             const distance = Math.sqrt(
                 Math.pow(toPos.x - fromPos.x, 2) + 
                 Math.pow(toPos.y - fromPos.y, 2)
@@ -893,11 +886,11 @@ function rebuildEdgeWithControlPoints(edgeId) {
             
             // Use update if exists, add if not
             try {
-                const existing = network.body.data.edges.get(segmentId);
+                const existing = state.network.body.data.edges.get(segmentId);
                 if (existing) {
-                    network.body.data.edges.update(newEdge);
+                    state.network.body.data.edges.update(newEdge);
                 } else {
-                    network.body.data.edges.add(newEdge);
+                    state.network.body.data.edges.add(newEdge);
                 }
             } catch (e) {
                 console.error('Error adding/updating segment:', e);
@@ -910,7 +903,7 @@ function rebuildEdgeWithControlPoints(edgeId) {
     console.log('🎨 Redrawing network...');
     
     // Force network to update smooth settings
-    network.setOptions({
+    state.network.setOptions({
         edges: {
             smooth: {
                 enabled: true,
@@ -920,13 +913,13 @@ function rebuildEdgeWithControlPoints(edgeId) {
         }
     });
     
-    network.redraw();
+    state.network.redraw();
     console.log('✅ rebuildEdgeWithControlPoints complete');
 }
 
 // Update all edges with control points after node movement
 function updateAllEdgesWithControlPoints() {
-    Object.keys(edgeControlPoints).forEach(edgeId => {
+    Object.keys(state.edgeControlPoints).forEach(edgeId => {
         rebuildEdgeWithControlPoints(parseInt(edgeId));
     });
 }
@@ -935,11 +928,11 @@ function updateAllEdgesWithControlPoints() {
 function restoreControlPointNodes() {
     console.log('🔄 Restoring control point nodes from storage...');
     
-    const savedPositions = window.savedNodePositions || {};
+    const savedPositions = savedNodePositions || {};
     const controlPointsToRestore = [];
     
-    Object.entries(edgeControlPoints).forEach(([edgeId, controlPointIds]) => {
-        const connection = appData.connections.find(c => c.id === parseInt(edgeId));
+    Object.entries(state.edgeControlPoints).forEach(([edgeId, controlPointIds]) => {
+        const connection = state.appData.connections.find(c => c.id === parseInt(edgeId));
         if (!connection) {
             console.warn('⚠️ Connection not found for edge:', edgeId);
             return;
@@ -947,7 +940,7 @@ function restoreControlPointNodes() {
         
         controlPointIds.forEach((cpId, index) => {
             // Check if node already exists
-            if (network.body.data.nodes.get(cpId)) {
+            if (state.network.body.data.nodes.get(cpId)) {
                 console.log('✓ Control point node', cpId, 'already exists');
                 return;
             }
@@ -961,8 +954,8 @@ function restoreControlPointNodes() {
                 // Calculate default position if not saved
                 console.warn('⚠️ No saved position for control point', cpId, ', calculating default');
                 
-                const fromPos = savedPositions[connection.from] || network.getPositions([connection.from])[connection.from];
-                const toPos = savedPositions[connection.to] || network.getPositions([connection.to])[connection.to];
+                const fromPos = savedPositions[connection.from] || state.network.getPositions([connection.from])[connection.from];
+                const toPos = savedPositions[connection.to] || state.network.getPositions([connection.to])[connection.to];
                 
                 if (!fromPos || !toPos) {
                     console.error('❌ Cannot calculate position for control point', cpId);
@@ -1016,7 +1009,7 @@ function restoreControlPointNodes() {
     });
     
     if (controlPointsToRestore.length > 0) {
-        network.body.data.nodes.add(controlPointsToRestore);
+        state.network.body.data.nodes.add(controlPointsToRestore);
         console.log('✅ Restored', controlPointsToRestore.length, 'control point nodes');
     } else {
         console.log('⚪ No control points to restore');
@@ -1024,12 +1017,12 @@ function restoreControlPointNodes() {
 }
 
 // Check if a node is a control point
-function isControlPoint(nodeId) {
+export function isControlPoint(nodeId) {
     return nodeId < 0;
 }
 
 // Show menu for control point
-function showControlPointMenu(x, y, controlPointId) {
+export function showControlPointMenu(x, y, controlPointId) {
     const existingMenu = document.getElementById('controlPointMenu');
     if (existingMenu) {
         existingMenu.remove();
@@ -1058,8 +1051,8 @@ function showControlPointMenu(x, y, controlPointId) {
         removeControlPointFromEdge(controlPointId);
         menu.remove();
         // Re-enable interactions
-        if (network) {
-            network.setOptions({ 
+        if (state.network) {
+            state.network.setOptions({ 
                 interaction: { 
                     dragNodes: true,
                     dragView: true,
@@ -1079,8 +1072,8 @@ function showControlPointMenu(x, y, controlPointId) {
                 menu.remove();
                 document.removeEventListener('click', clickOutside);
                 // Re-enable interactions
-                if (network) {
-                    network.setOptions({ 
+                if (state.network) {
+                    state.network.setOptions({ 
                         interaction: { 
                             dragNodes: true,
                             dragView: true,

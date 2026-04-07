@@ -1,13 +1,24 @@
 // ===== ARTICLE MODAL =====
 // Article creation and editing modal
 
-function openArticleModal(articleId = null) {
+import { state } from '../core/state.js';
+import { showNotification } from '../utils/helpers.js';
+import { hideSelectionBox } from '../graph/selection.js';
+import { resetImportZone } from '../data/import.js';
+import { generateBibtexId } from '../data/bibtex-parser.js';
+import { updateCategoryFilters } from './filters.js';
+import { updateGraph } from '../graph/render.js';
+import { renderListView } from './list/sidebar.js';
+import { save } from '../data/persistence.js';
+import { showArticlePreview } from './preview.js';
+
+export function openArticleModal(articleId = null) {
     const modal = document.getElementById('articleModal');
     const modalTitle = document.getElementById('modalTitle');
     const form = document.getElementById('articleForm');
     const deleteBtn = document.getElementById('deleteArticleBtn');
     
-    currentEditingArticleId = articleId;
+    state.currentEditingArticleId = articleId;
     
     // Hide selection box when opening modal
     hideSelectionBox();
@@ -29,7 +40,7 @@ function openArticleModal(articleId = null) {
         modalTitle.textContent = 'Éditer l\'article';
         deleteBtn.style.display = 'inline-block';
         
-        const article = appData.articles.find(a => a.id === articleId);
+        const article = state.appData.articles.find(a => a.id === articleId);
         if (article) {
             document.getElementById('articleTitle').value = article.title || '';
             document.getElementById('articleAuthors').value = article.authors || '';
@@ -67,14 +78,14 @@ function openArticleModal(articleId = null) {
     modal.classList.add('active');
 }
 
-function closeModal() {
+export function closeModal() {
     document.getElementById('articleModal').classList.remove('active');
-    currentEditingArticleId = null;
-    pendingImportArticle = null; // Clear pending import data
+    state.currentEditingArticleId = null;
+    state.pendingImportArticle = null; // Clear pending import data
     resetImportZone();
 }
 
-function saveArticle(e) {
+export function saveArticle(e) {
     e.preventDefault();
     
     const title = document.getElementById('articleTitle').value.trim();
@@ -99,9 +110,9 @@ function saveArticle(e) {
         ? categoriesText.split(',').map(c => c.trim()).filter(c => c)
         : [];
     
-    if (currentEditingArticleId) {
+    if (state.currentEditingArticleId) {
         // Update existing article
-        const article = appData.articles.find(a => a.id === currentEditingArticleId);
+        const article = state.appData.articles.find(a => a.id === state.currentEditingArticleId);
         if (article) {
             article.title = title;
             article.authors = authors;
@@ -130,7 +141,7 @@ function saveArticle(e) {
     } else {
         // Create new article
         const newArticle = {
-            id: appData.nextArticleId++,
+            id: state.appData.nextArticleId++,
             title,
             authors,
             year,
@@ -152,29 +163,29 @@ function saveArticle(e) {
         };
         
         // If this is from a BibTeX import, preserve imported fields
-        if (pendingImportArticle) {
+        if (state.pendingImportArticle) {
             // Preserve important BibTeX fields
-            newArticle.bibtexId = pendingImportArticle.bibtexId;
-            newArticle.citationKey = pendingImportArticle.citationKey;
-            newArticle.entryType = pendingImportArticle.entryType;
-            newArticle.originalBibTeX = pendingImportArticle.originalBibTeX;
+            newArticle.bibtexId = state.pendingImportArticle.bibtexId;
+            newArticle.citationKey = state.pendingImportArticle.citationKey;
+            newArticle.entryType = state.pendingImportArticle.entryType;
+            newArticle.originalBibTeX = state.pendingImportArticle.originalBibTeX;
             
             // Preserve additional BibTeX fields that might not be in the form
-            if (pendingImportArticle.booktitle) newArticle.booktitle = pendingImportArticle.booktitle;
-            if (pendingImportArticle.month) newArticle.month = pendingImportArticle.month;
-            if (pendingImportArticle.date) newArticle.date = pendingImportArticle.date;
-            if (pendingImportArticle.institution) newArticle.institution = pendingImportArticle.institution;
-            if (pendingImportArticle.organization) newArticle.organization = pendingImportArticle.organization;
-            if (pendingImportArticle.school) newArticle.school = pendingImportArticle.school;
-            if (pendingImportArticle.edition) newArticle.edition = pendingImportArticle.edition;
-            if (pendingImportArticle.series) newArticle.series = pendingImportArticle.series;
-            if (pendingImportArticle.chapter) newArticle.chapter = pendingImportArticle.chapter;
-            if (pendingImportArticle.address) newArticle.address = pendingImportArticle.address;
-            if (pendingImportArticle.howpublished) newArticle.howpublished = pendingImportArticle.howpublished;
-            if (pendingImportArticle.keywords) newArticle.keywords = pendingImportArticle.keywords;
+            if (state.pendingImportArticle.booktitle) newArticle.booktitle = state.pendingImportArticle.booktitle;
+            if (state.pendingImportArticle.month) newArticle.month = state.pendingImportArticle.month;
+            if (state.pendingImportArticle.date) newArticle.date = state.pendingImportArticle.date;
+            if (state.pendingImportArticle.institution) newArticle.institution = state.pendingImportArticle.institution;
+            if (state.pendingImportArticle.organization) newArticle.organization = state.pendingImportArticle.organization;
+            if (state.pendingImportArticle.school) newArticle.school = state.pendingImportArticle.school;
+            if (state.pendingImportArticle.edition) newArticle.edition = state.pendingImportArticle.edition;
+            if (state.pendingImportArticle.series) newArticle.series = state.pendingImportArticle.series;
+            if (state.pendingImportArticle.chapter) newArticle.chapter = state.pendingImportArticle.chapter;
+            if (state.pendingImportArticle.address) newArticle.address = state.pendingImportArticle.address;
+            if (state.pendingImportArticle.howpublished) newArticle.howpublished = state.pendingImportArticle.howpublished;
+            if (state.pendingImportArticle.keywords) newArticle.keywords = state.pendingImportArticle.keywords;
             
             // Clear the pending import
-            pendingImportArticle = null;
+            state.pendingImportArticle = null;
         } else {
             // Generate BibTeX ID for manually created article
             if (authors || title) {
@@ -183,17 +194,17 @@ function saveArticle(e) {
         }
         
         // Position at the center of the current viewport (not project center)
-        if (typeof network !== 'undefined' && network) {
-            const viewCenter = network.getViewPosition();
+        if (typeof state.network !== 'undefined' && state.network) {
+            const viewCenter = state.network.getViewPosition();
             newArticle.x = viewCenter.x;
             newArticle.y = viewCenter.y;
         }
         
-        appData.articles.push(newArticle);
+        state.appData.articles.push(newArticle);
         
         // If category filter is active and new article doesn't match, reset filter
-        if (currentCategoryFilter && !categories.includes(currentCategoryFilter)) {
-            currentCategoryFilter = '';
+        if (state.currentCategoryFilter && !categories.includes(state.currentCategoryFilter)) {
+            state.currentCategoryFilter = '';
             document.getElementById('categoryFilter').value = '';
         }
     }
@@ -202,56 +213,51 @@ function saveArticle(e) {
     updateCategoryFilters();
     updateGraph();
     renderListView();
-    saveToLocalStorage(true);  // Silent save, notification already shown
+    save(true);  // Silent save, notification already shown
     showNotification('Article saved!', 'success');
     
-    // Close onboarding if it's open
-    if (typeof window.closeOnboarding === 'function') {
-        window.closeOnboarding();
-    }
-    
     // Update preview if it's open
-    if (currentEditingArticleId && selectedNodeId === currentEditingArticleId) {
-        showArticlePreview(currentEditingArticleId);
+    if (state.currentEditingArticleId && state.selectedNodeId === state.currentEditingArticleId) {
+        showArticlePreview(state.currentEditingArticleId);
     }
 }
 
-function deleteArticle() {
-    if (!currentEditingArticleId) return;
+export function deleteArticle() {
+    if (!state.currentEditingArticleId) return;
     
     if (confirm('Delete this article?')) {
-        deleteArticleById(currentEditingArticleId);
+        deleteArticleById(state.currentEditingArticleId);
         closeModal();
     }
 }
 
-function deleteArticleById(articleId) {
+export function deleteArticleById(articleId) {
     // Remove article
-    appData.articles = appData.articles.filter(a => a.id !== articleId);
+    state.appData.articles = state.appData.articles.filter(a => a.id !== articleId);
     
     // Find connections that will be removed
-    const connectionsToRemove = appData.connections.filter(c => 
+    const connectionsToRemove = state.appData.connections.filter(c => 
         c.from === articleId || c.to === articleId
     );
     
     // Clean up control points for these connections
     connectionsToRemove.forEach(conn => {
-        if (edgeControlPoints[conn.id]) {
-            const controlPointsToDelete = edgeControlPoints[conn.id];
+        if (state.edgeControlPoints[conn.id]) {
+            const controlPointsToDelete = state.edgeControlPoints[conn.id];
             console.log('🗑️ Cleaning up control points for connection', conn.id, ':', controlPointsToDelete);
             
             // Remove control point nodes from network
-            if (network && network.body && network.body.data) {
+            if (state.network && state.network.body && state.network.body.data) {
                 controlPointsToDelete.forEach(cpId => {
                     try {
-                        network.body.data.nodes.remove(cpId);
+                        state.network.body.data.nodes.remove(cpId);
                     } catch (error) {
                         console.error('Error removing control point node:', cpId, error);
                     }
                 });
                 
                 // Remove segment edges - use exact matching to avoid removing wrong segments
-                const segmentEdges = network.body.data.edges.get({
+                const segmentEdges = state.network.body.data.edges.get({
                     filter: (edge) => {
                         const edgeIdStr = edge.id.toString();
                         if (!edgeIdStr.includes('_seg_')) return false;
@@ -261,34 +267,29 @@ function deleteArticleById(articleId) {
                     }
                 });
                 if (segmentEdges.length > 0) {
-                    network.body.data.edges.remove(segmentEdges.map(e => e.id));
+                    state.network.body.data.edges.remove(segmentEdges.map(e => e.id));
                     console.log('🗑️ Removed', segmentEdges.length, 'segment edges for connection', conn.id);
                 }
             }
             
             // Remove from edgeControlPoints
-            delete edgeControlPoints[conn.id];
+            delete state.edgeControlPoints[conn.id];
         }
     });
     
     // Remove connections
-    appData.connections = appData.connections.filter(c => 
+    state.appData.connections = state.appData.connections.filter(c => 
         c.from !== articleId && c.to !== articleId
     );
     
     updateCategoryFilters();
     updateGraph();
     renderListView();
-    saveToLocalStorage();
+    save();
     showNotification('Article deleted', 'info');
-    
-    // Close onboarding if it's open
-    if (typeof window.closeOnboarding === 'function') {
-        window.closeOnboarding();
-    }
 }
 
-function toggleManualForm() {
+export function toggleManualForm() {
     const manualForm = document.getElementById('manualForm');
     const toggleBtn = document.getElementById('toggleManualBtn');
     

@@ -3,18 +3,21 @@
  * Enforces read-only mode for viewers
  */
 
+import { state } from '../core/state.js';
+import { showNotification } from './helpers.js';
+
 /**
  * Check if current user can edit the project
  * @returns {boolean} True if user can edit
  */
 export function canEdit() {
     // If no role is set, assume full permissions (local mode)
-    if (!window.currentUserRole) {
+    if (!state.currentUserRole) {
         return true;
     }
     
     // Viewers cannot edit
-    if (window.currentUserRole === 'viewer') {
+    if (state.currentUserRole === 'viewer') {
         return false;
     }
     
@@ -27,18 +30,14 @@ export function canEdit() {
  * @returns {boolean} True if user is in read-only mode
  */
 export function isReadOnly() {
-    return window.isReadOnly === true;
+    return state.isReadOnly === true;
 }
 
 /**
  * Show read-only notification
  */
 export function showReadOnlyNotification() {
-    if (typeof showNotification === 'function') {
-        showNotification('You have view-only access to this project', 'warning');
-    } else {
-        alert('You have view-only access to this project');
-    }
+    showNotification('You have view-only access to this project', 'warning');
 }
 
 /**
@@ -63,7 +62,7 @@ export function executeIfCanEdit(action, actionName = 'action') {
  * @returns {string|null} 'owner', 'editor', 'viewer', or null
  */
 export function getUserRole() {
-    return window.currentUserRole || null;
+    return state.currentUserRole || null;
 }
 
 /**
@@ -71,7 +70,7 @@ export function getUserRole() {
  * @returns {boolean} True if user is owner
  */
 export function isOwner() {
-    return window.currentUserRole === 'owner';
+    return state.currentUserRole === 'owner';
 }
 
 /**
@@ -79,5 +78,5 @@ export function isOwner() {
  * @returns {boolean} True if user can edit
  */
 export function isEditorOrOwner() {
-    return window.currentUserRole === 'owner' || window.currentUserRole === 'editor';
+    return state.currentUserRole === 'owner' || state.currentUserRole === 'editor';
 }

@@ -4,7 +4,7 @@
  * API: https://latex.ytotech.com
  */
 
-class LaTeXOnlineCompiler {
+export class LaTeXOnlineCompiler {
     constructor() {
         // Default to public latex-online instance
         this.serverUrl = 'https://latex.ytotech.com';
@@ -130,13 +130,8 @@ class LaTeXOnlineCompiler {
 }
 
 // Create and export singleton
-const latexOnlineCompiler = new LaTeXOnlineCompiler();
+export const latexOnlineCompiler = new LaTeXOnlineCompiler();
 
-// Make globally available
-window.swiftLatexCompiler = latexOnlineCompiler; // Keep old name for compatibility
+// Legacy bridge
+window.swiftLatexCompiler = latexOnlineCompiler;
 window.latexOnlineCompiler = latexOnlineCompiler;
-
-// Also export for modules
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = latexOnlineCompiler;
-}

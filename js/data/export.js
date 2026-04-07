@@ -1,15 +1,25 @@
 // ===== EXPORT / IMPORT FUNCTIONS =====
 // Project export, import, and PDF generation
 
+import { state } from '../core/state.js';
+import { darkenColor, showNotification, getContrastColor } from '../utils/helpers.js';
+import { save } from './persistence.js';
+import { articleToBibTeX } from './bibtex-parser.js';
+import { getBibliography, escapeLatex } from './bibliography.js';
+import { updateCategoryFilters } from '../ui/filters.js';
+import { renderListView } from '../ui/list/sidebar.js';
+import { updateGraph } from '../graph/render.js';
+import { closeArticlePreview } from '../ui/preview.js';
+
 // Helper function to generate filename with project title and author
-function getExportFilename(extension = 'papergraph') {
+export function getExportFilename(extension = 'papergraph') {
     let projectTitle = 'papergraph';
     let authorName = '';
     
     // Check if we're in gallery viewer mode with metadata
-    if (window.galleryProjectMetadata) {
-        projectTitle = window.galleryProjectMetadata.title || projectTitle;
-        authorName = window.galleryProjectMetadata.author || '';
+    if (state.galleryProjectMetadata) {
+        projectTitle = state.galleryProjectMetadata.title || projectTitle;
+        authorName = state.galleryProjectMetadata.author || '';
     } else {
         // Normal editor mode - get title from input or localStorage
         const titleInput = document.getElementById('projectTitleInput') || document.getElementById('projectTitle');
@@ -33,38 +43,36 @@ function getExportFilename(extension = 'papergraph') {
     return filename;
 }
 
-function newProject() {
+export function newProject() {
     if (confirm('Créer un nouveau projet vide ? Les données non exportées seront perdues.')) {
-        appData = {
+        state.appData = {
             articles: [],
             connections: [],
             nextArticleId: 1,
             nextConnectionId: 1
         };
-        tagZones = [];
-        currentCategoryFilter = '';
-        selectedNodeId = null;
+        state.tagZones = [];
+        state.currentCategoryFilter = '';
+        state.selectedNodeId = null;
         selectedEdgeIndex = -1;
         
         // Clear edge control points
-        edgeControlPoints = {};
-        window.edgeControlPoints = {};
-        nextControlPointId = -1;
-        window.nextControlPointId = -1;
+        state.edgeControlPoints = {};
+        state.nextControlPointId = -1;
         
         // Remove all control point nodes (negative IDs) from the network
-        if (network) {
-            const allNodes = network.body.data.nodes.get();
+        if (state.network) {
+            const allNodes = state.network.body.data.nodes.get();
             const controlPointNodes = allNodes.filter(node => node.id < 0);
             if (controlPointNodes.length > 0) {
-                network.body.data.nodes.remove(controlPointNodes.map(n => n.id));
+                state.network.body.data.nodes.remove(controlPointNodes.map(n => n.id));
             }
             
             // Remove all segment edges (IDs containing _seg_)
-            const allEdges = network.body.data.edges.get();
+            const allEdges = state.network.body.data.edges.get();
             const segmentEdges = allEdges.filter(edge => edge.id.toString().includes('_seg_'));
             if (segmentEdges.length > 0) {
-                network.body.data.edges.remove(segmentEdges.map(e => e.id));
+                state.network.body.data.edges.remove(segmentEdges.map(e => e.id));
             }
         }
         
@@ -74,9 +82,9 @@ function newProject() {
         localStorage.removeItem('papermap_positions');
         localStorage.removeItem('papermap_edge_control_points');
         localStorage.removeItem('papermap_next_control_point_id');
-        window.savedNodePositions = {};
+        state.savedNodePositions = {};
         
-        saveToLocalStorage();
+        save();
         updateCategoryFilters();
         renderListView();
         updateGraph();
@@ -86,12 +94,12 @@ function newProject() {
     }
 }
 
-function exportProject() {
+export function exportProject() {
     // Include tagZones and node positions in the export
     const exportData = {
-        ...appData,
-        tagZones: tagZones,
-        nodePositions: window.savedNodePositions || {}
+        ...state.appData,
+        tagZones: state.tagZones,
+        nodePositions: state.savedNodePositions || {}
     };
     const dataStr = JSON.stringify(exportData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
@@ -106,13 +114,13 @@ function exportProject() {
     showNotification('Projet exporté!', 'success');
 }
 
-function exportToImage() {
-    if (!network) {
+export function exportToImage() {
+    if (!state.network) {
         showNotification('Le graphe n\'est pas encore initialisé', 'error');
         return;
     }
     
-    const canvas = network.canvas.frame.canvas;
+    const canvas = state.network.canvas.frame.canvas;
     const url = canvas.toDataURL('image/png');
     
     const a = document.createElement('a');
@@ -123,40 +131,40 @@ function exportToImage() {
     showNotification('Image exportée en PNG!', 'success');
 }
 
-function exportToSVG() {
-    if (!network) {
+export function exportToSVG() {
+    if (!state.network) {
         showNotification('Le graphe n\'est pas encore initialisé', 'error');
         return;
     }
     
     try {
-        const canvas = network.canvas.frame.canvas;
+        const canvas = state.network.canvas.frame.canvas;
         
         // Use the actual canvas dimensions (what's visible)
         const width = canvas.width;
         const height = canvas.height;
         
         // Get all positions in canvas coordinates
-        const positions = network.getPositions();
-        const scale = network.getScale();
-        const viewPosition = network.getViewPosition();
+        const positions = state.network.getPositions();
+        const scale = state.network.getScale();
+        const viewPosition = state.network.getViewPosition();
         
         let svgElements = [];
         
         // Get nodes data first (needed for edge arrow positioning)
-        const nodes = network.body.data.nodes.get();
+        const nodes = state.network.body.data.nodes.get();
         
         // Draw zones first (background)
-        if (tagZones && tagZones.length > 0) {
-            const sortedZones = [...tagZones].sort((a, b) => {
+        if (state.tagZones && state.tagZones.length > 0) {
+            const sortedZones = [...state.tagZones].sort((a, b) => {
                 const areaA = a.width * a.height;
                 const areaB = b.width * b.height;
                 return areaB - areaA;
             });
             
             sortedZones.forEach(zone => {
-                const topLeft = network.canvasToDOM({ x: zone.x, y: zone.y });
-                const bottomRight = network.canvasToDOM({ x: zone.x + zone.width, y: zone.y + zone.height });
+                const topLeft = state.network.canvasToDOM({ x: zone.x, y: zone.y });
+                const bottomRight = state.network.canvasToDOM({ x: zone.x + zone.width, y: zone.y + zone.height });
                 
                 const x = topLeft.x;
                 const y = topLeft.y;
@@ -181,7 +189,7 @@ function exportToSVG() {
                 if (zone.tag && zone.tag.trim() !== '') {
                     const titleCanvasX = zone.x + 10;
                     const titleCanvasY = zone.y + 10;
-                    const titlePos = network.canvasToDOM({ x: titleCanvasX, y: titleCanvasY });
+                    const titlePos = state.network.canvasToDOM({ x: titleCanvasX, y: titleCanvasY });
                     const titleX = titlePos.x;
                     const titleY = titlePos.y;
                     const textPadding = 10 * scale;
@@ -191,7 +199,7 @@ function exportToSVG() {
                     const fontSize = 24 * scale;
                     
                     // Measure text width accurately using canvas
-                    const ctx = network.canvas.frame.canvas.getContext('2d');
+                    const ctx = state.network.canvas.frame.canvas.getContext('2d');
                     ctx.save();
                     ctx.font = `bold ${fontSize}px Arial`;
                     const textWidth = ctx.measureText(zone.tag).width;
@@ -215,14 +223,14 @@ function exportToSVG() {
         }
         
         // Draw edges
-        const edges = network.body.data.edges.get();
+        const edges = state.network.body.data.edges.get();
         edges.forEach(edge => {
             const fromPos = positions[edge.from];
             const toPos = positions[edge.to];
             
             if (fromPos && toPos) {
-                const from = network.canvasToDOM(fromPos);
-                const to = network.canvasToDOM(toPos);
+                const from = state.network.canvasToDOM(fromPos);
+                const to = state.network.canvasToDOM(toPos);
                 
                 let x1 = from.x;
                 let y1 = from.y;
@@ -245,14 +253,14 @@ function exportToSVG() {
                 
                 // Check if edge has control points (smooth curve)
                 const edgeId = `${edge.from}_${edge.to}`;
-                const controlPointIds = window.edgeControlPoints?.[edgeId];
+                const controlPointIds = state.edgeControlPoints?.[edgeId];
                 
                 if (controlPointIds && controlPointIds.length > 0) {
                     // Draw smooth curve using quadratic/cubic bezier
                     const controlPoints = controlPointIds.map(cpId => {
                         const cpPos = positions[cpId];
                         if (cpPos) {
-                            const cpDom = network.canvasToDOM(cpPos);
+                            const cpDom = state.network.canvasToDOM(cpPos);
                             return { x: cpDom.x, y: cpDom.y };
                         }
                         return null;
@@ -335,7 +343,7 @@ function exportToSVG() {
                 
                 // Draw arrow only if target is not a control point (subnode)
                 if (edge.to >= 0) {
-                    const visToNode = network.body.nodes[edge.to];
+                    const visToNode = state.network.body.nodes[edge.to];
                     if (!visToNode || !visToNode.shape) {
                         return;
                     }
@@ -361,8 +369,8 @@ function exportToSVG() {
                     // Transform node dimensions to DOM space using scale
                     // The scale factor is already embedded in the network transformation
                     // We need to convert a size difference in canvas to DOM
-                    const topLeft = network.canvasToDOM({ x: toPos.x - nodeCanvasW/2, y: toPos.y - nodeCanvasH/2 });
-                    const bottomRight = network.canvasToDOM({ x: toPos.x + nodeCanvasW/2, y: toPos.y + nodeCanvasH/2 });
+                    const topLeft = state.network.canvasToDOM({ x: toPos.x - nodeCanvasW/2, y: toPos.y - nodeCanvasH/2 });
+                    const bottomRight = state.network.canvasToDOM({ x: toPos.x + nodeCanvasW/2, y: toPos.y + nodeCanvasH/2 });
                     const nodeW = bottomRight.x - topLeft.x;
                     const nodeH = bottomRight.y - topLeft.y;
                     
@@ -432,7 +440,7 @@ function exportToSVG() {
             const pos = positions[node.id];
             if (!pos) return;
             
-            const domPos = network.canvasToDOM(pos);
+            const domPos = state.network.canvasToDOM(pos);
             const x = domPos.x;
             const y = domPos.y;
             
@@ -446,7 +454,7 @@ function exportToSVG() {
             }
             
             // Get the actual rendered node from vis-network
-            const visNode = network.body.nodes[node.id];
+            const visNode = state.network.body.nodes[node.id];
             if (!visNode) return;
             
             // Get node visual properties
@@ -521,7 +529,7 @@ function exportToSVG() {
 }
 
 // Helper function to escape XML special characters
-function escapeXml(text) {
+export function escapeXml(text) {
     if (!text) return '';
     return String(text)
         .replace(/&/g, '&amp;')
@@ -535,9 +543,9 @@ function escapeXml(text) {
  * Generate SVG content without downloading (for preview generation)
  * Returns the SVG string - uses the full export SVG logic
  */
-function generateSVGContent() {
-    // Use window.network to ensure access from anywhere
-    const networkInstance = typeof network !== 'undefined' ? network : window.network;
+export function generateSVGContent() {
+    // network is available from state.js
+    const networkInstance = state.network;
     
     if (!networkInstance) {
         console.warn('generateSVGContent: No network instance available');
@@ -556,8 +564,8 @@ function generateSVGContent() {
         const edges = networkInstance.body.data.edges.get();
         
         // Draw zones first (background)
-        if (window.tagZones && window.tagZones.length > 0) {
-            const sortedZones = [...window.tagZones].sort((a, b) => {
+        if (state.tagZones && state.tagZones.length > 0) {
+            const sortedZones = [...state.tagZones].sort((a, b) => {
                 const areaA = a.width * a.height;
                 const areaB = b.width * b.height;
                 return areaB - areaA;
@@ -701,7 +709,7 @@ function generateSVGContent() {
 }
 
 // Helper function for SVG text color contrast
-function getContrastColorForSVG(hexColor) {
+export function getContrastColorForSVG(hexColor) {
     const hex = hexColor.replace('#', '');
     const r = parseInt(hex.substr(0, 2), 16);
     const g = parseInt(hex.substr(2, 2), 16);
@@ -713,7 +721,7 @@ function getContrastColorForSVG(hexColor) {
 // Make generateSVGContent available globally for cloud-storage module
 window.generateSVGContent = generateSVGContent;
 
-function importProject(e) {
+export function importProject(e) {
     const file = e.target.files[0];
     if (!file) return;
     
@@ -729,29 +737,29 @@ function importProject(e) {
             if (confirm('This will replace the current project. Continue?')) {
                 // Extract tagZones if present
                 if (imported.tagZones) {
-                    tagZones = imported.tagZones;
+                    state.tagZones = imported.tagZones;
                     delete imported.tagZones;  // Remove from appData
                 } else {
                     // If no zones in file, they will be created from tags
-                    tagZones = [];
+                    state.tagZones = [];
                 }
                 
                 // Extract node positions if present
                 if (imported.nodePositions) {
-                    window.savedNodePositions = imported.nodePositions;
+                    state.savedNodePositions = imported.nodePositions;
                     delete imported.nodePositions;  // Remove from appData
                 } else {
-                    window.savedNodePositions = {};
+                    state.savedNodePositions = {};
                 }
                 
-                appData = imported;
+                state.appData = imported;
                 
                 // Ensure new fields exist for backward compatibility
-                if (!appData.projectReview) {
-                    appData.projectReview = "";
+                if (!state.appData.projectReview) {
+                    state.appData.projectReview = "";
                 }
-                if (!appData.reviewMetadata) {
-                    appData.reviewMetadata = {
+                if (!state.appData.reviewMetadata) {
+                    state.appData.reviewMetadata = {
                         title: '',
                         author: '',
                         date: ''
@@ -763,11 +771,11 @@ function importProject(e) {
                 updateCategoryFilters();
                 
                 // Initialize zones if none were imported
-                if (tagZones.length === 0) {
+                if (state.tagZones.length === 0) {
                     initializeZonesFromTags();
                 }
                 
-                saveToLocalStorage();
+                save();
                 
                 // Recenter the graph view to show all imported content
                 setTimeout(() => {
@@ -777,11 +785,6 @@ function importProject(e) {
                 }, 300); // Small delay to ensure graph is fully rendered
                 
                 showNotification('Project imported!', 'success');
-                
-                // Close onboarding if it's open
-                if (typeof window.closeOnboarding === 'function') {
-                    window.closeOnboarding();
-                }
             }
         } catch (err) {
             showNotification('Error importing: ' + err.message, 'error');
@@ -796,15 +799,15 @@ function importProject(e) {
 
 // ===== BIBTEX EXPORT =====
 
-function exportToBibtex() {
-    if (appData.articles.length === 0) {
+export function exportToBibtex() {
+    if (state.appData.articles.length === 0) {
         showNotification('Aucun article à exporter', 'warning');
         return;
     }
     
     let bibtexContent = '';
     
-    appData.articles.forEach(article => {
+    state.appData.articles.forEach(article => {
         bibtexContent += articleToBibTeX(article) + '\n';
     });
     
@@ -818,7 +821,7 @@ function exportToBibtex() {
     a.click();
     
     URL.revokeObjectURL(url);
-    showNotification(`${appData.articles.length} article(s) exporté(s) en BibTeX!`, 'success');
+    showNotification(`${state.appData.articles.length} article(s) exporté(s) en BibTeX!`, 'success');
 }
 
 
@@ -846,7 +849,7 @@ function exportToBibtex() {
 /**
  * Get custom LaTeX style from localStorage (or use default)
  */
-function getLatexStyle() {
+export function getLatexStyle() {
     const savedStyle = localStorage.getItem('papergraph_latex_style');
     if (savedStyle) {
         return savedStyle;
@@ -903,7 +906,7 @@ function getLatexStyle() {
 /**
  * Save custom LaTeX style to localStorage
  */
-function saveLatexStyle(styleContent) {
+export function saveLatexStyle(styleContent) {
     localStorage.setItem('papergraph_latex_style', styleContent);
     showNotification('LaTeX style saved!', 'success');
 }
@@ -911,30 +914,19 @@ function saveLatexStyle(styleContent) {
 /**
  * Reset LaTeX style to default
  */
-function resetLatexStyle() {
+export function resetLatexStyle() {
     localStorage.removeItem('papergraph_latex_style');
     showNotification('LaTeX style reset to default!', 'success');
 }
 
-/**
- * Escape special LaTeX characters
- */
-function escapeLatex(text) {
-    if (!text) return '';
-    return String(text)
-        .replace(/\\/g, '\\textbackslash{}')
-        .replace(/[&%$#_{}]/g, '\\$&')
-        .replace(/~/g, '\\textasciitilde{}')
-        .replace(/\^/g, '\\textasciicircum{}')
-        .replace(/</g, '\\textless{}')
-        .replace(/>/g, '\\textgreater{}');
-}
+// escapeLatex is now imported from bibliography.js and re-exported
+export { escapeLatex };
 
 /**
  * Sanitize citation keys - remove or replace characters that are problematic in BibTeX keys
  * BibTeX keys should only contain alphanumeric characters, hyphens, and underscores
  */
-function sanitizeCitationKey(key) {
+export function sanitizeCitationKey(key) {
     if (!key) return 'ref';
     // Replace problematic characters with underscores
     return String(key)
@@ -946,7 +938,7 @@ function sanitizeCitationKey(key) {
 /**
  * Generate complete LaTeX document
  */
-function generateLatexDocument() {
+export function generateLatexDocument() {
     // Use extended preamble with maketitle support
     const style = `\\documentclass[11pt,a4paper]{article}
 \\usepackage{filecontents}
@@ -996,11 +988,11 @@ function generateLatexDocument() {
 }`;
     
     // Get project metadata
-    const projectTitle = (appData.projectReviewMeta?.title) || 'Project Review';
-    const authorsData = appData.projectReviewMeta?.authorsData || [];
-    const affiliationsData = appData.projectReviewMeta?.affiliationsData || [];
-    const projectAbstract = (appData.projectReviewMeta?.abstract) || '';
-    const projectContent = appData.projectReview || '';
+    const projectTitle = (state.appData.projectReviewMeta?.title) || 'Project Review';
+    const authorsData = state.appData.projectReviewMeta?.authorsData || [];
+    const affiliationsData = state.appData.projectReviewMeta?.affiliationsData || [];
+    const projectAbstract = (state.appData.projectReviewMeta?.abstract) || '';
+    const projectContent = state.appData.projectReview || '';
     
     // Start LaTeX document
     let latex = style + '\n\n';
@@ -1078,7 +1070,7 @@ function generateLatexDocument() {
     }
     
     // Add embedded bibliography using filecontents
-    const articlesWithBibtex = appData.articles ? appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
+    const articlesWithBibtex = state.appData.articles ? state.appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
     if (articlesWithBibtex.length > 0) {
         const bibContent = generateBibtexContent();
         if (bibContent && bibContent.trim()) {
@@ -1106,8 +1098,8 @@ function generateLatexDocument() {
     }
     
     // Concatenate each article's LaTeX content
-    if (appData.articles && appData.articles.length > 0) {
-        appData.articles.forEach((article, index) => {
+    if (state.appData.articles && state.appData.articles.length > 0) {
+        state.appData.articles.forEach((article, index) => {
             // Reset section numbering for each article
             latex += `\\setcounter{section}{0}\n`;
             latex += `\\setcounter{subsection}{0}\n`;
@@ -1167,35 +1159,18 @@ function generateLatexDocument() {
 }
 
 /**
- * Generate BibTeX file content from articles
+ * Generate BibTeX file content from articles.
+ * Delegates to the centralised bibliography module.
  */
-function generateBibtexContent() {
-    // Use pre-built cache if available (rebuilt in background when articles change)
-    if (window.cachedBibContent !== null && window.cachedBibContent !== undefined) {
-        return window.cachedBibContent;
-    }
-
-    let bibtexContent = '';
-    
-    if (appData.articles && appData.articles.length > 0) {
-        appData.articles.forEach(article => {
-            if (article.bibtexId) {
-                bibtexContent += articleToBibTeX(article) + '\n';
-            }
-        });
-    }
-
-    // Store in cache for next call
-    window.cachedBibContent = bibtexContent;
-    
-    return bibtexContent;
+export function generateBibtexContent() {
+    return getBibliography();
 }
 
 /**
  * Process content to preserve LaTeX commands and math
  * Users can write LaTeX directly in their content (sections, formatting, citations, etc.)
  */
-function processLatexContent(text) {
+export function processLatexContent(text) {
     if (!text) return '';
     
     // Process citations: \cite{key1,key2}, \citep{key}, \citet{key}
@@ -1226,7 +1201,7 @@ function processLatexContent(text) {
 /**
  * Export project to PDF using SwiftLaTeX WebAssembly compiler
  */
-async function exportToPDF() {
+export async function exportToPDF() {
     try {
         showNotification('Generating LaTeX document...', 'info');
 
@@ -1281,7 +1256,7 @@ async function exportToPDF() {
 /**
  * Download LaTeX source as ZIP (with .tex and .bib files)
  */
-async function exportToLatex() {
+export async function exportToLatex() {
     try {
         const latexContent = generateLatexDocument();
         const bibContent = generateBibtexContent();
@@ -1313,7 +1288,7 @@ async function exportToLatex() {
 /**
  * Show LaTeX style editor modal
  */
-function showLatexStyleEditor() {
+export function showLatexStyleEditor() {
     const modal = document.createElement('div');
     modal.className = 'modal active';
     modal.innerHTML = `
@@ -1346,7 +1321,11 @@ window.showLatexStyleEditor = showLatexStyleEditor;
 window.saveLatexStyle = saveLatexStyle;
 window.resetLatexStyle = resetLatexStyle;
 window.getLatexStyle = getLatexStyle;
+// Legacy bridge
 window.sanitizeCitationKey = sanitizeCitationKey;
+// Legacy bridge
 window.generateLatexDocument = generateLatexDocument;
+// Legacy bridge
+window.generateBibtexContent = generateBibtexContent;
 window.escapeLatex = escapeLatex;
 window.processLatexContent = processLatexContent;

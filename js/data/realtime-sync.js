@@ -5,7 +5,9 @@
  */
 
 import { supabase } from '../auth/config.js';
-import { generateColorFromString } from '../utils/helpers.js';
+import { generateColorFromString, showNotification } from '../utils/helpers.js';
+import { state } from '../core/state.js';
+import { drawTagZones } from '../graph/zones.js';
 
 let realtimeChannel = null;
 let projectId = null;
@@ -227,11 +229,11 @@ export async function initRealtimeSync(projId, onUpdate) {
             }
         })
         .on('presence', { event: 'sync' }, () => {
-            const state = realtimeChannel.presenceState();
-            console.log('👥 Presence sync:', state);
+            const presenceState = realtimeChannel.presenceState();
+            console.log('👥 Presence sync:', presenceState);
             
             // Update collaborator list
-            const presenceIds = Object.keys(state);
+            const presenceIds = Object.keys(presenceState);
             presenceIds.forEach(userId => {
                 if (userId !== user.id) {
                     addCollaborator(userId, true);
@@ -309,40 +311,40 @@ export function handleProjectUpdate(newData, updatedAt) {
     console.log('🔄 Applying remote project update...');
     
     // Update appData
-    if (typeof window.appData !== 'undefined') {
+    if (typeof state.appData !== 'undefined') {
         // Nodes
         if (newData.nodes && Array.isArray(newData.nodes)) {
-            window.appData.articles = newData.nodes;
-            if (window.appData.articles.length > 0) {
-                const maxId = Math.max(...window.appData.articles.map(a => parseInt(a.id) || 0));
-                window.appData.nextArticleId = maxId + 1;
+            state.appData.articles = newData.nodes;
+            if (state.appData.articles.length > 0) {
+                const maxId = Math.max(...state.appData.articles.map(a => parseInt(a.id) || 0));
+                state.appData.nextArticleId = maxId + 1;
             }
         }
         
         // Edges
         if (newData.edges && Array.isArray(newData.edges)) {
-            window.appData.connections = newData.edges;
-            if (window.appData.connections.length > 0) {
-                const maxId = Math.max(...window.appData.connections.map(c => parseInt(c.id) || 0));
-                window.appData.nextConnectionId = maxId + 1;
+            state.appData.connections = newData.edges;
+            if (state.appData.connections.length > 0) {
+                const maxId = Math.max(...state.appData.connections.map(c => parseInt(c.id) || 0));
+                state.appData.nextConnectionId = maxId + 1;
             }
         }
     }
     
     // Update positions
-    if (newData.positions && typeof window.savedNodePositions !== 'undefined') {
-        window.savedNodePositions = newData.positions;
+    if (newData.positions && typeof state.savedNodePositions !== 'undefined') {
+        state.savedNodePositions = newData.positions;
     }
     
     // Update zones
-    if (newData.zones && Array.isArray(newData.zones) && typeof window.tagZones !== 'undefined') {
-        window.tagZones.length = 0;
-        window.tagZones.push(...newData.zones);
+    if (newData.zones && Array.isArray(newData.zones) && typeof state.tagZones !== 'undefined') {
+        state.tagZones.length = 0;
+        state.tagZones.push(...newData.zones);
     }
     
     // Update edge control points
-    if (newData.edgeControlPoints && typeof window.edgeControlPoints !== 'undefined') {
-        window.edgeControlPoints = newData.edgeControlPoints;
+    if (newData.edgeControlPoints && typeof state.edgeControlPoints !== 'undefined') {
+        state.edgeControlPoints = newData.edgeControlPoints;
     }
     
     // Refresh the graph visualization
@@ -358,18 +360,18 @@ export function handleProjectUpdate(newData, updatedAt) {
  * Refresh the graph with current data
  */
 function refreshGraph() {
-    if (!window.network || typeof window.appData === 'undefined') {
+    if (!state.network || typeof state.appData === 'undefined') {
         console.warn('Cannot refresh graph: network or appData not available');
         return;
     }
     
     try {
         // Get current view state
-        const currentView = window.network.getViewPosition();
-        const currentScale = window.network.getScale();
+        const currentView = state.network.getViewPosition();
+        const currentScale = state.network.getScale();
         
         // Update graph data
-        const nodes = window.appData.articles.map(article => ({
+        const nodes = state.appData.articles.map(article => ({
             id: article.id,
             label: article.title || 'Untitled',
             title: article.authors || '',
@@ -379,7 +381,7 @@ function refreshGraph() {
             }
         }));
         
-        const edges = window.appData.connections.map(conn => ({
+        const edges = state.appData.connections.map(conn => ({
             id: conn.id,
             from: conn.from,
             to: conn.to,
@@ -387,16 +389,16 @@ function refreshGraph() {
             smooth: conn.smooth || { type: 'curvedCW', roundness: 0.2 }
         }));
         
-        window.network.setData({
+        state.network.setData({
             nodes: new vis.DataSet(nodes),
             edges: new vis.DataSet(edges)
         });
         
         // Restore node positions
-        if (window.savedNodePositions) {
-            Object.entries(window.savedNodePositions).forEach(([nodeId, pos]) => {
+        if (state.savedNodePositions) {
+            Object.entries(state.savedNodePositions).forEach(([nodeId, pos]) => {
                 try {
-                    window.network.moveNode(nodeId, pos.x, pos.y);
+                    state.network.moveNode(nodeId, pos.x, pos.y);
                 } catch (e) {
                     // Node might not exist anymore
                 }
@@ -404,16 +406,14 @@ function refreshGraph() {
         }
         
         // Restore view
-        window.network.moveTo({
+        state.network.moveTo({
             position: currentView,
             scale: currentScale,
             animation: false
         });
         
         // Redraw zones
-        if (typeof window.drawTagZones === 'function') {
-            window.drawTagZones();
-        }
+        drawTagZones();
         
         console.log('🔄 Graph refreshed with remote data');
     } catch (error) {
@@ -443,10 +443,8 @@ function getContrastColor(hexColor) {
  * Show notification about update
  */
 function showUpdateNotification(timestamp) {
-    if (typeof window.showNotification === 'function') {
-        const timeStr = new Date(timestamp).toLocaleTimeString();
-        window.showNotification(`Project updated by collaborator (${timeStr})`, 'info');
-    }
+    const timeStr = new Date(timestamp).toLocaleTimeString();
+    showNotification(`Project updated by collaborator (${timeStr})`, 'info');
 }
 
 /**

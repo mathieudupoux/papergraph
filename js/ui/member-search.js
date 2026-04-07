@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '../auth/config.js';
+import { generateColorFromString, showNotification } from '../utils/helpers.js';
 
 let searchContainer = null;
 let searchInput = null;
@@ -327,7 +328,7 @@ async function inviteByEmail(email) {
         console.log('📧 Email invitation sent to:', email);
         
         if (typeof window.showNotification === 'function') {
-            window.showNotification(`Invitation sent to ${email}`, 'success');
+            showNotification(`Invitation sent to ${email}`, 'success');
         }
         
         // Clear input and hide dropdown
@@ -337,7 +338,7 @@ async function inviteByEmail(email) {
     } catch (error) {
         console.error('Error inviting by email:', error);
         if (typeof window.showNotification === 'function') {
-            window.showNotification('Failed to send invitation', 'error');
+            showNotification('Failed to send invitation', 'error');
         }
     }
 }
@@ -396,19 +397,6 @@ function getInitials(text) {
     }
     
     return text.substring(0, 2).toUpperCase();
-}
-
-/**
- * Generate color from string (simple hash)
- */
-function generateColorFromString(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    const hue = hash % 360;
-    return `hsl(${hue}, 65%, 55%)`;
 }
 
 /**

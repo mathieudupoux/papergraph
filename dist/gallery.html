@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explore Gallery - Papergraph</title>
+    
+    <link href="https://api.fontshare.com/v2/css?f[]=chillax@400,700&display=swap" rel="stylesheet">
+    
+    <!-- Modular CSS - Base -->
+    
+    <!-- Modular CSS - Components -->
+    
+    <!-- Gallery View -->
+
+    <link rel="icon" type="image/svg+xml" href="/assets/logo-papergraph-DptYnSHp.svg">
+  <script type="module" crossorigin src="/assets/gallery-BzIOjJNy.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/config-Bc0Nlkup.js">
+  <link rel="modulepreload" crossorigin href="/assets/user-dropdown-B0WzbOEk.js">
+  <link rel="modulepreload" crossorigin href="/assets/preferences-DZapAA6Q.js">
+  <link rel="modulepreload" crossorigin href="/assets/gallery-DJJW_V4y.js">
+  <link rel="stylesheet" crossorigin href="/assets/config-BBdqsHn6.css">
+  <link rel="stylesheet" crossorigin href="/assets/user-dropdown-qx7qfs90.css">
+  <link rel="stylesheet" crossorigin href="/assets/user-dropdown-BOji9Hfj.css">
+  <link rel="stylesheet" crossorigin href="/assets/landing-yRgIjitE.css">
+  <link rel="stylesheet" crossorigin href="/assets/dashboard-CqMzNrSm.css">
+  <link rel="stylesheet" crossorigin href="/assets/auth-modal-FZeqQmis.css">
+  <link rel="stylesheet" crossorigin href="/assets/gallery-D6l29Xx0.css">
+</head>
+<body>
+    <!-- Page Container -->
+    <div class="pg-page">
+        
+        <!-- Floating Logo Button (top-left) -->
+        <div class="logo-menu-container">
+            <button id="logoMenuBtnPage" class="logo-menu-btn">
+                <img src="data:image/svg+xml,%3csvg%20width='43'%20height='39'%20viewBox='0%200%2043%2039'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M17.9573%2035H4.375C3.47989%2035%202.62145%2034.6418%201.98851%2034.0042C1.35558%2033.3665%201%2032.5017%201%2031.6V4.4C1%203.49826%201.35558%202.63346%201.98851%201.99584C2.62145%201.35821%203.47989%201%204.375%201H16.1875L28%2012.9V26.9561'%20stroke='%232c3e50'%20stroke-width='2.5'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M16%201V13H28'%20stroke='%232c3e50'%20stroke-width='2.5'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cline%20x1='16.9593'%20y1='24.252'%20x2='23.6069'%20y2='32.3663'%20stroke='%232c3e50'%20stroke-width='2.5'/%3e%3cline%20x1='16.9593'%20y1='24.252'%20x2='23.6069'%20y2='32.3663'%20stroke='%232c3e50'%20stroke-opacity='0.2'%20stroke-width='2.5'/%3e%3cline%20x1='34.3547'%20y1='29.8533'%20x2='28.65'%20y2='33.339'%20stroke='%232c3e50'%20stroke-width='2.5'/%3e%3cline%20x1='34.3547'%20y1='29.8533'%20x2='28.65'%20y2='33.339'%20stroke='%232c3e50'%20stroke-opacity='0.2'%20stroke-width='2.5'/%3e%3ccircle%20cx='15.1'%20cy='21.6286'%20r='3.34286'%20stroke='%232c3e50'%20stroke-width='2.5'/%3e%3ccircle%20cx='15.1'%20cy='21.6286'%20r='3.34286'%20stroke='%232c3e50'%20stroke-opacity='0.2'%20stroke-width='2.5'/%3e%3ccircle%20cx='25.9571'%20cy='34.6571'%20r='3.34286'%20stroke='%232c3e50'%20stroke-width='2.5'/%3e%3ccircle%20cx='25.9571'%20cy='34.6571'%20r='3.34286'%20stroke='%232c3e50'%20stroke-opacity='0.2'%20stroke-width='2.5'/%3e%3ccircle%20cx='37.9'%20cy='28.1429'%20r='3.34286'%20stroke='%232c3e50'%20stroke-width='2.5'/%3e%3ccircle%20cx='37.9'%20cy='28.1429'%20r='3.34286'%20stroke='%232c3e50'%20stroke-opacity='0.2'%20stroke-width='2.5'/%3e%3c/svg%3e" alt="papergraph" class="logo-icon">
+                <span class="logo-text">papergraph</span>
+            </button>
+        </div>
+        <!-- Logo Dropdown (shared partial) -->
+        <div class="logo-dropdown-container" data-include="logo-dropdown"></div>
+        
+        <!-- Floating User Dropdown (top-right) -->
+        <div class="user-dropdown-container editor-user-dropdown" data-include="user-dropdown"></div>
+        
+        <!-- Sign In Button (shown when not logged in) -->
+        <button id="signInBtn" class="btn-secondary pg-floating-action" onclick="openAuthModal()" style="display: none;">
+            Sign In
+        </button>
+
+        <!-- Main Content -->
+        <main class="pg-main">
+            <div class="pg-dashboard-header">
+                <h1>Explore Gallery</h1>
+                <div class="pg-header-buttons">
+                    <button id="submitToGalleryBtn" class="btn-primary" onclick="openSubmitToGalleryModal()" style="display: none;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        Submit to Gallery
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingState" style="text-align: center; padding: 80px 32px; color: #999;">
+                <p>Loading gallery projects...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="pg-empty-state" style="display: none;">
+                <h2>No projects in the gallery yet</h2>
+                <p>Be the first to share your research with the community!</p>
+                <button class="btn-primary" onclick="openSubmitToGalleryModal()">Submit a Project</button>
+            </div>
+
+            <!-- Gallery Grid -->
+            <div id="galleryGrid" class="pg-projects-grid" style="display: none;">
+                <!-- Project cards will be loaded here -->
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <div data-include="footer"></div>
+
+    </div>
+
+    <!-- Preferences Modal -->
+    <div data-include="preferences-modal"></div>
+
+    <!-- Submit to Gallery Modal -->
+    <div data-include="submit-gallery-modal"></div>
+
+    <!-- Auth Modal -->
+    <div data-include="auth-modal"></div>
+
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Gallery Logic -->
+</body>
+</html>

@@ -5,7 +5,7 @@
     width: 44px;
     height: 44px;
     border: none;
-    background: white;
+    background: var(--color-bg);
     border-radius: 14px;
     cursor: pointer;
     display: flex;
@@ -13,22 +13,22 @@
     justify-content: center;
     transition: all 0.2s;
     position: relative;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-sm);
 }
 
 .icon-btn:hover {
-    background: #4a90e2;
-    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+    background: var(--color-primary);
+    box-shadow: var(--shadow-primary);
     transform: translateY(-1px);
 }
 
 .icon-btn svg {
-    stroke: #4a90e2;
+    stroke: var(--color-primary);
     transition: stroke 0.2s;
 }
 
 .icon-btn:hover svg {
-    stroke: white;
+    stroke: var(--color-text-on-color);
 }
 
 /* Standard Buttons */
@@ -41,7 +41,7 @@
     transition: all 0.2s ease;
     font-weight: 500;
     backdrop-filter: blur(10px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px var(--shadow-sm);
 }
 
 #getStartedBtn {
@@ -50,38 +50,38 @@
 }
 
 .btn-primary {
-    background: rgba(74, 144, 226, 0.95);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--color-primary);
+    color: var(--color-text-on-color);
+    border: 1px solid var(--color-glass-light);
 }
 
 .btn-primary:hover {
-    background: rgba(53, 122, 189, 1);
-    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+    background: var(--color-primary-hover);
+    box-shadow: var(--shadow-primary);
     transform: translateY(-1px);
 }
 
 .btn-secondary {
-    background: rgba(255, 255, 255, 0.9);
-    color: #4a90e2;
-    border: 2px solid rgba(74, 144, 226, 0.4);
+    background: var(--color-glass);
+    color: var(--color-primary);
+    border: 2px solid var(--color-primary-ring);
 }
 
 .btn-secondary:hover {
-    background: rgba(240, 247, 255, 1);
-    border-color: rgba(74, 144, 226, 0.6);
+    background: var(--color-bg-primary-hover);
+    border-color: var(--color-primary-ring);
     transform: translateY(-1px);
 }
 
 .btn-danger {
-    background: rgba(231, 76, 60, 0.95);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--color-error);
+    color: var(--color-text-on-color);
+    border: 1px solid var(--color-glass-light);
 }
 
 .btn-danger:hover {
-    background: rgba(192, 57, 43, 1);
-    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+    background: var(--color-error-hover);
+    box-shadow: 0 4px 12px var(--color-error-border);
     transform: translateY(-1px);
 }
 
@@ -93,62 +93,28 @@
     width: 44px;
     height: 44px;
     border: none;
-    background: white;
+    background: var(--color-bg);
     border-radius: 14px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-sm);
     z-index: 1000;
 }
 
 .theme-toggle-btn:hover {
-    background: #4a90e2;
-    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+    background: var(--color-primary);
+    box-shadow: var(--shadow-primary);
     transform: translateY(-1px);
 }
 
 .theme-icon {
     transition: all 0.2s;
-    stroke: #4a90e2;
+    stroke: var(--color-primary);
 }
 
 .theme-toggle-btn:hover .theme-icon {
-    stroke: white;
-}
-
-/* Hide moon icon by default, show sun */
-.moon-icon {
-    display: none;
-}
-
-.sun-icon {
-    display: block;
-}
-
-/* Dark mode active - show moon, hide sun */
-body.dark-theme .moon-icon {
-    display: block;
-}
-
-body.dark-theme .sun-icon {
-    display: none;
-}
-
-body.dark-theme .theme-toggle-btn {
-    background: #2c3e50;
-}
-
-body.dark-theme .theme-toggle-btn:hover {
-    background: #34495e;
-}
-
-body.dark-theme .theme-icon {
-    stroke: #f39c12;
-}
-
-body.dark-theme .theme-toggle-btn:hover .theme-icon {
-    stroke: #f1c40f;
+    stroke: var(--color-text-on-color);
 }
