@@ -5,31 +5,31 @@
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: var(--color-glass);
+    border: 1px solid var(--backdrop-dim);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
     margin: 0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-sm);
 }
 
 .share-btn-circle:hover {
-    background: #fff;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    background: var(--color-bg);
+    box-shadow: 0 4px 12px var(--backdrop-medium);
     transform: translateY(-1px);
-    border-color: rgba(0, 0, 0, 0.12);
+    border-color: var(--backdrop-medium);
 }
 
 .share-btn-circle:active {
     transform: translateY(0);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 6px var(--backdrop-light);
 }
 
 .share-btn-circle svg {
-    stroke: #1a1a1a;
+    stroke: var(--color-text-dark);
 }
 
 /* Modal */
@@ -41,7 +41,7 @@
     top: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0,0,0,0.4);
+    background-color: var(--color-overlay);
     backdrop-filter: blur(4px);
     overflow: auto;
     align-items: center;
@@ -56,7 +56,7 @@
 }
 
 .modal-content {
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--color-glass);
     backdrop-filter: blur(10px);
     border-radius: 20px;
     max-width: 600px;
@@ -64,10 +64,10 @@
     padding: 48px 40px;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 32px var(--backdrop-strong);
     position: relative;
     animation: modalSlideIn 0.3s ease;
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    border: 1px solid var(--color-glass-light);
 }
 
 @keyframes modalSlideIn {
@@ -85,16 +85,16 @@
 .share-section {
     margin-bottom: 32px;
     padding: 24px;
-    background: rgba(0, 0, 0, 0.02);
+    background: var(--backdrop-subtle);
     border-radius: 12px;
-    border: 1px solid rgba(0, 0, 0, 0.06);
+    border: 1px solid var(--backdrop-separator);
 }
 
 .share-section h3 {
     font-size: 16px;
     font-weight: 600;
     margin-bottom: 16px;
-    color: #333;
+    color: var(--color-text-primary);
 }
 
 .share-link-container {
@@ -106,22 +106,22 @@
 .share-link-input {
     flex: 1;
     padding: 12px 16px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-border-medium);
     border-radius: 8px;
     font-size: 14px;
-    background: white;
+    background: var(--color-bg);
     font-family: 'Courier New', monospace;
 }
 
 .share-link-input:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: var(--color-primary);
 }
 
 .copy-link-btn {
     padding: 12px 24px;
-    background: #4a90e2;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-text-on-color);
     border: none;
     border-radius: 8px;
     cursor: pointer;
@@ -130,12 +130,12 @@
 }
 
 .copy-link-btn:hover {
-    background: #357abd;
+    background: var(--color-primary-hover);
     transform: translateY(-1px);
 }
 
 .copy-link-btn.copied {
-    background: #27ae60;
+    background: var(--color-success);
 }
 
 .public-toggle-container {
@@ -143,7 +143,7 @@
     align-items: center;
     gap: 12px;
     padding: 12px;
-    background: rgba(255, 255, 255, 0.5);
+    background: var(--color-glass-light);
     border-radius: 8px;
 }
 
@@ -180,14 +180,14 @@
 .invite-email-input {
     width: 100%;
     padding: 12px 16px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-border-medium);
     border-radius: 8px;
     font-size: 14px;
 }
 
 .invite-email-input:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: var(--color-primary);
 }
 
 /* Username Autocomplete Dropdown */
@@ -196,12 +196,12 @@
     top: 100%;
     left: 0;
     right: 0;
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--color-glass);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--backdrop-light);
     border-top: none;
     border-radius: 0 0 8px 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px var(--backdrop-light);
     max-height: 200px;
     overflow-y: auto;
     z-index: 1000;
@@ -215,7 +215,7 @@
     align-items: center;
     gap: 10px;
     transition: background 0.15s;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--color-bg-hover);
 }
 
 .username-suggestion:last-child {
@@ -223,11 +223,11 @@
 }
 
 .username-suggestion:hover {
-    background: #f8f9fa;
+    background: var(--color-bg-secondary);
 }
 
 .username-suggestion.selected {
-    background: #e3f2fd;
+    background: var(--color-bg-primary-light);
 }
 
 .username-suggestion-avatar {
@@ -239,7 +239,7 @@
     justify-content: center;
     font-weight: 600;
     font-size: 0.75rem;
-    color: white;
+    color: var(--color-text-on-color);
     flex-shrink: 0;
 }
 
@@ -250,13 +250,13 @@
 
 .username-suggestion-username {
     font-weight: 600;
-    color: #333;
+    color: var(--color-text-primary);
     font-size: 0.9rem;
 }
 
 .username-suggestion-email {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--color-text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -265,29 +265,29 @@
 .username-suggestion-empty {
     padding: 16px;
     text-align: center;
-    color: #999;
+    color: var(--color-text-tertiary);
     font-size: 0.9rem;
 }
 
 
 .invite-role-select {
     padding: 12px 16px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-border-medium);
     border-radius: 8px;
     font-size: 14px;
     cursor: pointer;
-    background: white;
+    background: var(--color-bg);
 }
 
 .invite-role-select:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: var(--color-primary);
 }
 
 .invite-btn {
     padding: 12px 24px;
-    background: #4a90e2;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-text-on-color);
     border: none;
     border-radius: 8px;
     cursor: pointer;
@@ -296,11 +296,11 @@
 }
 
 .invite-btn:hover {
-    background: #357abd;
+    background: var(--color-primary-hover);
 }
 
 .invite-btn:disabled {
-    background: #ccc;
+    background: var(--color-bg-disabled);
     cursor: not-allowed;
 }
 
@@ -317,9 +317,9 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px;
-    background: white;
+    background: var(--color-bg);
     border-radius: 8px;
-    border: 1px solid #eee;
+    border: 1px solid var(--color-border-light);
 }
 
 .member-info {
@@ -333,11 +333,11 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--gradient-accent);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--color-text-on-color);
     font-weight: 600;
     font-size: 16px;
 }
@@ -349,12 +349,12 @@
 .member-email {
     font-size: 14px;
     font-weight: 500;
-    color: #333;
+    color: var(--color-text-primary);
 }
 
 .member-role {
     font-size: 12px;
-    color: #666;
+    color: var(--color-text-secondary);
     text-transform: capitalize;
 }
 
@@ -365,8 +365,8 @@
 
 .remove-member-btn {
     padding: 6px 12px;
-    background: #e74c3c;
-    color: white;
+    background: var(--color-error);
+    color: var(--color-text-on-color);
     border: none;
     border-radius: 6px;
     cursor: pointer;
@@ -375,16 +375,16 @@
 }
 
 .remove-member-btn:hover {
-    background: #c0392b;
+    background: var(--color-error-hover);
 }
 
 .share-info {
     padding: 12px;
-    background: rgba(74, 144, 226, 0.1);
-    border-left: 3px solid #4a90e2;
+    background: var(--color-primary-light);
+    border-left: 3px solid var(--color-primary);
     border-radius: 4px;
     font-size: 13px;
-    color: #555;
+    color: var(--color-text-secondary);
     margin-top: 12px;
 }
 
@@ -392,13 +392,13 @@
     display: inline-block;
     margin-right: 8px;
     font-weight: 600;
-    color: #4a90e2;
+    color: var(--color-primary);
 }
 
 .empty-members {
     padding: 24px;
     text-align: center;
-    color: #999;
+    color: var(--color-text-tertiary);
     font-size: 14px;
 }
 
@@ -414,9 +414,9 @@
 .share-modal-container .modal-content {
     padding: 40px 40px 32px 40px;
     border-radius: 12px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    background: #fff;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    border: 1px solid var(--backdrop-dim);
+    background: var(--color-bg);
+    box-shadow: var(--shadow-lg);
     max-height: 85vh;
     overflow-y: auto;
     position: relative;
@@ -430,7 +430,7 @@
     height: 32px;
     padding: 0;
     border: none;
-    background: #f8f9fa;
+    background: var(--color-bg-secondary);
     border-radius: 6px;
     display: flex;
     align-items: center;
@@ -441,13 +441,13 @@
 }
 
 .share-modal-container .modal-close:hover {
-    background: #e9ecef;
+    background: var(--color-border-card);
 }
 
 .share-modal-container .modal-close svg {
     width: 18px;
     height: 18px;
-    stroke: #666;
+    stroke: var(--color-text-secondary);
 }
 
 .share-modal-header {
@@ -462,12 +462,12 @@
     font-size: 22px;
     font-weight: 600;
     margin: 0 0 6px 0;
-    color: #1a1a1a;
+    color: var(--color-text-dark);
 }
 
 .share-subtitle {
     font-size: 14px;
-    color: #666;
+    color: var(--color-text-secondary);
     margin: 0;
 }
 
@@ -482,7 +482,7 @@
 .share-section-label {
     font-size: 13px;
     font-weight: 600;
-    color: #333;
+    color: var(--color-text-primary);
     margin-bottom: 10px;
     display: block;
 }
@@ -502,28 +502,28 @@
 .share-link-wrapper .share-link-input {
     flex: 1;
     padding: 10px 12px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-border-medium);
     border-radius: 6px;
     font-size: 13px;
-    background: #f8f9fa;
-    color: #1a1a1a;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-dark);
     font-family: 'SF Mono', Monaco, monospace;
     transition: all 0.2s ease;
 }
 
 .share-link-wrapper .share-link-input:focus {
     outline: none;
-    border-color: #4a90e2;
-    background: #fff;
+    border-color: var(--color-primary);
+    background: var(--color-bg);
 }
 
 .copy-link-btn {
     width: 36px;
     height: 36px;
     padding: 0;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-border-medium);
     border-radius: 6px;
-    background: #fff;
+    background: var(--color-bg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -532,21 +532,21 @@
 }
 
 .copy-link-btn:hover:not(:disabled) {
-    background: #4a90e2;
-    border-color: #4a90e2;
+    background: var(--color-primary);
+    border-color: var(--color-primary);
 }
 
 .copy-link-btn:hover:not(:disabled) svg {
-    stroke: #fff;
+    stroke: var(--color-text-on-color);
 }
 
 .copy-link-btn.copied {
-    background: #28a745;
-    border-color: #28a745;
+    background: var(--color-success-alt);
+    border-color: var(--color-success-alt);
 }
 
 .copy-link-btn.copied svg {
-    stroke: #fff;
+    stroke: var(--color-text-on-color);
 }
 
 .copy-link-btn:disabled {
@@ -555,7 +555,7 @@
 }
 
 .copy-link-btn svg {
-    stroke: #666;
+    stroke: var(--color-text-secondary);
     width: 16px;
     height: 16px;
     transition: stroke 0.2s ease;
@@ -563,8 +563,8 @@
 
 .generate-link-btn {
     padding: 9px 16px;
-    background: #4a90e2;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-text-on-color);
     border: none;
     border-radius: 6px;
     font-size: 13px;
@@ -578,7 +578,7 @@
 }
 
 .generate-link-btn:hover {
-    background: #357abd;
+    background: var(--color-primary-hover);
 }
 
 .generate-link-btn:disabled {
@@ -587,7 +587,7 @@
 }
 
 .generate-link-btn svg {
-    stroke: white;
+    stroke: var(--color-text-on-color);
     width: 16px;
     height: 16px;
 }
@@ -604,24 +604,24 @@
 }
 
 .share-toggle:hover {
-    background: #f8f9fa;
+    background: var(--color-bg-secondary);
 }
 
 .share-toggle input[type="checkbox"] {
     width: 16px;
     height: 16px;
     cursor: pointer;
-    accent-color: #4a90e2;
+    accent-color: var(--color-primary);
 }
 
 .share-toggle .toggle-text {
     font-size: 13px;
-    color: #333;
+    color: var(--color-text-primary);
 }
 
 .share-divider {
     height: 1px;
-    background: #e9ecef;
+    background: var(--color-border-card);
     margin: 20px 0;
 }
 
@@ -634,24 +634,24 @@
 .invite-email-input {
     flex: 1;
     padding: 9px 12px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-border-medium);
     border-radius: 6px;
     font-size: 13px;
-    background: #fff;
+    background: var(--color-bg);
     transition: all 0.2s ease;
 }
 
 .invite-email-input:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: var(--color-primary);
 }
 
 .invite-role-select {
     padding: 9px 12px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-border-medium);
     border-radius: 6px;
     font-size: 13px;
-    background: #fff;
+    background: var(--color-bg);
     cursor: pointer;
     min-width: 110px;
     transition: all 0.2s ease;
@@ -659,13 +659,13 @@
 
 .invite-role-select:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: var(--color-primary);
 }
 
 .invite-submit-btn {
     padding: 9px 18px;
-    background: #4a90e2;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-text-on-color);
     border: none;
     border-radius: 6px;
     font-size: 13px;
@@ -676,7 +676,7 @@
 }
 
 .invite-submit-btn:hover {
-    background: #357abd;
+    background: var(--color-primary-hover);
 }
 
 .invite-submit-btn:disabled {
@@ -687,7 +687,7 @@
 .loading-members {
     padding: 32px;
     text-align: center;
-    color: #999;
+    color: var(--color-text-tertiary);
     font-size: 14px;
     display: flex;
     flex-direction: column;
@@ -698,8 +698,8 @@
 .loading-spinner {
     width: 24px;
     height: 24px;
-    border: 3px solid rgba(0, 0, 0, 0.1);
-    border-top-color: #667eea;
+    border: 3px solid var(--backdrop-light);
+    border-top-color: var(--color-primary);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
 }
@@ -720,7 +720,7 @@
     display: block;
     padding: 32px;
     text-align: center;
-    color: #999;
+    color: var(--color-text-tertiary);
     font-size: 14px;
 }
 
@@ -731,7 +731,7 @@
     padding: 12px;
     border-radius: 6px;
     transition: background 0.2s ease;
-    border: 1px solid #f0f0f0;
+    border: 1px solid var(--color-bg-hover);
     margin-bottom: 8px;
 }
 
@@ -740,8 +740,8 @@
 }
 
 .member-item:hover {
-    background: #f8f9fa;
-    border-color: #e9ecef;
+    background: var(--color-bg-secondary);
+    border-color: var(--color-border-card);
 }
 
 .member-avatar {
@@ -753,9 +753,9 @@
     justify-content: center;
     font-size: 13px;
     font-weight: 600;
-    color: white;
+    color: var(--color-text-on-color);
     flex-shrink: 0;
-    background: #4a90e2;
+    background: var(--color-primary);
 }
 
 .member-info {
@@ -766,7 +766,7 @@
 .member-name {
     font-size: 13px;
     font-weight: 500;
-    color: #1a1a1a;
+    color: var(--color-text-dark);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -774,7 +774,7 @@
 
 .member-email {
     font-size: 12px;
-    color: #999;
+    color: var(--color-text-tertiary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -782,17 +782,17 @@
 
 .member-role-select {
     padding: 6px 10px;
-    border: 1px solid #ddd;
+    border: 1px solid var(--color-border-medium);
     border-radius: 4px;
     font-size: 12px;
-    background: #fff;
+    background: var(--color-bg);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .member-role-select:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: var(--color-primary);
 }
 
 .member-role-select:disabled {
@@ -815,12 +815,12 @@
 }
 
 .member-item .remove-member-btn:hover {
-    background: #fee;
-    border-color: #e74c3c;
+    background: var(--color-bg-error-light)
+    border-color: var(--color-error);
 }
 
 .member-item .remove-member-btn svg {
-    stroke: #e74c3c;
+    stroke: var(--color-error);
     width: 16px;
     height: 16px;
 }
@@ -862,7 +862,7 @@
     background: transparent;
     border: none;
     font-size: 24px;
-    color: #999;
+    color: var(--color-text-tertiary);
     cursor: pointer;
     width: 32px;
     height: 32px;
@@ -875,21 +875,21 @@
 }
 
 .close:hover {
-    background: #f5f5f5;
-    color: #333;
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
 }
 
 .modal-content h2 {
     font-size: 1.75rem;
     font-weight: 700;
-    color: #2c3e50;
+    color: var(--color-text-primary);
     margin-bottom: 1.5rem;
 }
 
 .modal-content h3 {
     margin-top: 1.5rem;
     margin-bottom: 1rem;
-    color: #2c3e50;
+    color: var(--color-text-primary);
     font-size: 1.1rem;
 }
 
@@ -925,7 +925,7 @@
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 500;
-    color: #2c3e50;
+    color: var(--color-text-primary);
 }
 
 .form-group input[type="text"],
@@ -933,11 +933,11 @@
 .form-group select {
     width: 100%;
     padding: 0.6rem;
-    border: 2px solid rgba(221, 221, 221, 0.5);
+    border: 2px solid var(--color-border-medium);
     border-radius: 8px;
     font-size: 0.95rem;
     font-family: inherit;
-    background: rgba(255, 255, 255, 0.7);
+    background: var(--color-glass-light);
     backdrop-filter: blur(10px);
     transition: all 0.2s ease;
 }
@@ -946,9 +946,9 @@
 .form-group textarea:focus,
 .form-group select:focus {
     outline: none;
-    border-color: rgba(52, 152, 219, 0.6);
-    background: rgba(255, 255, 255, 0.95);
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    border-color: var(--color-info-ring);
+    background: var(--color-glass);
+    box-shadow: 0 0 0 3px var(--color-info-light);
 }
 
 .form-group textarea {
@@ -967,15 +967,15 @@
 
 .custom-field button {
     padding: 0.3rem 0.8rem;
-    background-color: #e74c3c;
-    color: white;
+    background-color: var(--color-error);
+    color: var(--color-text-on-color);
     border: none;
     border-radius: 4px;
     cursor: pointer;
 }
 
 .custom-field button:hover {
-    background-color: #c0392b;
+    background-color: var(--color-error-hover);
 }
 
 .form-actions {
@@ -996,24 +996,24 @@
 }
 
 .drop-zone {
-    border: 2px dashed rgba(52, 152, 219, 0.4);
+    border: 2px dashed var(--color-info-border);
     border-radius: 16px;
     padding: 40px 20px;
     text-align: center;
-    background: rgba(248, 249, 250, 0.6);
+    background: var(--color-bg-secondary);
     backdrop-filter: blur(10px);
     transition: all 0.3s;
     cursor: pointer;
 }
 
 .drop-zone:hover {
-    background: rgba(232, 244, 248, 0.8);
-    border-color: rgba(41, 128, 185, 0.6);
+    background: var(--color-info-bg-translucent);
+    border-color: var(--color-info-accent);
 }
 
 .drop-zone.drag-over {
-    background: rgba(212, 237, 218, 0.8);
-    border-color: rgba(39, 174, 96, 0.6);
+    background: var(--color-success-bg-translucent);
+    border-color: var(--color-success-accent);
     border-style: solid;
 }
 
@@ -1030,13 +1030,13 @@
 
 .drop-text {
     font-size: 1.1rem;
-    color: #2c3e50;
+    color: var(--color-text-primary);
     margin: 0;
     font-weight: 500;
 }
 
 .drop-or {
-    color: #7f8c8d;
+    color: var(--color-text-meta);
     margin: 5px 0;
     font-size: 0.9rem;
 }
@@ -1045,20 +1045,20 @@
     width: 100%;
     max-width: 500px;
     padding: 12px;
-    border: 2px solid rgba(221, 221, 221, 0.5);
+    border: 2px solid var(--color-border-medium);
     border-radius: 10px;
     font-size: 1rem;
     text-align: center;
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--color-glass);
     backdrop-filter: blur(10px);
     transition: all 0.2s ease;
 }
 
 #quickImport:focus {
     outline: none;
-    border-color: rgba(52, 152, 219, 0.6);
-    background: rgba(255, 255, 255, 0.95);
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    border-color: var(--color-info-ring);
+    background: var(--color-glass);
+    box-shadow: 0 0 0 3px var(--color-info-light);
 }
 
 /* BibTeX paste area */
@@ -1071,20 +1071,20 @@
 .bibtex-paste-area textarea {
     width: 100%;
     padding: 12px;
-    border: 2px solid rgba(52, 152, 219, 0.4);
+    border: 2px solid var(--color-info-border);
     border-radius: 12px;
     font-size: 0.9rem;
     font-family: 'Courier New', monospace;
     resize: vertical;
     min-height: 200px;
-    background: rgba(248, 249, 250, 0.8);
+    background: var(--color-bg-secondary);
     backdrop-filter: blur(10px);
 }
 
 .bibtex-paste-area textarea:focus {
     outline: none;
-    border-color: rgba(41, 128, 185, 0.8);
-    background: rgba(255, 255, 255, 0.9);
+    border-color: var(--color-info-accent-strong);
+    background: var(--color-glass);
 }
 
 .bibtex-paste-area button {
@@ -1094,9 +1094,9 @@
 
 .btn-browse {
     padding: 10px 24px;
-    background: white;
-    border: 1px solid #3498db;
-    color: #3498db;
+    background: var(--color-bg);
+    border: 1px solid var(--color-info-alt);
+    color: var(--color-info-alt);
     border-radius: 6px;
     cursor: pointer;
     font-weight: 500;
@@ -1104,14 +1104,14 @@
 }
 
 .btn-browse:hover {
-    background: #3498db;
-    color: white;
+    background: var(--color-info-alt);
+    color: var(--color-text-on-color);
 }
 
 /* Import success summary */
 .import-summary {
-    background: #d4edda;
-    border: 2px solid #27ae60;
+    background: var(--color-success-bg);
+    border: 2px solid var(--color-success);
     border-radius: 12px;
     padding: 30px;
     text-align: center;
@@ -1121,8 +1121,8 @@
 .import-success-icon {
     width: 60px;
     height: 60px;
-    background: #27ae60;
-    color: white;
+    background: var(--color-success);
+    color: var(--color-text-on-color);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -1132,14 +1132,14 @@
 }
 
 .import-summary h3 {
-    color: #155724;
+    color: var(--color-success-text);
     margin: 0 0 15px 0;
     font-size: 1.3rem;
 }
 
 .import-details {
     text-align: left;
-    background: white;
+    background: var(--color-bg);
     padding: 15px;
     border-radius: 8px;
     margin-bottom: 15px;
@@ -1147,12 +1147,12 @@
 
 .import-details p {
     margin: 8px 0;
-    color: #2c3e50;
+    color: var(--color-text-primary);
     font-size: 0.95rem;
 }
 
 .import-details strong {
-    color: #155724;
+    color: var(--color-success-text);
     display: inline-block;
     min-width: 80px;
 }
@@ -1170,7 +1170,7 @@
 .toggle-manual-btn {
     background: transparent;
     border: none;
-    color: #3498db;
+    color: var(--color-info-alt);
     cursor: pointer;
     font-size: 1rem;
     padding: 10px 20px;
@@ -1179,7 +1179,7 @@
 }
 
 .toggle-manual-btn:hover {
-    background: #e8f4f8;
+    background: var(--color-info-bg);
 }
 
 .manual-form {
@@ -1209,56 +1209,56 @@
 }
 
 .import-status.loading {
-    background: rgba(255, 243, 205, 0.9);
-    color: #856404;
-    border: 1px solid rgba(255, 238, 186, 0.8);
+    background: var(--color-warning-bg-translucent);
+    color: var(--color-warning-text);
+    border: 1px solid var(--color-warning-border-translucent);
 }
 
 .import-status.success {
-    background: rgba(212, 237, 218, 0.9);
-    color: #155724;
-    border: 1px solid rgba(195, 230, 203, 0.8);
+    background: var(--color-success-bg-translucent);
+    color: var(--color-success-text);
+    border: 1px solid var(--color-success-border-translucent);
 }
 
 .import-status.error {
-    background: rgba(248, 215, 218, 0.9);
-    color: #721c24;
-    border: 1px solid rgba(245, 198, 203, 0.8);
+    background: var(--color-error-bg-translucent);
+    color: var(--color-error-text);
+    border: 1px solid var(--color-error-border-translucent);
 }
 
 /* Zone Color Modal */
 .zone-color-modal {
-    background: white;
-    border: 2px solid #4a90e2;
+    background: var(--color-bg);
+    border: 2px solid var(--color-primary);
 }
 
 .zone-color-label {
-    color: #666;
+    color: var(--color-text-secondary);
 }
 
 .zone-custom-picker {
-    background: #f8f9fa;
-    border: 1px solid #e0e0e0;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
 }
 
 .zone-color-hex-input {
-    background: white;
-    color: #333;
-    border: 1px solid #ddd;
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-medium);
 }
 
 .zone-color-btn-cancel {
-    background: #e0e0e0;
-    color: #333;
+    background: var(--color-border);
+    color: var(--color-text-primary);
 }
 
 .zone-color-btn-cancel:hover {
-    background: #d0d0d0;
+    background: var(--color-border-soft);
 }
 
 .zone-color-btn-apply {
-    background: #4a90e2;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-text-on-color);
 }
 
 .zone-color-btn-apply:hover {
@@ -1268,7 +1268,7 @@
 /* ===== SHARE MODAL ===== */
 
 .share-description {
-    background: #f8f9fa;
+    background: var(--color-bg-secondary);
     padding: 12px 16px;
     border-radius: 8px;
     margin-bottom: 20px;
@@ -1276,7 +1276,7 @@
 
 .share-description p {
     margin: 0;
-    color: #666;
+    color: var(--color-text-secondary);
     font-size: 0.9rem;
 }
 
@@ -1287,7 +1287,7 @@
 }
 
 .share-results {
-    background: #f8f9fa;
+    background: var(--color-bg-secondary);
     padding: 12px;
     border-radius: 8px;
     margin-top: 12px;
@@ -1298,7 +1298,7 @@
     align-items: center;
     gap: 8px;
     padding: 8px 0;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--color-border);
 }
 
 .share-result-item:last-child {
@@ -1310,7 +1310,7 @@
 }
 
 .share-result-error {
-    color: #e74c3c;
+    color: var(--color-error);
 }
 
 .members-list {
@@ -1324,7 +1324,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px;
-    background: #f8f9fa;
+    background: var(--color-bg-secondary);
     border-radius: 8px;
 }
 
@@ -1338,8 +1338,8 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: #4a90e2;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-text-on-color);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1354,12 +1354,12 @@
 
 .member-name {
     font-weight: 600;
-    color: #2c3e50;
+    color: var(--color-text-primary);
 }
 
 .member-email {
     font-size: 0.85rem;
-    color: #666;
+    color: var(--color-text-secondary);
 }
 
 .member-actions {
@@ -1370,18 +1370,18 @@
 
 .member-role {
     padding: 4px 12px;
-    background: white;
-    border: 1px solid #e0e0e0;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
     border-radius: 6px;
     font-size: 0.85rem;
-    color: #666;
+    color: var(--color-text-secondary);
 }
 
 .member-remove-btn {
     padding: 6px 12px;
     background: transparent;
-    border: 1px solid #e74c3c;
-    color: #e74c3c;
+    border: 1px solid var(--color-error);
+    color: var(--color-error);
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.85rem;
@@ -1389,8 +1389,8 @@
 }
 
 .member-remove-btn:hover {
-    background: #e74c3c;
-    color: white;
+    background: var(--color-error);
+    color: var(--color-text-on-color);
 }
 
 /* ===== PREFERENCES MODAL ===== */
@@ -1411,8 +1411,8 @@
 /* Sidebar with tabs */
 .preferences-sidebar {
     width: 220px;
-    background: rgba(248, 249, 250, 0.6);
-    border-right: 1px solid rgba(0, 0, 0, 0.06);
+    background: var(--color-bg-secondary);
+    border-right: 1px solid var(--backdrop-separator);
     padding: 24px 0;
     display: flex;
     flex-direction: column;
@@ -1427,7 +1427,7 @@
     background: none;
     border: none;
     font-size: 0.95rem;
-    color: #6c757d;
+    color: var(--color-text-muted);
     cursor: pointer;
     transition: all 0.2s;
     text-align: left;
@@ -1436,14 +1436,14 @@
 }
 
 .preferences-tab:hover {
-    background: rgba(255, 255, 255, 0.5);
-    color: #2c3e50;
+    background: var(--color-glass-light);
+    color: var(--color-text-primary);
 }
 
 .preferences-tab.active {
-    background: rgba(255, 255, 255, 0.8);
-    color: #4a90e2;
-    border-left-color: #4a90e2;
+    background: var(--color-glass);
+    color: var(--color-primary);
+    border-left-color: var(--color-primary);
 }
 
 .preferences-tab svg {
@@ -1468,14 +1468,14 @@
 .preferences-panel h2 {
     margin: 0 0 32px 0;
     font-size: 1.75rem;
-    color: #2c3e50;
+    color: var(--color-text-primary);
     font-weight: 600;
 }
 
 .preferences-panel h3 {
     margin: 0 0 12px 0;
     font-size: 1.1rem;
-    color: #2c3e50;
+    color: var(--color-text-primary);
     font-weight: 600;
 }
 
@@ -1487,24 +1487,24 @@
     display: block;
     margin-bottom: 8px;
     font-weight: 500;
-    color: #495057;
+    color: var(--color-text-body);
     font-size: 0.9rem;
 }
 
 .preferences-input {
     width: 100%;
     padding: 12px 16px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--backdrop-light);
     border-radius: 8px;
     font-size: 0.95rem;
-    background: white;
+    background: var(--color-bg);
     transition: all 0.2s;
 }
 
 .preferences-input:focus {
     outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
 }
 
 .preferences-input:readonly {
@@ -1512,7 +1512,7 @@
     border: none !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    color: #2c3e50;
+    color: var(--color-text-primary);
     cursor: default;
     padding: 0 !important;
     font-weight: 600;
@@ -1522,7 +1522,7 @@
 .preferences-display-value {
     font-size: 1rem;
     font-weight: 600;
-    color: #2c3e50;
+    color: var(--color-text-primary);
     padding: 4px 0;
 }
 
@@ -1538,14 +1538,14 @@
 
 .preferences-input-prefix {
     font-size: 1rem;
-    color: #6c757d;
+    color: var(--color-text-muted);
     font-weight: 500;
 }
 
 .preferences-hint {
     display: block;
     margin-top: 6px;
-    color: #6c757d;
+    color: var(--color-text-muted);
     font-size: 0.85rem;
 }
 
@@ -1567,8 +1567,8 @@
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
-    background: rgba(74, 144, 226, 0.05);
-    border: 1px solid rgba(74, 144, 226, 0.2);
+    background: var(--color-primary-faint);
+    border: 1px solid var(--color-primary-border);
     border-radius: 8px;
 }
 
@@ -1582,38 +1582,38 @@
 
 .connected-account-name {
     font-weight: 600;
-    color: #2c3e50;
+    color: var(--color-text-primary);
     font-size: 0.95rem;
 }
 
 .connected-account-email {
     font-size: 0.85rem;
-    color: #6c757d;
+    color: var(--color-text-muted);
     margin-top: 2px;
 }
 
 /* Danger zone */
 .danger-zone {
-    border: 2px solid rgba(231, 76, 60, 0.2);
+    border: 2px solid var(--color-primary-border);
     border-radius: 12px;
     padding: 24px;
-    background: rgba(231, 76, 60, 0.02);
+    background: var(--backdrop-subtle);
 }
 
 .danger-zone h3 {
-    color: #e74c3c;
+    color: var(--color-error);
     margin-bottom: 12px;
 }
 
 .danger-zone p {
-    color: #6c757d;
+    color: var(--color-text-muted);
     margin-bottom: 20px;
     line-height: 1.6;
 }
 
 .btn-danger {
-    background: #e74c3c;
-    color: white;
+    background: var(--color-error);
+    color: var(--color-text-on-color);
     border: none;
     padding: 12px 24px;
     border-radius: 8px;
@@ -1623,17 +1623,17 @@
 }
 
 .btn-danger:hover {
-    background: #c0392b;
+    background: var(--color-error-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+    box-shadow: 0 4px 12px var(--color-error-border);
 }
 
 .btn-primary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: #4a90e2;
-    color: white;
+    background: var(--color-primary);
+    color: var(--color-text-on-color);
     border: none;
     padding: 12px 24px;
     border-radius: 8px;
@@ -1644,9 +1644,9 @@
 }
 
 .btn-primary:hover {
-    background: #357abd;
+    background: var(--color-primary-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+    box-shadow: var(--shadow-primary);
 }
 
 /* Construction notice */
@@ -1656,17 +1656,17 @@
 }
 
 .construction svg {
-    color: #adb5bd;
+    color: var(--color-text-faded);
     margin-bottom: 24px;
 }
 
 .construction h3 {
-    color: #495057;
+    color: var(--color-text-body);
     margin-bottom: 12px;
 }
 
 .construction p {
-    color: #6c757d;
+    color: var(--color-text-muted);
     font-size: 0.95rem;
 }
 
@@ -1678,7 +1678,7 @@
     background: none;
     border: none;
     font-size: 28px;
-    color: #6c757d;
+    color: var(--color-text-muted);
     cursor: pointer;
     line-height: 1;
     padding: 0;
@@ -1693,8 +1693,8 @@
 }
 
 .preferences-modal .close-modal:hover {
-    background: rgba(0, 0, 0, 0.05);
-    color: #2c3e50;
+    background: var(--backdrop-soft);
+    color: var(--color-text-primary);
 }
 
 /* Toggle Switch */
@@ -1725,7 +1725,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: #ccc;
+    background-color: var(--color-bg-disabled);
     transition: 0.3s;
     border-radius: 26px;
 }
@@ -1737,13 +1737,13 @@
     width: 18px;
     left: 4px;
     bottom: 4px;
-    background-color: white;
+    background-color: var(--color-text-on-color);
     transition: 0.3s;
     border-radius: 50%;
 }
 
 .preferences-toggle input:checked + .preferences-toggle-slider {
-    background-color: #4a90e2;
+    background-color: var(--color-primary);
 }
 
 .preferences-toggle input:checked + .preferences-toggle-slider:before {
@@ -1752,7 +1752,7 @@
 
 .preferences-toggle-label {
     font-size: 0.95rem;
-    color: #495057;
+    color: var(--color-text-body);
     font-weight: 500;
 }
 
@@ -1775,7 +1775,7 @@
     .preferences-sidebar {
         width: 100%;
         border-right: none;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        border-bottom: 1px solid var(--backdrop-separator);
         flex-direction: row;
         overflow-x: auto;
         padding: 12px;
@@ -1791,7 +1791,7 @@
     
     .preferences-tab.active {
         border-left-color: transparent;
-        border-bottom-color: #4a90e2;
+        border-bottom-color: var(--color-primary);
     }
     
     .preferences-content {

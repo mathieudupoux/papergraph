@@ -213,7 +213,7 @@ export async function openGalleryProject(project) {
         }));
         
         // Navigate to viewer with shareable URL (read-only mode)
-        window.location.href = `viewer.html?gallery=${encodeURIComponent(project.path)}`;
+        window.location.href = `editor.html?gallery=${encodeURIComponent(project.path)}`;
         
     } catch (error) {
         console.error('Error opening project:', error);

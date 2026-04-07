@@ -7,13 +7,13 @@
     <link href="https://api.fontshare.com/v2/css?f[]=chillax@400,700&display=swap" rel="stylesheet">
     
     <!-- Modular CSS - Base -->
+    <link rel="stylesheet" href="css/base/theme.css">
     <link rel="stylesheet" href="css/base/reset.css">
     <link rel="stylesheet" href="css/base/typography.css">
     
     <!-- Modular CSS - Components -->
     <link rel="stylesheet" href="css/components/buttons.css">
     <link rel="stylesheet" href="css/components/footer.css">
-    <link rel="stylesheet" href="css/components/onboarding.css">
     
     <link rel="icon" type="image/svg+xml" href="assets/logo-papergraph.svg">
     
@@ -296,7 +296,12 @@
 
     </div>
     
-    <!-- Load Footer -->
-    <script src="js/utils/load-footer.js"></script>
+    <!-- Load Footer & Preferences -->
+    <script type="module">
+        import { loadIncludes } from './js/utils/load-footer.js';
+        import { initPreferencesFromPage } from './js/ui/preferences.js';
+        loadIncludes();
+        initPreferencesFromPage();
+    </script>
 </body>
 </html>

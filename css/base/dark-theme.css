@@ -343,34 +343,41 @@ body:not(.dark-theme) .moon-icon {
 }
 
 /* Main dropdown menu */
-body.dark-theme .main-dropdown {
+body.dark-theme .main-dropdown,
+body.dark-theme .logo-dropdown {
     background: rgba(37, 45, 61, 0.98);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-body.dark-theme .dropdown-section-title {
+body.dark-theme .dropdown-section-title,
+body.dark-theme .logo-dropdown-section-title {
     color: #a0a8b8;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-body.dark-theme .dropdown-menu-item {
+body.dark-theme .dropdown-menu-item,
+body.dark-theme .logo-dropdown-item {
     color: #e8eaf0 !important;
 }
 
-body.dark-theme .dropdown-menu-item span {
+body.dark-theme .dropdown-menu-item span,
+body.dark-theme .logo-dropdown-item span {
     color: #e8eaf0 !important;
 }
 
-body.dark-theme .dropdown-menu-item:hover {
+body.dark-theme .dropdown-menu-item:hover,
+body.dark-theme .logo-dropdown-item:hover {
     background: rgba(45, 53, 70, 0.8);
 }
 
-body.dark-theme .dropdown-menu-item svg {
+body.dark-theme .dropdown-menu-item svg,
+body.dark-theme .logo-dropdown-item svg {
     stroke: #8891a8 !important;
 }
 
-body.dark-theme .dropdown-menu-item:hover svg {
+body.dark-theme .dropdown-menu-item:hover svg,
+body.dark-theme .logo-dropdown-item:hover svg {
     stroke: #c0c8d8 !important;
 }
 
@@ -1249,63 +1256,6 @@ body.dark-theme .notification {
 /* Modal overlay */
 body.dark-theme .modal {
     background: rgba(0, 0, 0, 0.8);
-}
-
-/* ==================== ONBOARDING ==================== */
-body.dark-theme .onboarding-overlay {
-    background: rgba(26, 31, 46, 0.75) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
-    backdrop-filter: blur(10px) !important;
-}
-
-body.dark-theme .onboarding-content {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-body.dark-theme .onboarding-content h1 {
-    color: #ffffff !important;
-}
-
-body.dark-theme .onboarding-content h2 {
-    color: #e8eaf0 !important;
-}
-
-body.dark-theme .onboarding-content p {
-    color: #a0a8b8 !important;
-}
-
-body.dark-theme .onboarding-option {
-    background: #2d3546 !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    color: #e8eaf0 !important;
-}
-
-body.dark-theme .onboarding-option:hover {
-    background: #343d52 !important;
-    border-color: #4a90e2 !important;
-    box-shadow: 0 8px 24px rgba(74, 144, 226, 0.2) !important;
-}
-
-body.dark-theme .onboarding-option h3 {
-    color: #ffffff !important;
-}
-
-body.dark-theme .onboarding-option span {
-    color: #a0a8b8 !important;
-}
-
-body.dark-theme .onboarding-option svg {
-    stroke: #8891a8 !important;
-}
-
-body.dark-theme .onboarding-option:hover svg {
-    stroke: #4a90e2 !important;
-}
-
-body.dark-theme .onboarding-footer {
-    color: #8891a8 !important;
 }
 
 /* ==================== ZONE COLOR MODAL ==================== */

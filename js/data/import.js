@@ -1,9 +1,19 @@
 // ===== IMPORT FUNCTIONS =====
 // DOI, arXiv, and PDF import functionality
 
+import { state } from '../core/state.js';
+import { showNotification } from '../utils/helpers.js';
+import { isBibTeXFormat, parseBibTeXEntry, parseMultipleBibTeXEntries } from './bibtex-parser.js';
+import { save } from './persistence.js';
+import { updateGraph } from '../graph/render.js';
+import { renderListView } from '../ui/list/sidebar.js';
+import { updateCategoryFilters } from '../ui/filters.js';
+import { closeModal } from '../ui/modal.js';
+import { checkNodeZoneMembership } from '../graph/zones.js';
+
 // ===== IMPORT ZONE SETUP =====
 
-function setupImportZone() {
+export function setupImportZone() {
     const dropZone = document.getElementById('dropZone');
     const quickImport = document.getElementById('quickImport');
     const browseBtn = document.getElementById('browseFileBtn');
@@ -99,7 +109,7 @@ function setupImportZone() {
     }
 }
 
-function toggleManualForm() {
+export function toggleManualForm() {
     const manualForm = document.getElementById('manualForm');
     const btn = document.getElementById('toggleManualBtn');
     
@@ -114,7 +124,7 @@ function toggleManualForm() {
     }
 }
 
-function processQuickImport() {
+export function processQuickImport() {
     const input = document.getElementById('quickImport');
     if (!input) return;
     
@@ -186,7 +196,7 @@ function processQuickImport() {
 
 // ===== BIBTEX HANDLING =====
 
-function showBibTeXPasteArea(initialValue = '') {
+export function showBibTeXPasteArea(initialValue = '') {
     const quickImport = document.getElementById('quickImport');
     const bibtexArea = document.querySelector('.bibtex-paste-area');
     const bibtexTextarea = document.getElementById('bibtexPasteArea');
@@ -210,7 +220,7 @@ function showBibTeXPasteArea(initialValue = '') {
     bibtexTextarea.focus();
 }
 
-function hideBibTeXPasteArea() {
+export function hideBibTeXPasteArea() {
     const quickImport = document.getElementById('quickImport');
     const bibtexArea = document.querySelector('.bibtex-paste-area');
     const dropIcon = document.querySelector('.drop-icon');
@@ -236,7 +246,7 @@ function hideBibTeXPasteArea() {
     }
 }
 
-async function processBibTeXImport() {
+export async function processBibTeXImport() {
     const bibtexTextarea = document.getElementById('bibtexPasteArea');
     if (!bibtexTextarea) return;
     
@@ -262,17 +272,12 @@ async function processBibTeXImport() {
             const article = articles[0];
             
             // Store the imported article data globally so it can be used when saving
-            pendingImportArticle = article;
+            state.pendingImportArticle = article;
             
             fillFormWithArticleData(article);
             showImportStatus(`✓ BibTeX entry imported: ${article.title}`, 'success');
             hideBibTeXPasteArea();
             // Don't automatically open manual form - let user decide
-            
-            // Close onboarding if it's open
-            if (typeof window.closeOnboarding === 'function') {
-                window.closeOnboarding();
-            }
         } else {
             // Multiple entries: import all directly with column layout
             const verticalSpacing = 100; // Vertical spacing between nodes
@@ -282,12 +287,12 @@ async function processBibTeXImport() {
             const numColumns = Math.ceil(articles.length / maxPerColumn);
             
             // Get viewport center so nodes appear on screen, not at project origin
-            const viewCenter = (typeof network !== 'undefined' && network)
-                ? network.getViewPosition()
+            const viewCenter = (typeof state.network !== 'undefined' && state.network)
+                ? state.network.getViewPosition()
                 : { x: 0, y: 0 };
             
             articles.forEach((article, index) => {
-                article.id = appData.nextArticleId++;
+                article.id = state.appData.nextArticleId++;
                 
                 // Calculate column and row position
                 const columnIndex = Math.floor(index / maxPerColumn);
@@ -298,18 +303,18 @@ async function processBibTeXImport() {
                 article.x = viewCenter.x + (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
                 article.y = viewCenter.y + (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
                 
-                appData.articles.push(article);
+                state.appData.articles.push(article);
             });
             
-            saveToLocalStorage();
+            save();
             updateGraph();
             renderListView();
             
             // Save initial positions to ensure they persist
             setTimeout(() => {
-                if (network && window.savedNodePositions) {
-                    const positions = network.getPositions();
-                    window.savedNodePositions = { ...window.savedNodePositions, ...positions };
+                if (state.network && state.savedNodePositions) {
+                    const positions = state.network.getPositions();
+                    state.savedNodePositions = { ...state.savedNodePositions, ...positions };
                     console.log('Saved positions for newly imported articles');
                     
                     // Check node zone membership to update colors after positions are set
@@ -319,11 +324,11 @@ async function processBibTeXImport() {
                         console.log('Applied zone colors to imported nodes');
                         
                         // Force graph update to reflect new colors
-                        const currentView = network.getViewPosition();
-                        const currentScale = network.getScale();
+                        const currentView = state.network.getViewPosition();
+                        const currentScale = state.network.getScale();
                         updateGraph();
                         // Restore view position
-                        network.moveTo({
+                        state.network.moveTo({
                             position: currentView,
                             scale: currentScale,
                             animation: false
@@ -331,16 +336,11 @@ async function processBibTeXImport() {
                         console.log('Graph updated with correct colors');
                     }
                     
-                    saveToLocalStorage(true); // Silent save after all updates
+                    save(true); // Silent save after all updates
                 }
             }, 200);
             
             closeModal();
-            
-            // Close onboarding if it's open
-            if (typeof window.closeOnboarding === 'function') {
-                window.closeOnboarding();
-            }
             
             showNotification(`✓ ${articles.length} articles imported from BibTeX`, 'success');
         }
@@ -350,7 +350,7 @@ async function processBibTeXImport() {
     }
 }
 
-function fillFormWithArticleData(article) {
+export function fillFormWithArticleData(article) {
     // Fill all form fields with article data
     const fieldMap = {
         'articleTitle': article.title,
@@ -382,7 +382,7 @@ function fillFormWithArticleData(article) {
 
 // ===== BIB FILE HANDLING =====
 
-async function handleBibFile(file) {
+export async function handleBibFile(file) {
     showImportStatus('Reading .bib file...', 'loading');
     
     try {
@@ -397,11 +397,6 @@ async function handleBibFile(file) {
         showBibTeXPasteArea(text);
         showImportStatus('✓ .bib file loaded. Review and click Import.', 'success');
         
-        // Close onboarding if it's open
-        if (typeof window.closeOnboarding === 'function') {
-            window.closeOnboarding();
-        }
-        
     } catch (error) {
         console.error('Error reading .bib file:', error);
         showImportStatus('Error reading .bib file', 'error');
@@ -410,7 +405,7 @@ async function handleBibFile(file) {
 
 // ===== PDF HANDLING =====
 
-async function handlePdfFile(file) {
+export async function handlePdfFile(file) {
     showImportStatus('Extracting PDF metadata...', 'loading');
     
     try {
@@ -447,7 +442,7 @@ async function handlePdfFile(file) {
     }
 }
 
-async function extractPdfMetadata(file) {
+export async function extractPdfMetadata(file) {
     // This would use PDF.js to extract metadata from PDF
     const arrayBuffer = await file.arrayBuffer();
     
@@ -473,7 +468,7 @@ async function extractPdfMetadata(file) {
     }
 }
 
-async function extractTextFromPdf(arrayBuffer) {
+export async function extractTextFromPdf(arrayBuffer) {
     // Simple text extraction - would need PDF.js for full implementation
     const uint8Array = new Uint8Array(arrayBuffer);
     const text = new TextDecoder().decode(uint8Array);
@@ -482,7 +477,7 @@ async function extractTextFromPdf(arrayBuffer) {
 
 // ===== DOI IMPORT =====
 
-async function importFromDoi(doi) {
+export async function importFromDoi(doi) {
     if (!doi) {
         const input = document.getElementById('quickImport');
         if (input) doi = input.value.trim();
@@ -494,7 +489,7 @@ async function importFromDoi(doi) {
     }
     
     // Check if DOI already exists
-    const existingArticle = appData.articles.find(a => a.doi && a.doi.toLowerCase() === doi.toLowerCase());
+    const existingArticle = state.appData.articles.find(a => a.doi && a.doi.toLowerCase() === doi.toLowerCase());
     if (existingArticle) {
         const confirmImport = confirm(
             `⚠️ Warning: An article with this DOI already exists:\n\n` +
@@ -630,7 +625,7 @@ async function importFromDoi(doi) {
 
 // ===== ARXIV IMPORT =====
 
-async function importFromArxiv(arxivId) {
+export async function importFromArxiv(arxivId) {
     console.log('importFromArxiv called with:', arxivId);
     
     if (!arxivId) {
@@ -646,7 +641,7 @@ async function importFromArxiv(arxivId) {
     console.log('Processing arXiv ID:', arxivId);
     
     // Check if arXiv ID already exists (in link or pdf fields)
-    const existingArticle = appData.articles.find(a => {
+    const existingArticle = state.appData.articles.find(a => {
         const linkHasArxiv = a.link && a.link.includes(arxivId);
         const pdfHasArxiv = a.pdf && a.pdf.includes(arxivId);
         return linkHasArxiv || pdfHasArxiv;
@@ -713,21 +708,30 @@ async function importFromArxiv(arxivId) {
         } catch (supabaseError) {
             console.warn('Supabase fetch-arxiv failed:', supabaseError.message);
             
-            // Fallback: try using a CORS proxy
+            // Fallback: try using CORS proxies
             console.log('Trying CORS proxy fallback...');
-            try {
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`http://export.arxiv.org/api/query?id_list=${arxivId}`)}`;
-                const response = await fetch(proxyUrl);
-                
-                if (!response.ok) {
-                    throw new Error(`CORS proxy returned status ${response.status}`);
+            const arxivApiUrl = `https://export.arxiv.org/api/query?id_list=${arxivId}`;
+            const proxies = [
+                `https://corsproxy.io/?${encodeURIComponent(arxivApiUrl)}`,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(arxivApiUrl)}`,
+            ];
+            let proxyErrors = [];
+            for (const proxyUrl of proxies) {
+                try {
+                    const response = await fetch(proxyUrl);
+                    if (!response.ok) {
+                        throw new Error(`Proxy returned status ${response.status}`);
+                    }
+                    text = await response.text();
+                    console.log('arXiv API response received via CORS proxy, length:', text.length);
+                    break;
+                } catch (proxyError) {
+                    console.warn('CORS proxy failed:', proxyUrl, proxyError.message);
+                    proxyErrors.push(proxyError.message);
                 }
-                
-                text = await response.text();
-                console.log('arXiv API response received via CORS proxy, length:', text.length);
-            } catch (proxyError) {
-                console.warn('CORS proxy also failed:', proxyError.message);
-                throw new Error(`Could not fetch arXiv metadata. Supabase: ${supabaseError.message}`);
+            }
+            if (!text) {
+                throw new Error(`Could not fetch arXiv metadata. Supabase: ${supabaseError.message}. Proxies: ${proxyErrors.join('; ')}`);
             }
         }
         
@@ -778,22 +782,37 @@ async function importFromArxiv(arxivId) {
             throw new Error('Title not found in arXiv response');
         }
         
-        // Try to fetch BibTeX from arXiv (arxiv2bib service or similar)
+        // Try to fetch BibTeX from arXiv via Supabase edge function
         let bibtexData = null;
         try {
             console.log('Fetching BibTeX from arXiv...');
-            const bibtexUrl = `https://arxiv.org/bibtex/${arxivId}`;
-            const bibtexResponse = await fetch(bibtexUrl);
-            if (bibtexResponse.ok) {
-                const bibtexText = await bibtexResponse.text();
-                console.log('BibTeX response:', bibtexText.substring(0, 200));
-                bibtexData = await parseBibTeXEntry(bibtexText);
+            const bibtexResponse = await window.supabaseClient.functions.invoke('fetch-arxiv', {
+                body: { arxivId: arxivId, format: 'bibtex' }
+            });
+            if (!bibtexResponse.error && bibtexResponse.data && typeof bibtexResponse.data === 'string') {
+                console.log('BibTeX response:', bibtexResponse.data.substring(0, 200));
+                bibtexData = await parseBibTeXEntry(bibtexResponse.data);
                 console.log('BibTeX parsed:', bibtexData);
             } else {
-                console.log('BibTeX fetch failed with status:', bibtexResponse.status);
+                console.log('BibTeX fetch via edge function failed, generating from metadata');
             }
         } catch (e) {
-            console.log('arXiv BibTeX fetch failed:', e);
+            console.log('BibTeX fetch failed, generating from metadata:', e.message);
+        }
+
+        // Fallback: generate BibTeX data from the XML metadata we already have
+        if (!bibtexData) {
+            const firstAuthorLast = authors.split(',')[0].trim().split(/\s+/).pop() || 'unknown';
+            bibtexData = {
+                entryType: 'misc',
+                title: title,
+                author: authors,
+                year: String(year),
+                journal: 'arXiv preprint',
+                eprint: arxivId,
+                archivePrefix: 'arXiv',
+                citeKey: `${firstAuthorLast.toLowerCase()}${year}`,
+            };
         }
         
         // Fill form fields
@@ -847,7 +866,7 @@ async function importFromArxiv(arxivId) {
 
 // ===== IMPORT UI HELPERS =====
 
-function showImportStatus(message, type) {
+export function showImportStatus(message, type) {
     const status = document.getElementById('importStatus');
     if (!status) return;
     
@@ -861,7 +880,7 @@ function showImportStatus(message, type) {
     }
 }
 
-function resetImportZone() {
+export function resetImportZone() {
     // Clear quick import input
     const quickInput = document.getElementById('quickImport');
     if (quickInput) quickInput.value = '';
@@ -886,15 +905,10 @@ function resetImportZone() {
     if (dropZone) dropZone.style.display = 'block';
 }
 
-function showImportSuccess(data) {
+export function showImportSuccess(data) {
     // Hide drop zone
     const dropZone = document.getElementById('dropZone');
     if (dropZone) dropZone.style.display = 'none';
-    
-    // Close onboarding if it's open (user has successfully imported metadata)
-    if (typeof window.closeOnboarding === 'function') {
-        window.closeOnboarding();
-    }
     
     // Create success summary
     const importZone = document.querySelector('.import-zone');
@@ -938,7 +952,7 @@ function showImportSuccess(data) {
 
 // ===== BIBTEX FILE IMPORT =====
 
-async function importBibtexFile(event) {
+export async function importBibtexFile(event) {
     const file = event.target.files[0];
     if (!file) return;
     
@@ -959,12 +973,12 @@ async function importBibtexFile(event) {
         const numColumns = Math.ceil(articles.length / maxPerColumn);
         
         // Get viewport center so nodes appear on screen, not at project origin
-        const viewCenter = (typeof network !== 'undefined' && network)
-            ? network.getViewPosition()
+        const viewCenter = (typeof state.network !== 'undefined' && state.network)
+            ? state.network.getViewPosition()
             : { x: 0, y: 0 };
         
         articles.forEach((article, index) => {
-            article.id = appData.nextArticleId++;
+            article.id = state.appData.nextArticleId++;
             
             // Calculate column and row position
             const columnIndex = Math.floor(index / maxPerColumn);
@@ -975,18 +989,18 @@ async function importBibtexFile(event) {
             article.x = viewCenter.x + (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
             article.y = viewCenter.y + (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
             
-            appData.articles.push(article);
+            state.appData.articles.push(article);
         });
         
-        saveToLocalStorage();
+        save();
         updateGraph();
         renderListView();
         
         // Save initial positions to ensure they persist
         setTimeout(() => {
-            if (network && window.savedNodePositions) {
-                const positions = network.getPositions();
-                window.savedNodePositions = { ...window.savedNodePositions, ...positions };
+            if (state.network && state.savedNodePositions) {
+                const positions = state.network.getPositions();
+                state.savedNodePositions = { ...state.savedNodePositions, ...positions };
                 console.log('Saved positions for newly imported articles from .bib file');
                 
                 // Check node zone membership to update colors after positions are set
@@ -996,11 +1010,11 @@ async function importBibtexFile(event) {
                     console.log('Applied zone colors to imported nodes from .bib file');
                     
                     // Force graph update to reflect new colors
-                    const currentView = network.getViewPosition();
-                    const currentScale = network.getScale();
+                    const currentView = state.network.getViewPosition();
+                    const currentScale = state.network.getScale();
                     updateGraph();
                     // Restore view position
-                    network.moveTo({
+                    state.network.moveTo({
                         position: currentView,
                         scale: currentScale,
                         animation: false
@@ -1008,13 +1022,13 @@ async function importBibtexFile(event) {
                     console.log('Graph updated with correct colors');
                 }
                 
-                saveToLocalStorage(true); // Silent save after all updates
+                save(true); // Silent save after all updates
             }
         }, 200);
         
         // Center view on imported nodes
-        if (typeof network !== 'undefined' && network) {
-            network.fit({
+        if (typeof state.network !== 'undefined' && state.network) {
+            state.network.fit({
                 animation: {
                     duration: 500,
                     easingFunction: 'easeInOutQuad'

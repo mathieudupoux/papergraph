@@ -14,7 +14,7 @@
     background: transparent;
     z-index: 850;
     font-size: 0.85rem;
-    color: #666;
+    color: var(--color-text-secondary);
     pointer-events: none;
 }
 
@@ -23,24 +23,24 @@
     align-items: center;
     gap: 8px;
     pointer-events: auto;
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--color-glass);
     padding: 8px 16px;
     border-radius: 12px;
     backdrop-filter: blur(10px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-sm);
 }
 
 .footer-author {
     font-weight: 500;
-    color: #333;
+    color: var(--color-text-primary);
 }
 
 .footer-separator {
-    color: #ddd;
+    color: var(--color-border-medium);
 }
 
 .footer-date {
-    color: #999;
+    color: var(--color-text-tertiary);
     font-size: 0.8rem;
 }
 
@@ -49,22 +49,22 @@
     align-items: center;
     gap: 10px;
     pointer-events: auto;
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--color-glass);
     padding: 8px 16px;
     border-radius: 12px;
     backdrop-filter: blur(10px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: var(--shadow-sm);
 }
 
 .footer-link {
-    color: #666;
+    color: var(--color-text-secondary);
     text-decoration: none;
     font-size: 0.85rem;
     transition: color 0.2s;
 }
 
 .footer-link:hover {
-    color: #333;
+    color: var(--color-text-primary);
 }
 
 .footer-github {
@@ -74,14 +74,14 @@
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    color: #333;
+    color: var(--color-text-primary);
     transition: all 0.2s;
     text-decoration: none;
 }
 
 .footer-github:hover {
-    background: rgba(0, 0, 0, 0.05);
-    color: #000;
+    background: var(--backdrop-soft);
+    color: var(--color-text-primary);
 }
 
 .footer-github svg {
@@ -94,8 +94,8 @@
 
 .app-version {
     padding: 4px 12px;
-    background: rgba(74, 144, 226, 0.1);
-    color: #4a90e2;
+    background: var(--color-primary-light);
+    color: var(--color-primary);
     border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 600;

@@ -1,15 +1,13 @@
 // Supabase Edge Function: fetch-arxiv
 // Fetches arXiv metadata to bypass CORS restrictions
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -29,10 +27,33 @@ serve(async (req) => {
 
     // Sanitize arXiv ID (only allow valid characters: digits, dots, slashes, hyphens, v+digits)
     const sanitizedId = String(arxivId).replace(/[^a-zA-Z0-9.\-\/]/g, '')
+    const format = body?.format || 'xml'
 
-    // arXiv API uses http:// per their official documentation
-    // See: https://info.arxiv.org/help/api/user-manual.html
-    const arxivUrl = `http://export.arxiv.org/api/query?search_query=id:${sanitizedId}&start=0&max_results=1`
+    // If requesting BibTeX, fetch from arxiv.org/bibtex endpoint
+    if (format === 'bibtex') {
+      try {
+        const bibtexUrl = `https://arxiv.org/bibtex/${sanitizedId}`
+        const bibtexResponse = await fetch(bibtexUrl)
+        if (bibtexResponse.ok) {
+          const bibtexText = await bibtexResponse.text()
+          return new Response(
+            JSON.stringify(bibtexText),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          )
+        }
+        return new Response(
+          JSON.stringify({ error: `BibTeX fetch failed with status ${bibtexResponse.status}` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
+        )
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ error: `BibTeX fetch failed: ${String(err)}` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 502 }
+        )
+      }
+    }
+
+    const arxivUrl = `https://export.arxiv.org/api/query?search_query=id:${sanitizedId}&start=0&max_results=1`
 
     let xmlText = ''
     let lastError = ''
@@ -67,7 +88,7 @@ serve(async (req) => {
     // If all retries failed and we still have no XML, try the id_list variant
     if (!xmlText) {
       try {
-        const altUrl = `http://export.arxiv.org/api/query?id_list=${sanitizedId}`
+        const altUrl = `https://export.arxiv.org/api/query?id_list=${sanitizedId}`
         const altResponse = await fetch(altUrl)
         if (altResponse.ok) {
           xmlText = await altResponse.text()

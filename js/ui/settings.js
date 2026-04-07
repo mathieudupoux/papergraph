@@ -1,10 +1,12 @@
+import { state } from '../core/state.js';
+
 // ===== SETTINGS & PROJECT TITLE =====
 // Manage settings modal and project title
 
 // Project title management
 let projectTitle = 'Mon Projet';
 
-function initializeProjectTitle() {
+export function initializeProjectTitle() {
     const titleInput = document.getElementById('projectTitle');
     const settingsTitleInput = document.getElementById('settingsProjectTitle');
     
@@ -48,7 +50,7 @@ function initializeProjectTitle() {
 }
 
 // Settings modal management
-function openSettingsModal() {
+export function openSettingsModal() {
     const modal = document.getElementById('settingsModal');
     const settingsTitleInput = document.getElementById('settingsProjectTitle');
     
@@ -61,19 +63,19 @@ function openSettingsModal() {
     document.body.style.overflow = 'hidden';
 }
 
-function closeSettingsModal() {
+export function closeSettingsModal() {
     const modal = document.getElementById('settingsModal');
     modal.classList.remove('active');
     document.body.style.overflow = '';
 }
 
 // Export function to get project title for exports
-function getProjectTitle() {
+export function getProjectTitle() {
     return projectTitle || 'papergraph_export';
 }
 
 // ===== LOAD SETTINGS =====
-function loadSettings() {
+export function loadSettings() {
     const saved = localStorage.getItem('papergraph_settings');
     if (saved) {
         try {
@@ -88,7 +90,7 @@ function loadSettings() {
 }
 
 // ===== APPLY SETTINGS =====
-function applySettings() {
+export function applySettings() {
     // Apply dark mode
     if (appSettings.darkMode) {
         document.body.classList.add('dark-mode');
@@ -103,16 +105,16 @@ function applySettings() {
     }
     
     // Update node labels if network exists
-    if (network && appSettings.nodeLabelFormat !== 'title') {
+    if (state.network && appSettings.nodeLabelFormat !== 'title') {
         updateNodeLabels();
     }
 }
 
 // ===== UPDATE NODE LABELS =====
-function updateNodeLabels() {
-    if (!network) return;
+export function updateNodeLabels() {
+    if (!state.network) return;
     
-    const nodesToUpdate = appData.articles.map(article => {
+    const nodesToUpdate = state.appData.articles.map(article => {
         let label = '';
         
         switch (appSettings.nodeLabelFormat) {
@@ -160,12 +162,12 @@ function updateNodeLabels() {
         };
     });
     
-    network.body.data.nodes.update(nodesToUpdate);
+    state.network.body.data.nodes.update(nodesToUpdate);
 }
 
 // ===== GENERATE CITATION KEY =====
 // Helper function for BibTeX-style citation keys
-function generateCitationKey(article) {
+export function generateCitationKey(article) {
     if (article.authors && article.year) {
         // Split by comma or "and" to handle both formats
         const authorsList = article.authors.split(/,| and /i);

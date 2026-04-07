@@ -1,0 +1,16 @@
+<div id="newProjectModal" class="modal">
+    <div class="modal-content modal-small">
+        <span class="close" onclick="closeNewProjectModal()">&times;</span>
+        <h2>Create New Project</h2>
+        <form id="newProjectForm" onsubmit="handleCreateNewProject(event)">
+            <div class="form-group">
+                <label for="newProjectName">Project Name</label>
+                <input type="text" id="newProjectName" placeholder="e.g., Machine Learning Papers" required />
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button type="button" class="btn-secondary" onclick="closeNewProjectModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Create</button>
+            </div>
+        </form>
+    </div>
+</div>

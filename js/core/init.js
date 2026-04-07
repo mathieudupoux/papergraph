@@ -1,25 +1,36 @@
+import { state } from './state.js';
+import { showNotification } from '../utils/helpers.js';
+import { exportProject, exportToBibtex, exportToPDF, exportToLatex, exportToImage, exportToSVG, newProject, importProject } from '../data/export.js';
+import { importBibtexFile, setupImportZone, toggleManualForm } from '../data/import.js';
+import { openArticleModal, closeModal, saveArticle, deleteArticle, deleteArticleById } from '../ui/modal.js';
+import { toggleCategoryDropdown, updateCategoryFilters, updateActiveFiltersDisplay } from '../ui/filters.js';
+import { toggleGrid, closeMultiTagDialog } from '../ui/toolbar.js';
+import { searchInGraph } from '../graph/search.js';
+import { renderListView } from '../ui/list/sidebar.js';
+import { hideSelectionBox, applyNodeLabelFormat } from '../graph/selection.js';
+import { hideRadialMenu, hideSelectionRadialMenu } from '../ui/radial-menu.js';
+import { hideEdgeMenu, startConnectionMode, cancelConnectionMode, deleteConnection } from '../graph/connections.js';
+import { hideZoneDeleteButton, deleteZone } from '../graph/zones.js';
+import { updateGraph } from '../graph/render.js';
+import { setupLogoDropdown } from '../ui/logo-dropdown.js';
+
 // ===== INITIALIZATION & EVENT LISTENERS =====
 // Application initialization and all event bindings
 
-// Check if we're in read-only mode (gallery project)
+// Check if we're in read-only mode (gallery project via ?mode=readonly)
 const urlParams = new URLSearchParams(window.location.search);
-const isReadOnlyMode = urlParams.get('mode') === 'readonly';
-let galleryProjectData = null;
+if (urlParams.get('mode') === 'readonly') {
+    state.isReadOnlyMode = true;
 
-if (isReadOnlyMode) {
     // Load gallery project from sessionStorage
     const galleryData = sessionStorage.getItem('galleryProject');
     if (galleryData) {
-        galleryProjectData = JSON.parse(galleryData);
+        state.galleryProjectData = JSON.parse(galleryData);
         console.log('📖 Read-only mode active - Gallery project loaded');
     }
 }
 
-// Export read-only state
-window.isReadOnlyMode = isReadOnlyMode;
-window.galleryProjectData = galleryProjectData;
-
-function initializeEventListeners() {
+export function initializeEventListeners() {
     // View toggle switch
     const viewToggle = document.getElementById('viewToggle');
     viewToggle.addEventListener('change', (e) => {
@@ -30,223 +41,45 @@ function initializeEventListeners() {
         switchView(e.target.checked ? 'list' : 'graph');
     });
     
-    // Logo menu button
-    const logoMenuBtn = document.getElementById('logoMenuBtn');
-    const mainDropdown = document.getElementById('mainDropdown');
-    const importSubmenu = document.getElementById('importSubmenu');
-    const exportSubmenu = document.getElementById('exportSubmenu');
-    const nodeLabelSubmenu = document.getElementById('nodeLabelSubmenu');
+    // Logo dropdown — shared setup (toggle, submenus, outside-click)
+    // Editor uses logoMenuBtnExtended as the trigger (in the logo-menu-btn-extended bar)
+    setupLogoDropdown({ triggerButtonId: 'logoMenuBtnExtended' });
     
-    let activeSubmenu = null;
+    const mainDropdown = document.getElementById('logoDropdown');
     
-    logoMenuBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        mainDropdown.classList.toggle('active');
-        closeAllSubmenus();
+    // Reveal editor-only items (hidden by .editor-only-item class in the shared partial)
+    document.querySelectorAll('.editor-only-item').forEach(el => {
+        el.classList.remove('editor-only-item');
     });
-    
-    // Close all submenus
-    function closeAllSubmenus() {
-        if (importSubmenu) importSubmenu.classList.remove('active');
-        if (exportSubmenu) exportSubmenu.classList.remove('active');
-        if (nodeLabelSubmenu) nodeLabelSubmenu.classList.remove('active');
-        activeSubmenu = null;
-    }
-    
-    // Position and show submenu
-    function showSubmenu(submenu, triggerButton) {
-        if (!submenu) return; // Safety check
-        closeAllSubmenus();
-        const rect = triggerButton.getBoundingClientRect();
-        submenu.style.top = `${rect.top}px`;
-        submenu.style.left = `${rect.right + 10}px`; // 10px spacing to the right
-        submenu.classList.add('active');
-        activeSubmenu = submenu;
-    }
-    
-    // Submenu triggers with hover
-    const importMenuBtn = document.getElementById('actionImportMenu');
-    const exportMenuBtn = document.getElementById('actionExportMenu');
-    const nodeLabelMenuBtn = document.getElementById('actionNodeLabelMenu');
-    
-    if (importMenuBtn) {
-        importMenuBtn.addEventListener('mouseenter', function() {
-            showSubmenu(importSubmenu, this);
-        });
-    }
-    
-    if (exportMenuBtn) {
-        exportMenuBtn.addEventListener('mouseenter', function() {
-            showSubmenu(exportSubmenu, this);
-        });
-    }
-    
-    if (nodeLabelMenuBtn) {
-        nodeLabelMenuBtn.addEventListener('mouseenter', function() {
-            showSubmenu(nodeLabelSubmenu, this);
-        });
-    }
-
-    
-    // Close submenus when hovering over non-submenu items in main dropdown only
-    const mainDropdownItems = mainDropdown.querySelectorAll('.dropdown-menu-item:not(.has-submenu)');
-    mainDropdownItems.forEach(item => {
-        item.addEventListener('mouseenter', function() {
-            closeAllSubmenus();
-        });
-    });
-    
-    // Keep submenu open when hovering over it
-    [importSubmenu, exportSubmenu, nodeLabelSubmenu].filter(Boolean).forEach(submenu => {
-        submenu.addEventListener('mouseenter', function() {
-            this.classList.add('active');
-        });
-        
-        submenu.addEventListener('mouseleave', function() {
-            this.classList.remove('active');
-        });
-    });
-    
-    // Close submenus when leaving main dropdown
-    mainDropdown.addEventListener('mouseleave', function(e) {
-        // Only close if not moving to a submenu
-        setTimeout(() => {
-            const notHoveringAnySubmenu = 
-                (!importSubmenu || !importSubmenu.matches(':hover')) && 
-                (!exportSubmenu || !exportSubmenu.matches(':hover')) && 
-                (!nodeLabelSubmenu || !nodeLabelSubmenu.matches(':hover'));
-            
-            if (notHoveringAnySubmenu) {
-                closeAllSubmenus();
-            }
-        }, 100);
-    });
-    
-    // Close dropdown when clicking outside
-    document.addEventListener('click', (e) => {
-        const clickedInDropdown = mainDropdown.contains(e.target) || logoMenuBtn.contains(e.target);
-        const clickedInSubmenu = 
-            (importSubmenu && importSubmenu.contains(e.target)) ||
-            (exportSubmenu && exportSubmenu.contains(e.target)) ||
-            (nodeLabelSubmenu && nodeLabelSubmenu.contains(e.target));
-        
-        if (!clickedInDropdown && !clickedInSubmenu) {
-            mainDropdown.classList.remove('active');
-            closeAllSubmenus();
-        }
-    });
+    // Hide New Project button in editor context
+    const newProjectBtn = document.getElementById('logoNewProjectBtn');
+    if (newProjectBtn) newProjectBtn.style.display = 'none';
     
     // Node label format selection
     const nodeLabelOptions = document.querySelectorAll('.node-label-option');
+    const nodeLabelSubmenu = document.getElementById('logoNodeLabelSubmenu');
     nodeLabelOptions.forEach(option => {
         option.addEventListener('click', function() {
             const format = this.dataset.format;
             nodeLabelOptions.forEach(opt => opt.classList.remove('selected'));
             this.classList.add('selected');
             applyNodeLabelFormat(format);
-            mainDropdown.classList.remove('active');
-            closeAllSubmenus();
+            // Close dropdown and submenu
+            if (mainDropdown) mainDropdown.classList.remove('active');
+            if (nodeLabelSubmenu) nodeLabelSubmenu.classList.remove('active');
         });
     });
     
-    // Load saved node label format
+    // Apply saved node label format on load and mark selected
     const savedFormat = localStorage.getItem('nodeLabelFormat') || 'bibtexId';
+    applyNodeLabelFormat(savedFormat);
     const savedOption = document.querySelector(`[data-format="${savedFormat}"]`);
     if (savedOption) {
+        nodeLabelOptions.forEach(opt => opt.classList.remove('selected'));
         savedOption.classList.add('selected');
     }
     
-    // Setup Editor User Dropdown
-    async function setupEditorUserDropdown() {
-        try {
-            const config = await import('../auth/config.js');
-            const { data: { session } } = await config.supabase.auth.getSession();
-            
-            if (session && session.user) {
-                const user = session.user;
-                const editorUserAvatarBtn = document.getElementById('editorUserAvatarBtn');
-                const editorUserAvatar = document.getElementById('editorUserAvatar');
-                const editorUserDropdown = document.getElementById('editorUserDropdown');
-                
-                if (!editorUserAvatarBtn || !editorUserAvatar || !editorUserDropdown) {
-                    console.error('User dropdown elements not found');
-                    return;
-                }
-                
-                // Populate user info
-                const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture;
-                const username = user.user_metadata?.username;
-                const displayName = user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0];
-                const email = user.email;
-                const provider = user.app_metadata?.provider || 'email';
-                
-                if (avatarUrl) {
-                    editorUserAvatar.src = avatarUrl;
-                    const editorUserAvatarDropdown = document.getElementById('editorUserAvatarDropdown');
-                    if (editorUserAvatarDropdown) {
-                        editorUserAvatarDropdown.src = avatarUrl;
-                    }
-                }
-                
-                // Display name first, then username below
-                const editorUserNameDropdown = document.getElementById('editorUserNameDropdown');
-                if (editorUserNameDropdown) {
-                    editorUserNameDropdown.textContent = displayName;
-                }
-                
-                const usernameElement = document.getElementById('editorUserUsernameDropdown');
-                if (usernameElement) {
-                    if (username) {
-                        usernameElement.textContent = `@${username}`;
-                        usernameElement.style.display = 'block';
-                    } else {
-                        usernameElement.style.display = 'none';
-                    }
-                }
-                
-                editorUserAvatarBtn.style.display = 'flex';
-                
-                // Remove existing event listeners by cloning and replacing
-                const newAvatarBtn = editorUserAvatarBtn.cloneNode(true);
-                editorUserAvatarBtn.parentNode.replaceChild(newAvatarBtn, editorUserAvatarBtn);
-                
-                // Toggle dropdown - attach to new button
-                newAvatarBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    editorUserDropdown.classList.toggle('active');
-                });
-                
-                // Close dropdown when clicking outside
-                const closeDropdownHandler = (e) => {
-                    if (!newAvatarBtn.contains(e.target) && !editorUserDropdown.contains(e.target)) {
-                        editorUserDropdown.classList.remove('active');
-                    }
-                };
-                
-                // Remove any previous handler with same identifier
-                document.removeEventListener('click', window.editorDropdownCloseHandler);
-                window.editorDropdownCloseHandler = closeDropdownHandler;
-                document.addEventListener('click', closeDropdownHandler);
-                
-                // Sign out button
-                const editorSignOut = document.getElementById('editorSignOut');
-                if (editorSignOut) {
-                    // Remove existing listeners
-                    const newSignOutBtn = editorSignOut.cloneNode(true);
-                    editorSignOut.parentNode.replaceChild(newSignOutBtn, editorSignOut);
-                    
-                    newSignOutBtn.addEventListener('click', async () => {
-                        await config.supabase.auth.signOut();
-                        window.location.href = 'index.html';
-                    });
-                }
-            }
-        } catch (error) {
-            console.log('User not authenticated or error loading user data');
-        }
-    }
-    
-    setupEditorUserDropdown();
+    // Editor user dropdown is now handled by initUserDropdown() in editor-init.js
     
     // Dark Theme Toggle (in user dropdown)
     const editorThemeToggle = document.getElementById('editorThemeToggle');
@@ -273,89 +106,78 @@ function initializeEventListeners() {
     // Dropdown menu actions
     // Note: actionNewProject button removed from dropdown menu
     
-    const actionImportBtn = document.getElementById('actionImport');
+    const actionImportBtn = document.getElementById('logoImportProjectBtn');
     if (actionImportBtn) {
         actionImportBtn.addEventListener('click', () => {
             document.getElementById('fileInput').click();
             mainDropdown.classList.remove('active');
             closeAllSubmenus();
-            // Close onboarding if it's open
-            if (typeof window.closeOnboarding === 'function') {
-                window.closeOnboarding();
-            }
         });
     }
     
-    const actionImportBibtexBtn = document.getElementById('actionImportBibtex');
+    const actionImportBibtexBtn = document.getElementById('logoImportBibtexBtn');
     if (actionImportBibtexBtn) {
         actionImportBibtexBtn.addEventListener('click', () => {
             document.getElementById('bibtexFileInput').click();
             mainDropdown.classList.remove('active');
             closeAllSubmenus();
-            // Close onboarding if it's open
-            if (typeof window.closeOnboarding === 'function') {
-                window.closeOnboarding();
-            }
         });
     }
     
-    document.getElementById('actionExport').addEventListener('click', () => {
+    document.getElementById('logoExportProjectBtn').addEventListener('click', () => {
         exportProject();
         mainDropdown.classList.remove('active');
         closeAllSubmenus();
     });
     
-    document.getElementById('actionExportBibtex').addEventListener('click', () => {
+    document.getElementById('logoExportBibtexBtn').addEventListener('click', () => {
         exportToBibtex();
         mainDropdown.classList.remove('active');
         closeAllSubmenus();
     });
     
-    document.getElementById('actionExportPdf').addEventListener('click', () => {
+    document.getElementById('logoExportPdfBtn').addEventListener('click', () => {
         exportToPDF();
         mainDropdown.classList.remove('active');
         closeAllSubmenus();
     });
     
-    document.getElementById('actionExportLatex').addEventListener('click', () => {
+    document.getElementById('logoExportLatexBtn').addEventListener('click', () => {
         exportToLatex();
         mainDropdown.classList.remove('active');
         closeAllSubmenus();
     });
     
-    document.getElementById('actionLatexStyle').addEventListener('click', () => {
-        showLatexStyleEditor();
-        mainDropdown.classList.remove('active');
-        closeAllSubmenus();
-    });
-    
-    document.getElementById('actionExportImage').addEventListener('click', () => {
+    document.getElementById('logoExportImageBtn').addEventListener('click', () => {
         exportToImage();
         mainDropdown.classList.remove('active');
         closeAllSubmenus();
     });
     
-    document.getElementById('actionExportSVG').addEventListener('click', () => {
+    document.getElementById('logoExportSVGBtn').addEventListener('click', () => {
         exportToSVG();
         mainDropdown.classList.remove('active');
         closeAllSubmenus();
     });
     
     // Help menu actions
-    document.getElementById('actionHelp').addEventListener('click', () => {
-        window.open('https://github.com/remyvallot/papergraph#readme', '_blank');
-        mainDropdown.classList.remove('active');
-        closeAllSubmenus();
-    });
+    // Help button - also close dropdown on click (onclick handles navigation)
+    const helpBtn = document.getElementById('logoHelpBtn');
+    if (helpBtn) {
+        helpBtn.addEventListener('click', () => {
+            mainDropdown.classList.remove('active');
+            closeAllSubmenus();
+        });
+    }
     
     // Gallery menu actions
-    document.getElementById('actionExploreGallery').addEventListener('click', () => {
+    document.getElementById('logoGalleryBtn').addEventListener('click', () => {
         window.location.href = 'gallery.html';
         mainDropdown.classList.remove('active');
         closeAllSubmenus();
     });
     
-    const actionSubmitToGalleryBtn = document.getElementById('actionSubmitToGallery');
+    const actionSubmitToGalleryBtn = document.getElementById('logoSubmitBtn');
     if (actionSubmitToGalleryBtn) {
         actionSubmitToGalleryBtn.addEventListener('click', async () => {
             mainDropdown.classList.remove('active');
@@ -382,11 +204,14 @@ function initializeEventListeners() {
         });
     }
     
-    document.getElementById('actionReportBug').addEventListener('click', () => {
-        window.open('https://github.com/remyvallot/papergraph/issues/new', '_blank');
-        mainDropdown.classList.remove('active');
-        closeAllSubmenus();
-    });
+    // Report Bug button - also close dropdown on click (onclick handles navigation)
+    const reportBugBtn = document.getElementById('logoReportBugBtn');
+    if (reportBugBtn) {
+        reportBugBtn.addEventListener('click', () => {
+            mainDropdown.classList.remove('active');
+            closeAllSubmenus();
+        });
+    }
     
     const fileInput = document.getElementById('fileInput');
     if (fileInput) {
@@ -405,14 +230,14 @@ function initializeEventListeners() {
     document.getElementById('categoryFilterBtn').addEventListener('click', toggleCategoryDropdown);
     // Function to recenter/fit the graph view
     function fitGraphView() {
-        if (!network) return;
+        if (!state.network) return;
         
         // Calculate bounding box including both nodes and tagzones
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         let hasContent = false;
         
         // Include nodes
-        const positions = network.getPositions();
+        const positions = state.network.getPositions();
         Object.values(positions).forEach(pos => {
             minX = Math.min(minX, pos.x);
             minY = Math.min(minY, pos.y);
@@ -422,8 +247,8 @@ function initializeEventListeners() {
         });
         
         // Include tagzones
-        if (tagZones && tagZones.length > 0) {
-            tagZones.forEach(zone => {
+        if (state.tagZones && state.tagZones.length > 0) {
+            state.tagZones.forEach(zone => {
                 minX = Math.min(minX, zone.x);
                 minY = Math.min(minY, zone.y);
                 maxX = Math.max(maxX, zone.x + zone.width);
@@ -438,14 +263,14 @@ function initializeEventListeners() {
             const paddingY = (maxY - minY) * 0.2;
             
             // Adjust view to include tagzones with padding
-            network.moveTo({
+            state.network.moveTo({
                 position: {
                     x: (minX + maxX) / 2,
                     y: (minY + maxY) / 2
                 },
                 scale: Math.min(
-                    network.canvas.frame.canvas.width / (maxX - minX + 2 * paddingX),
-                    network.canvas.frame.canvas.height / (maxY - minY + 2 * paddingY)
+                    state.network.canvas.frame.canvas.width / (maxX - minX + 2 * paddingX),
+                    state.network.canvas.frame.canvas.height / (maxY - minY + 2 * paddingY)
                 ) * 0.85
             });
         }
@@ -461,7 +286,7 @@ function initializeEventListeners() {
     // Load grid state from localStorage
     const savedGridState = localStorage.getItem('gridEnabled');
     if (savedGridState === 'true') {
-        gridEnabled = true;
+        state.gridEnabled = true;
         const btn = document.getElementById('toggleGridBtn');
         btn.classList.add('active');
     }
@@ -510,11 +335,6 @@ function initializeEventListeners() {
         const graphView = document.getElementById('graphView');
         const listView = document.getElementById('listView');
         
-        // Close onboarding if it's open (user is searching)
-        if (searchTerm && typeof window.closeOnboarding === 'function') {
-            window.closeOnboarding();
-        }
-        
         if (graphView.classList.contains('active')) {
             searchInGraph(searchTerm);
         } else if (listView.classList.contains('active')) {
@@ -531,13 +351,8 @@ function initializeEventListeners() {
     
     // Category filter
     document.getElementById('categoryFilter').addEventListener('change', (e) => {
-        currentCategoryFilter = e.target.value;
-        activeFilters.category = e.target.value || null;
-        
-        // Close onboarding if it's open (user is filtering)
-        if (typeof window.closeOnboarding === 'function') {
-            window.closeOnboarding();
-        }
+        state.currentCategoryFilter = e.target.value;
+        state.activeFilters.category = e.target.value || null;
         
         const graphView = document.getElementById('graphView');
         if (graphView.classList.contains('active')) {
@@ -570,20 +385,20 @@ function initializeEventListeners() {
             
             e.preventDefault();
             
-            if (selectedNodeId !== null) {
+            if (state.selectedNodeId !== null) {
                 if (confirm('Delete this article?')) {
-                    deleteArticleById(selectedNodeId);
-                    selectedNodeId = null;
+                    deleteArticleById(state.selectedNodeId);
+                    state.selectedNodeId = null;
                     hideRadialMenu();
                 }
-            } else if (selectedEdgeId !== null) {
+            } else if (state.selectedEdgeId !== null) {
                 if (confirm('Delete this connection?')) {
-                    deleteConnection(selectedEdgeId);
+                    deleteConnection(state.selectedEdgeId);
                     hideEdgeMenu();
                 }
-            } else if (selectedZoneIndex !== -1) {
+            } else if (state.selectedZoneIndex !== -1) {
                 if (confirm('Delete this zone/tag?')) {
-                    deleteZone(selectedZoneIndex);
+                    deleteZone(state.selectedZoneIndex);
                 }
             }
         }
@@ -591,15 +406,15 @@ function initializeEventListeners() {
     
     // Radial menu actions
     document.querySelector('.radial-connect').addEventListener('click', () => {
-        if (selectedNodeId) {
-            startConnectionMode(selectedNodeId);
+        if (state.selectedNodeId) {
+            startConnectionMode(state.selectedNodeId);
             hideRadialMenu();
         }
     });
     
     document.querySelector('.radial-delete').addEventListener('click', () => {
-        if (selectedNodeId) {
-            deleteArticleById(selectedNodeId);
+        if (state.selectedNodeId) {
+            deleteArticleById(state.selectedNodeId);
             hideRadialMenu();
         }
     });
@@ -646,16 +461,11 @@ function initializeEventListeners() {
     // Edge menu actions are now handled directly in showEdgeMenu() via onclick
 }
 
-function switchView(view) {
+export function switchView(view) {
     const graphView = document.getElementById('graphView');
     const listView = document.getElementById('listView');
     const viewToggle = document.getElementById('viewToggle');
     const graphOnlyElements = document.querySelectorAll('.graph-only');
-    
-    // Close onboarding if it's open (user is interacting with the app)
-    if (typeof window.closeOnboarding === 'function') {
-        window.closeOnboarding();
-    }
     
     // Hide selection box when switching views
     hideSelectionBox();
@@ -684,8 +494,8 @@ function switchView(view) {
             });
         });
         
-        if (network) {
-            network.fit();
+        if (state.network) {
+            state.network.fit();
         }
     } else {
         graphView.classList.remove('active');

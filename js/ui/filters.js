@@ -1,10 +1,14 @@
+import { state } from '../core/state.js';
+import { updateGraph } from '../graph/render.js';
+import { renderListView } from './list/sidebar.js';
+
 // ===== CATEGORY FILTERS =====
 // Filter management and UI
 
-function updateCategoryFilters() {
+export function updateCategoryFilters() {
     const allCategories = new Set();
-    appData.articles.forEach(article => {
-        article.categories.forEach(cat => allCategories.add(cat));
+    state.appData.articles.forEach(article => {
+        (article.categories || []).forEach(cat => allCategories.add(cat));
     });
     
     const sortedCategories = Array.from(allCategories).sort();
@@ -25,25 +29,25 @@ function updateCategoryFilters() {
     select.value = currentValue;
 }
 
-function toggleCategoryDropdown() {
+export function toggleCategoryDropdown() {
     const dropdown = document.getElementById('categoryDropdown');
     dropdown.classList.toggle('active');
 }
 
-function updateActiveFiltersDisplay() {
+export function updateActiveFiltersDisplay() {
     const container = document.getElementById('activeFilters');
     container.innerHTML = '';
     
     // Category filter
-    if (activeFilters.category) {
-        const chip = createFilterChip('Catégorie', activeFilters.category, () => {
+    if (state.activeFilters.category) {
+        const chip = createFilterChip('Catégorie', state.activeFilters.category, () => {
             removeFilter('category');
         });
         container.appendChild(chip);
     }
 }
 
-function createFilterChip(label, value, onRemove) {
+export function createFilterChip(label, value, onRemove) {
     const chip = document.createElement('div');
     chip.className = 'filter-chip';
     
@@ -68,10 +72,10 @@ function createFilterChip(label, value, onRemove) {
     return chip;
 }
 
-function removeFilter(filterType) {
+export function removeFilter(filterType) {
     if (filterType === 'category') {
-        activeFilters.category = null;
-        currentCategoryFilter = '';
+        state.activeFilters.category = null;
+        state.currentCategoryFilter = '';
         document.getElementById('categoryFilter').value = '';
     }
     

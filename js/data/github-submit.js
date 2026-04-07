@@ -4,6 +4,7 @@
  */
 
 import { loadProject } from '../auth/projects.js';
+import { openModal } from '../ui/modal-manager.js';
 
 /**
  * Submit a project to the gallery by calling Supabase Edge Function
@@ -120,7 +121,7 @@ export async function openSubmitToGalleryModal() {
         return;
     }
     
-    modal.style.display = 'block';
+    openModal('submitGalleryModal');
     
     // Get current project ID from URL (if in editor)
     const urlParams = new URLSearchParams(window.location.search);

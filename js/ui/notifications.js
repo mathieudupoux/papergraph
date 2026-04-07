@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '../auth/config.js';
+import { showNotification } from '../utils/helpers.js';
 
 let notificationChannel = null;
 let unreadCount = 0;
@@ -96,10 +97,8 @@ function updateNotificationBadge() {
  * Show toast notification for new notification
  */
 function showToastNotification(notification) {
-    if (typeof window.showNotification === 'function') {
-        const message = getNotificationMessage(notification);
-        window.showNotification(message, 'info');
-    }
+    const message = getNotificationMessage(notification);
+    showNotification(message, 'info');
 }
 
 /**

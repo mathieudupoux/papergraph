@@ -1,0 +1,178 @@
+/* ===== USER DROPDOWN (Avatar Menu) ===== */
+
+.user-dropdown-container {
+    position: relative;
+}
+
+.user-avatar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: var(--color-glass);
+    backdrop-filter: blur(10px);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-sm);
+    width: 44px;
+    height: 44px;
+    overflow: hidden;
+}
+
+.user-avatar-btn:hover {
+    box-shadow: var(--shadow-hover);
+    transform: scale(1.05);
+}
+
+.user-avatar-btn .pg-avatar {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Dropdown Menu */
+.user-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 280px;
+    background: var(--color-glass);
+    backdrop-filter: blur(10px);
+    border-radius: var(--dropdown-menu-radius);
+    box-shadow: var(--shadow-lg);
+    padding: 6px;
+    display: none;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid var(--backdrop-separator);
+    z-index: 1200;
+}
+
+.user-dropdown.active {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.user-dropdown-header {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    align-items: center;
+}
+
+.user-dropdown-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.user-dropdown-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-dropdown-name {
+    font-weight: 600;
+    font-size: var(--dropdown-font-size);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-dropdown-username {
+    font-weight: 400;
+    font-size: 0.8rem;
+    color: var(--color-text-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+.user-dropdown-email {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+.user-dropdown-provider {
+    font-size: 0.8rem;
+    color: var(--color-text-tertiary);
+    margin-top: 4px;
+}
+
+.user-dropdown-divider {
+    height: 1px;
+    background: var(--backdrop-dim);
+    margin: 6px 0;
+}
+
+.user-dropdown-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: var(--dropdown-item-padding);
+    border: none;
+    background: transparent;
+    border-radius: var(--dropdown-item-radius);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: var(--dropdown-font-size);
+    color: var(--color-text-primary);
+    text-align: left;
+}
+
+.user-dropdown-item:hover {
+    background: var(--backdrop-tint);
+}
+
+.user-dropdown-item svg {
+    flex-shrink: 0;
+    opacity: 0.6;
+}
+
+.user-dropdown-item-danger {
+    color: var(--color-error-alt);
+}
+
+.user-dropdown-item-danger:hover {
+    background: var(--color-error-tint);
+}
+
+/* Header Buttons Container */
+.pg-header-buttons {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+/* Editor User Dropdown (top-right) */
+.editor-user-dropdown {
+    position: fixed;
+    top: 32px;
+    right: 32px;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Floating action button (e.g. Sign In on gallery page) */
+.pg-floating-action {
+    position: fixed;
+    top: 32px;
+    right: 120px;
+    z-index: 1100;
+}
+

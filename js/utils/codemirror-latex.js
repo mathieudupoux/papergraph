@@ -11,7 +11,7 @@
  * @param {boolean} readonly - Whether to make the editor read-only
  * @returns {Object} Editor instance with getValue/setValue methods
  */
-function initLatexEditor(container, initialContent = '', onChange = null, readonly = false) {
+export function initLatexEditor(container, initialContent = '', onChange = null, readonly = false) {
     // Clear container and remove any padding/margin
     container.innerHTML = '';
     container.style.margin = '0';
@@ -240,4 +240,5 @@ function initLatexEditor(container, initialContent = '', onChange = null, readon
 }
 
 // Make globally available
+// Legacy bridge
 window.initLatexEditor = initLatexEditor;

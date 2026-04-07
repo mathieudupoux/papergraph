@@ -1,3 +1,5 @@
+import { state } from '../core/state.js';
+
 // ===== BIBTEX PARSER =====
 // Parse BibTeX entries and extract all fields
 
@@ -7,7 +9,7 @@
  * @param {object} article - The article object
  * @returns {string} Generated citation key
  */
-function generateBibtexId(article) {
+export function generateBibtexId(article) {
     if (!article) return 'unknown';
     
     let key = '';
@@ -49,7 +51,7 @@ function generateBibtexId(article) {
     // Check for duplicates and add suffix if needed
     let finalKey = key;
     let suffix = 0;
-    const existingKeys = appData.articles
+    const existingKeys = state.appData.articles
         .filter(a => a.id !== article.id && a.bibtexId)
         .map(a => a.bibtexId);
     
@@ -67,7 +69,7 @@ function generateBibtexId(article) {
  * @param {string} bibtexString - The BibTeX entry as a string
  * @returns {object|null} Parsed article object or null if invalid
  */
-async function parseBibTeXEntry(bibtexString) {
+export async function parseBibTeXEntry(bibtexString) {
     if (!bibtexString || typeof bibtexString !== 'string') {
         return null;
     }
@@ -211,7 +213,7 @@ async function parseBibTeXEntry(bibtexString) {
  * @param {string} month - Month (can be numeric "01" or text "jan", "January")
  * @returns {string} ISO date string (YYYY-MM-DD) or empty
  */
-function buildDateFromBibTeX(year, month) {
+export function buildDateFromBibTeX(year, month) {
     if (!year) return '';
     
     let monthNum = '01';
@@ -244,7 +246,7 @@ function buildDateFromBibTeX(year, month) {
  * @param {string} keywords - Comma or semicolon separated keywords
  * @returns {Array} Array of category strings
  */
-function parseCategories(keywords) {
+export function parseCategories(keywords) {
     if (!keywords) return [];
     
     return keywords
@@ -258,7 +260,7 @@ function parseCategories(keywords) {
  * @param {string} text - Text to check
  * @returns {boolean} True if text looks like BibTeX
  */
-function isBibTeXFormat(text) {
+export function isBibTeXFormat(text) {
     if (!text || typeof text !== 'string') return false;
     
     text = text.trim();
@@ -270,7 +272,7 @@ function isBibTeXFormat(text) {
  * @param {string} text - Text containing one or more BibTeX entries
  * @returns {Promise<Array>} Array of parsed article objects
  */
-async function parseMultipleBibTeXEntries(text) {
+export async function parseMultipleBibTeXEntries(text) {
     if (!text || typeof text !== 'string') return [];
     
     const entries = [];
@@ -328,7 +330,7 @@ async function parseMultipleBibTeXEntries(text) {
  * @param {string} url - URL containing arXiv ID
  * @returns {string|null} arXiv ID or null
  */
-function extractArxivId(url) {
+export function extractArxivId(url) {
     const match = url.match(/arxiv\.org\/abs\/(\d+\.\d+)/);
     return match ? match[1] : null;
 }
@@ -338,7 +340,7 @@ function extractArxivId(url) {
  * @param {string} arxivId - arXiv ID (e.g., "2010.08895")
  * @returns {Promise<string|null>} Abstract text or null
  */
-async function fetchArxivAbstract(arxivId) {
+export async function fetchArxivAbstract(arxivId) {
     try {
         let xmlText;
         
@@ -397,7 +399,7 @@ async function fetchArxivAbstract(arxivId) {
  * LaTeX commands (\textit{}, \&, etc.) are never double-escaped.
  * Does NOT escape url/doi/numeric fields – call only for prose text fields.
  */
-function sanitizeBibTextField(value) {
+export function sanitizeBibTextField(value) {
     if (!value) return value;
     return String(value)
         // Escape bare & (ampersand), but not \& which is already escaped
@@ -406,7 +408,7 @@ function sanitizeBibTextField(value) {
         .replace(/(?<!\\)_/g, '\\_');
 }
 
-function articleToBibTeX(article) {
+export function articleToBibTeX(article) {
     if (!article) return '';
     
     // Use original BibTeX if available

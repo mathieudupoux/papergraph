@@ -13,38 +13,38 @@
 }
 
 .filter-chip {
-    background: white;
-    border: 2px solid #4a90e2;
+    background: var(--color-bg);
+    border: 2px solid var(--color-primary);
     border-radius: 20px;
     padding: 8px 16px;
     display: flex;
     align-items: center;
     gap: 10px;
-    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.2);
+    box-shadow: 0 4px 12px var(--shadow-primary);
     animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     transition: all 0.2s;
 }
 
 .filter-chip:hover {
-    box-shadow: 0 6px 16px rgba(74, 144, 226, 0.3);
+    box-shadow: 0 6px 16px var(--color-primary-shadow);
     transform: translateX(-4px);
 }
 
 .filter-chip-label {
     flex: 1;
-    font-size: 0.85rem;
-    color: #2c3e50;
+    font-size: var(--dropdown-font-size);
+    color: var(--color-text-primary);
 }
 
 .filter-chip-value {
     font-weight: 600;
-    color: #4a90e2;
+    color: var(--color-primary);
 }
 
 .filter-chip-remove {
     background: none;
     border: none;
-    color: #999;
+    color: var(--color-text-tertiary);
     cursor: pointer;
     padding: 0;
     width: 20px;
@@ -59,8 +59,8 @@
 }
 
 .filter-chip-remove:hover {
-    background: #fee;
-    color: #e53935;
+    background: var(--color-bg-error-light);
+    color: var(--color-error);
 }
 
 @keyframes slideInRight {
@@ -76,9 +76,9 @@
 
 /* Controls */
 .controls {
-    background-color: #f8f9fa;
+    background-color: var(--color-bg-secondary);
     padding: 1rem 2rem;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--color-border);
     display: flex;
     gap: 1rem;
     align-items: center;
@@ -93,13 +93,13 @@
 
 .filter-section label {
     font-size: 0.9rem;
-    color: #666;
+    color: var(--color-text-secondary);
 }
 
 .filter-section select,
 .filter-section input[type="text"] {
     padding: 0.4rem 0.8rem;
-    border: 2px solid #ddd;
+    border: 2px solid var(--color-border-medium);
     border-radius: 6px;
     font-size: 0.9rem;
 }
@@ -107,27 +107,27 @@
 .filter-section select:focus,
 .filter-section input[type="text"]:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: var(--color-primary);
 }
 
 .filter-select {
-    padding: 8px 14px;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    color: #2c3e50;
-    background: white;
+    padding: var(--dropdown-item-padding);
+    border: 1px solid var(--color-border);
+    border-radius: var(--dropdown-item-radius);
+    font-size: var(--dropdown-font-size);
+    color: var(--color-text-primary);
+    background: var(--color-bg);
     cursor: pointer;
     transition: all 0.2s;
     min-width: 180px;
 }
 
 .filter-select:hover {
-    border-color: #4a90e2;
+    border-color: var(--color-primary);
 }
 
 .filter-select:focus {
     outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
 }

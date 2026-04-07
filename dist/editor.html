@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>papergraph</title>
+    <link href="https://api.fontshare.com/v2/css?f[]=chillax@400,700&display=swap" rel="stylesheet">
+    
+    <!-- Modular CSS - Base -->
+    
+    <!-- Modular CSS - Components -->
+    
+    <!-- Modular CSS - Views -->
+    
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css">
+    
+    <!-- Driver.js for Interactive Tutorial -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
+    
+    <!-- LaTeX.js for true LaTeX compilation -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/css/base.css">
+    <script src="https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/latex.js"></script>
+
+    <!-- PDF.js for PDF preview rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="js/utils/pdfjs-config.js"></script>
+
+    <!-- MathJax for LaTeX math rendering -->
+    <script src="js/utils/mathjax-config.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <!-- html2canvas for PDF export with LaTeX -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    
+    <!-- Cursors - MUST BE LAST to override everything -->
+    <link rel="stylesheet" href="css/base/cursors.css">
+    <link rel="icon" type="image/svg+xml" href="/assets/logo-papergraph-DptYnSHp.svg">
+  <script type="module" crossorigin src="/assets/editor-CkeDONlR.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/config-Bc0Nlkup.js">
+  <link rel="modulepreload" crossorigin href="/assets/user-dropdown-B0WzbOEk.js">
+  <link rel="modulepreload" crossorigin href="/assets/preferences-DZapAA6Q.js">
+  <link rel="modulepreload" crossorigin href="/assets/auth-C1DUTefP.js">
+  <link rel="modulepreload" crossorigin href="/assets/projects-BR7DNNlH.js">
+  <link rel="stylesheet" crossorigin href="/assets/config-BBdqsHn6.css">
+  <link rel="stylesheet" crossorigin href="/assets/user-dropdown-qx7qfs90.css">
+  <link rel="stylesheet" crossorigin href="/assets/editor-DFRUifmR.css">
+  <link rel="stylesheet" crossorigin href="/assets/user-dropdown-BOji9Hfj.css">
+  <link rel="stylesheet" crossorigin href="/assets/gallery-D6l29Xx0.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Read-Only Mode Bar (hidden by default) - positioned next to logo menu -->
+        <div id="readonlyIndicator" class="readonly-bar" style="display: none;">
+            <button id="copyToDashboardBtn" class="readonly-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <span>Read-only <br> Import to dashboard to edit</span>
+            </button>
+        </div>
+        
+        <!-- Logo Menu Button with integrated Project Title -->
+        <div class="logo-menu-btn-extended">
+            <button id="logoMenuBtnExtended" class="logo-menu-btn-part">
+                <img src="data:image/svg+xml,%3csvg%20width='43'%20height='39'%20viewBox='0%200%2043%2039'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M17.9573%2035H4.375C3.47989%2035%202.62145%2034.6418%201.98851%2034.0042C1.35558%2033.3665%201%2032.5017%201%2031.6V4.4C1%203.49826%201.35558%202.63346%201.98851%201.99584C2.62145%201.35821%203.47989%201%204.375%201H16.1875L28%2012.9V26.9561'%20stroke='%232c3e50'%20stroke-width='2.5'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cpath%20d='M16%201V13H28'%20stroke='%232c3e50'%20stroke-width='2.5'%20stroke-linecap='round'%20stroke-linejoin='round'/%3e%3cline%20x1='16.9593'%20y1='24.252'%20x2='23.6069'%20y2='32.3663'%20stroke='%232c3e50'%20stroke-width='2.5'/%3e%3cline%20x1='16.9593'%20y1='24.252'%20x2='23.6069'%20y2='32.3663'%20stroke='%232c3e50'%20stroke-opacity='0.2'%20stroke-width='2.5'/%3e%3cline%20x1='34.3547'%20y1='29.8533'%20x2='28.65'%20y2='33.339'%20stroke='%232c3e50'%20stroke-width='2.5'/%3e%3cline%20x1='34.3547'%20y1='29.8533'%20x2='28.65'%20y2='33.339'%20stroke='%232c3e50'%20stroke-opacity='0.2'%20stroke-width='2.5'/%3e%3ccircle%20cx='15.1'%20cy='21.6286'%20r='3.34286'%20stroke='%232c3e50'%20stroke-width='2.5'/%3e%3ccircle%20cx='15.1'%20cy='21.6286'%20r='3.34286'%20stroke='%232c3e50'%20stroke-opacity='0.2'%20stroke-width='2.5'/%3e%3ccircle%20cx='25.9571'%20cy='34.6571'%20r='3.34286'%20stroke='%232c3e50'%20stroke-width='2.5'/%3e%3ccircle%20cx='25.9571'%20cy='34.6571'%20r='3.34286'%20stroke='%232c3e50'%20stroke-opacity='0.2'%20stroke-width='2.5'/%3e%3ccircle%20cx='37.9'%20cy='28.1429'%20r='3.34286'%20stroke='%232c3e50'%20stroke-width='2.5'/%3e%3ccircle%20cx='37.9'%20cy='28.1429'%20r='3.34286'%20stroke='%232c3e50'%20stroke-opacity='0.2'%20stroke-width='2.5'/%3e%3c/svg%3e" alt="papergraph" class="logo-icon">
+                <span class="logo-text">papergraph</span>
+            </button>
+            
+            <div class="vertical-divider"></div>
+            
+            <!-- Project Title (editable) -->
+            <input 
+                type="text" 
+                id="projectTitle" 
+                class="project-title-input" 
+                placeholder="Untitled Project"
+                maxlength="100"
+            />
+        </div>
+        
+        <!-- User Profile Button (top-right) -->
+        <div class="user-dropdown-container editor-user-dropdown" data-include="user-dropdown"></div>
+        
+        <!-- Logo Dropdown (shared partial) -->
+        <div class="logo-dropdown-container" data-include="logo-dropdown"></div>
+        
+        <!-- Active Filters Display -->
+        <div id="activeFilters" class="active-filters-container">
+            <!-- Filters will be added here dynamically -->
+        </div>
+
+        <!-- Graph View -->
+        <div id="graphView" class="view active">
+            <!-- Article Preview Panel on the left -->
+            <div id="articlePreview" class="article-preview">
+                <div class="preview-content">
+                    <div class="article-card">
+                        <div id="previewCitationKey" class="citation-key" style="display: none;"></div>
+                        <h2 id="previewTitle" class="article-title">Article Title</h2>
+                        <p id="previewAuthors" class="article-meta"></p>
+                        <div id="previewCategoryBadge" class="category-badge-container"></div>
+                        
+                        <div class="article-section">
+                            <h4>Abstract / Notes</h4>
+                            <p id="previewText" class="article-description"></p>
+                        </div>
+                        
+                        <div class="article-links">
+                            <div id="previewDoiContainer" class="link-item" style="display: none;">
+                                <span class="link-label">📄 DOI:</span>
+                                <a id="previewDoi" href="#" target="_blank" rel="noopener"></a>
+                            </div>
+                            <div id="previewLinkContainer" class="link-item" style="display: none;">
+                                <span class="link-label">🔗 Link:</span>
+                                <a id="previewLink" href="#" target="_blank" rel="noopener"></a>
+                            </div>
+                            <div id="previewPdfContainer" class="link-item" style="display: none;">
+                                <span class="link-label">📕 PDF:</span>
+                                <a id="previewPdf" href="#" target="_blank" rel="noopener"></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="graphContainer"></div>
+            
+            <!-- Toolbar on the right (kept for compatibility) -->
+            <div class="toolbar" style="display: none;">
+            </div>
+            
+            <!-- Edge menu for connection actions -->
+            <div id="edgeMenu" class="edge-menu">
+                <button class="edge-btn edge-add-control-point" title="Add control point" data-action="add-control">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <line x1="12" y1="2" x2="12" y2="9"/>
+                        <line x1="12" y1="15" x2="12" y2="22"/>
+                    </svg>
+                </button>
+                <button class="edge-btn edge-edit-label" title="Edit label" data-action="edit-label">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                </button>
+                <button class="edge-btn edge-delete" title="Delete connection" data-action="delete">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Radial menu for node actions -->
+            <div id="radialMenu" class="radial-menu">
+                <button class="radial-btn radial-connect" title="Create connection">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                    </svg>
+                </button>
+                <button class="radial-btn radial-delete" title="Delete">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Connection mode indicator -->
+            <div id="connectionModeIndicator" class="mode-indicator">
+                <span>Connection mode active - Click on a target node</span>
+                <button id="cancelConnectionMode">✖ Cancel</button>
+            </div>
+        </div>
+
+        <!-- List View -->
+        <div id="listView" class="view">
+            <div class="notebook-container">
+                <div class="notebook-sidebar">
+                    <div class="sidebar-search">
+                        <input type="text" id="sidebarSearch" placeholder="Search articles...">
+                    </div>
+
+                    <div id="sidebarContent" class="sidebar-content">
+                        <!-- Sidebar items will be added here dynamically -->
+                    </div>
+                </div>
+
+                <div class="notebook-editor">
+                    <div id="editorEmptyState" class="editor-state" style="display:none;">
+                        <div class="empty-message">Select an article to start editing</div>
+                    </div>
+                    
+                    <div id="articleEditorState" class="editor-state">
+                        <div class="editor-metadata-section">
+                            <div class="editor-header-row">
+                                <div class="citation-badge" id="noteCitationKey" contenteditable="true"></div>
+                                <div id="noteYear" class="year-badge" contenteditable="true"></div>
+                            </div>
+                            
+                            <h1 id="noteTitle" class="editable-title" contenteditable="true" placeholder="Article Title"></h1>
+                            
+                            <div class="authors-section" id="authorsSection" style="display: none;">
+                                <div class="authors-header" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="toggleAuthorsContent()">
+                                    <label style="margin: 0;">Authors & Affiliations</label>
+                                    <button type="button" class="btn-collapse" id="authorsCollapseBtn" style="background: none; border: none; cursor: pointer; font-size: 18px; padding: 0 5px;">▼</button>
+                                </div>
+                                <div id="authorsContent" class="authors-content">
+                                    <label style="margin-top: 10px;">Authors:</label>
+                                    <div id="authorsList" class="authors-list"></div>
+                                    <button type="button" id="addAuthorBtn" class="btn-add-author">+ Add Author</button>
+                                    
+                                    <label style="margin-top: 15px;">Affiliations:</label>
+                                    <div id="affiliationsList" class="affiliations-list"></div>
+                                    <button type="button" id="addAffiliationBtn" class="btn-add-author">+ Add Affiliation</button>
+                                </div>
+                            </div>
+
+                            <div class="abstract-row" id="abstractRow" style="display: none;">
+                                <label>Abstract:</label>
+                                <div id="noteAbstract" class="editable-field editable-multiline" contenteditable="true" placeholder="Project abstract..."></div>
+                            </div>
+
+                            <div class="tags-row" id="noteTags"></div>
+                        </div>
+
+                        <div class="editor-split-container">
+                            <div class="split-pane source-pane">
+                                <div class="pane-label">Source (LaTeX supported)</div>
+                                <div id="noteContent" class="rich-textarea" contenteditable="true"></div>
+                            </div>
+                            <div class="split-pane preview-pane">
+                                <div class="pane-label">Preview</div>
+                                <div id="latexPreview" class="latex-content"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Category filter dropdown (shared between both views, above toolbar) -->
+        <div id="categoryDropdown" class="dropdown-panel">
+            <h3>Filters</h3>
+            
+            <div class="filter-section-dropdown">
+                <label>Category</label>
+                <select id="categoryFilter">
+                    <option value="">Toutes les catégories</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Main Action Toolbar - Bottom horizontal (outside views to be always visible) -->
+        <div class="main-toolbar">
+            <button id="addArticleBtn" class="main-tool-btn" title="Add an article">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="16"/>
+                    <line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+                <span class="btn-label">Add</span>
+            </button>
+            
+            <!-- Category filter icon (both modes) -->
+            <button id="categoryFilterBtn" class="main-tool-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+                </svg>
+                <span class="btn-label">Filter</span>
+            </button>
+            
+            <!-- Search icon/box -->
+            <button id="searchToggleBtn" class="main-tool-btn search-toggle-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                </svg>
+                <span class="btn-label">Search</span>
+            </button>
+            
+            <!-- Expandable search box -->
+            <div class="toolbar-search collapsed">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                </svg>
+                <input type="text" id="searchBoxToolbar" placeholder="Search..." class="toolbar-search-input">
+                <span id="searchResultCount" class="search-result-count"></span>
+                <button id="searchCloseBtn" class="search-close-btn">✕</button>
+            </div>
+            
+            <!-- Graph-only buttons -->
+            <div class="main-tool-divider graph-only"></div>
+            <button id="fitGraphBtn" class="main-tool-btn graph-only">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+                    <path d="M12 3 L12 8" stroke-linecap="round"/>
+                    <path d="M10 5 L12 3 L14 5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 21 L12 16" stroke-linecap="round"/>
+                    <path d="M10 19 L12 21 L14 19" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M3 12 L8 12" stroke-linecap="round"/>
+                    <path d="M5 10 L3 12 L5 14" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M21 12 L16 12" stroke-linecap="round"/>
+                    <path d="M19 10 L21 12 L19 14" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="btn-label">Recentrer</span>
+            </button>
+            <button id="toggleGridBtn" class="main-tool-btn graph-only">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="6" cy="6" r="1" fill="currentColor"/>
+                    <circle cx="12" cy="6" r="1" fill="currentColor"/>
+                    <circle cx="18" cy="6" r="1" fill="currentColor"/>
+                    <circle cx="6" cy="12" r="1" fill="currentColor"/>
+                    <circle cx="12" cy="12" r="1" fill="currentColor"/>
+                    <circle cx="18" cy="12" r="1" fill="currentColor"/>
+                    <circle cx="6" cy="18" r="1" fill="currentColor"/>
+                    <circle cx="12" cy="18" r="1" fill="currentColor"/>
+                    <circle cx="18" cy="18" r="1" fill="currentColor"/>
+                </svg>
+                <span class="btn-label">Grid</span>
+            </button>
+            
+            <div class="main-tool-divider"></div>
+            
+            <!-- Toggle switch for view mode (at the right, fixed position) -->
+            <div class="toolbar-view-toggle">
+                <input type="checkbox" id="viewToggle" class="toggle-input">
+                <label for="viewToggle" class="toggle-label">
+                    <span class="toggle-option toggle-graph" title="Vue Graphe">
+                        <img src="data:image/svg+xml,%3csvg%20width='32'%20height='22'%20viewBox='0%200%2032%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cline%20x1='6.20212'%20y1='6.96627'%20x2='12.8497'%20y2='15.0806'%20stroke='%234A90E2'%20stroke-width='2'/%3e%3cline%20x1='23.5976'%20y1='12.5676'%20x2='17.8928'%20y2='16.0533'%20stroke='%234A90E2'%20stroke-width='2'/%3e%3ccircle%20cx='4.34286'%20cy='4.34286'%20r='3.34286'%20stroke='%234A90E2'%20stroke-width='2'/%3e%3ccircle%20cx='15.2'%20cy='17.3714'%20r='3.34286'%20stroke='%234A90E2'%20stroke-width='2'/%3e%3ccircle%20cx='27.1429'%20cy='10.8571'%20r='3.34286'%20stroke='%234A90E2'%20stroke-width='2'/%3e%3c/svg%3e" alt="Graph" class="toggle-icon toggle-icon-active">
+                        <img src="data:image/svg+xml,%3csvg%20width='32'%20height='22'%20viewBox='0%200%2032%2022'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cline%20x1='6.20212'%20y1='6.96627'%20x2='12.8497'%20y2='15.0806'%20stroke='%23666666'%20stroke-width='2'/%3e%3cline%20x1='23.5976'%20y1='12.5676'%20x2='17.8928'%20y2='16.0533'%20stroke='%23666666'%20stroke-width='2'/%3e%3ccircle%20cx='4.34286'%20cy='4.34286'%20r='3.34286'%20stroke='%23666666'%20stroke-width='2'/%3e%3ccircle%20cx='15.2'%20cy='17.3714'%20r='3.34286'%20stroke='%23666666'%20stroke-width='2'/%3e%3ccircle%20cx='27.1429'%20cy='10.8571'%20r='3.34286'%20stroke='%23666666'%20stroke-width='2'/%3e%3c/svg%3e" alt="Graph" class="toggle-icon toggle-icon-inactive">
+                    </span>
+                    <span class="toggle-option toggle-list" title="Vue Liste">
+                        <img src="data:image/svg+xml,%3csvg%20width='23'%20height='16'%20viewBox='0%200%2023%2016'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M1%201H22'%20stroke='%234A90E2'%20stroke-width='2'%20stroke-linecap='round'/%3e%3cpath%20d='M1%208H22'%20stroke='%234A90E2'%20stroke-width='2'%20stroke-linecap='round'/%3e%3cpath%20d='M1%2015H22'%20stroke='%234A90E2'%20stroke-width='2'%20stroke-linecap='round'/%3e%3c/svg%3e" alt="List" class="toggle-icon toggle-icon-active">
+                        <img src="data:image/svg+xml,%3csvg%20width='23'%20height='16'%20viewBox='0%200%2023%2016'%20fill='none'%20xmlns='http://www.w3.org/2000/svg'%3e%3cpath%20d='M1%201H22'%20stroke='%23666666'%20stroke-width='2'%20stroke-linecap='round'/%3e%3cpath%20d='M1%208H22'%20stroke='%23666666'%20stroke-width='2'%20stroke-linecap='round'/%3e%3cpath%20d='M1%2015H22'%20stroke='%23666666'%20stroke-width='2'%20stroke-linecap='round'/%3e%3c/svg%3e" alt="List" class="toggle-icon toggle-icon-inactive">
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Article Edit Modal -->
+        <div id="articleModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2 id="modalTitle">New Article</h2>
+                <form id="articleForm">
+                    <!-- Minimal import section -->
+                    <div class="import-zone">
+                        <div id="dropZone" class="drop-zone">
+                            <div class="drop-zone-content">
+                                <span class="drop-icon">📄</span>
+                                <p class="drop-text">Drop PDF or .bib file here</p>
+                                <p class="drop-or">or</p>
+                                <input type="text" id="quickImport" placeholder="Paste DOI, arXiv ID or BibTeX (e.g. 10.1234/... or @article{...})">
+                                <div class="bibtex-paste-area" style="display: none;">
+                                    <textarea id="bibtexPasteArea" placeholder="Paste one or more complete BibTeX entries here...&#10;&#10;@article{key2024,&#10;  title = {Example},&#10;  author = {Doe, John},&#10;  year = {2024},&#10;  ...&#10;}" rows="10"></textarea>
+                                    <button type="button" id="parseBibtexBtn" class="btn-primary">✓ Import</button>
+                                    <button type="button" id="cancelBibtexBtn" class="btn-secondary">Cancel</button>
+                                </div>
+                                <input type="file" id="pdfFileInput" accept=".pdf,.bib" style="display: none;">
+                                <button type="button" id="browseFileBtn" class="btn-browse">Browse...</button>
+                            </div>
+                        </div>
+                        <div id="importStatus" class="import-status"></div>
+                    </div>
+                    
+                    <!-- Collapsible manual form -->
+                    <div id="manualFormToggle" class="manual-toggle">
+                        <button type="button" id="toggleManualBtn" class="toggle-manual-btn">
+                            ✏️ Manual entry / edit
+                        </button>
+                    </div>
+                    
+                    <div id="manualForm" class="manual-form collapsed">
+                        <!-- Essential fields -->
+                        <div class="form-group">
+                            <label for="articleTitle">Title *</label>
+                            <input type="text" id="articleTitle" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="articleAuthors">Author(s)</label>
+                            <input type="text" id="articleAuthors" placeholder="Doe, John and Smith, Jane">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="articleYear">Year</label>
+                            <input type="text" id="articleYear" placeholder="2024">
+                        </div>
+                        
+                        <!-- Publication details -->
+                        <div class="form-group">
+                            <label for="articleType">Entry Type</label>
+                            <select id="articleType">
+                                <option value="article">Article (journal)</option>
+                                <option value="inproceedings">Inproceedings (conference)</option>
+                                <option value="book">Book</option>
+                                <option value="phdthesis">PhD Thesis</option>
+                                <option value="mastersthesis">Master's Thesis</option>
+                                <option value="techreport">Technical Report</option>
+                                <option value="misc">Misc</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="articleJournal">Journal / Conference Name</label>
+                            <input type="text" id="articleJournal" placeholder="Journal or conference name">
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="articleVolume">Volume</label>
+                                <input type="text" id="articleVolume" placeholder="123">
+                            </div>
+                            <div class="form-group">
+                                <label for="articleNumber">Number</label>
+                                <input type="text" id="articleNumber" placeholder="4">
+                            </div>
+                            <div class="form-group">
+                                <label for="articlePages">Pages</label>
+                                <input type="text" id="articlePages" placeholder="45-67">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="articlePublisher">Publisher / Institution</label>
+                            <input type="text" id="articlePublisher" placeholder="Publisher or institution name">
+                        </div>
+                        
+                        <!-- Identifiers -->
+                        <div class="form-group">
+                            <label for="articleDoi">DOI</label>
+                            <input type="text" id="articleDoi" placeholder="10.1234/example.2024">
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="articleIsbn">ISBN</label>
+                                <input type="text" id="articleIsbn" placeholder="978-3-16-148410-0">
+                            </div>
+                            <div class="form-group">
+                                <label for="articleIssn">ISSN</label>
+                                <input type="text" id="articleIssn" placeholder="1234-5678">
+                            </div>
+                        </div>
+                        
+                        <!-- Links and files -->
+                        <div class="form-group">
+                            <label for="articleLink">URL</label>
+                            <input type="url" id="articleLink" placeholder="https://...">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="articlePdf">PDF (URL or path)</label>
+                            <input type="text" id="articlePdf" placeholder="https://... or local path">
+                        </div>
+                        
+                        <!-- Content -->
+                        <div class="form-group">
+                            <label for="articleAbstract">Abstract</label>
+                            <textarea id="articleAbstract" rows="4" placeholder="Article abstract..."></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="articleNote">Note</label>
+                            <textarea id="articleNote" rows="2" placeholder="Additional notes..."></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="articleCategories">Keywords / Categories (comma separated)</label>
+                            <input type="text" id="articleCategories" placeholder="machine learning, neural networks">
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" id="deleteArticleBtn" class="btn-danger">�Delete</button>
+                        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                        <button type="submit" class="btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Share Project Modal -->
+        <!-- Hidden file input for import -->
+        <input type="file" id="fileInput" accept=".papergraph,.json" style="display: none;">
+        <input type="file" id="bibtexFileInput" accept=".bib,.bibtex" style="display: none;">
+        
+        <!-- Footer -->
+        <div data-include="footer"></div>
+        
+        <!-- Preferences Modal -->
+        <div data-include="preferences-modal"></div>
+        
+        <!-- Submit to Gallery Modal -->
+        <div data-include="submit-gallery-modal"></div>
+        
+        <!-- New Project Modal -->
+        <div data-include="new-project-modal"></div>
+    
+    </div>
+
+    <!-- External Libraries (CDN) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/dist/vis-network.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@6.0.1/dist/index.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@6.0.1/dist/codemirror.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+    <!-- Application (single module entry point — Vite resolves all imports) -->
+</body>
+</html>
+
+
+
+
+
+

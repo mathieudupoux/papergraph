@@ -1,111 +1,117 @@
 // ===== APPLICATION STATE =====
-// Central state management for the Papermap application
+// Central state management — single source of truth for all shared state.
+// Every module imports { state } and accesses state.appData, state.network, etc.
 
-// Use window.appData to ensure global accessibility across all scripts
-window.appData = window.appData || {
-    articles: [],
-    connections: [],
-    projectReview: "", // Global review document
-    projectReviewMeta: { // Review metadata
-        title: "Project Review",
-        authors: ""
+// ── Exported State Object ───────────────────────────────────────────────
+
+export const state = {
+    // ── Data State ──────────────────────────────────────────────────────
+    appData: {
+        articles: [],
+        connections: [],
+        projectReview: "",
+        projectReviewMeta: {
+            title: "Project Review",
+            authors: ""
+        },
+        nextArticleId: 1,
+        nextConnectionId: 1
     },
-    nextArticleId: 1,
-    nextConnectionId: 1
+    tagZones: [],
+    savedNodePositions: {},
+    edgeControlPoints: {},  // { edgeId: [controlPointNodeId, ...] }
+    nextControlPointId: -1, // Negative IDs for control points
+
+    // ── Mode Flags ──────────────────────────────────────────────────────
+    isReadOnlyMode: false,
+    isGalleryViewer: false,
+    galleryProjectData: null,
+    galleryProjectMetadata: null,
+    currentProjectId: null,
+
+    // ── Runtime References ──────────────────────────────────────────────
+    network: null,
+
+    // ── User Permissions ────────────────────────────────────────────────
+    currentUserRole: null,
+    isReadOnly: false,
+
+    // ── UI State ────────────────────────────────────────────────────────
+    isEditingEdgeLabel: false,
+    currentEditingArticleId: null,
+    pendingImportArticle: null,
+    currentCategoryFilter: '',
+    activeFilters: { category: null },
+
+    connectionMode: {
+        active: false,
+        fromNodeId: null,
+        tempEdge: null
+    },
+
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    gridEnabled: false,
+    currentPulseInterval: null,
+
+    multiSelection: {
+        active: false,
+        selectedNodes: [],
+        selectionBox: null,
+        startX: 0,
+        startY: 0,
+        menuActive: false,
+        wasDragging: false,
+        emptyAreaSelection: null,
+        emptyAreaClickHandler: null,
+        selectedZonesForDrag: [],
+        zonesDragStart: {},
+        nodeDragStart: null,
+        boxDragging: false,
+        boxDragStart: { x: 0, y: 0 },
+        originalBoxPosition: { left: 0, top: 0 }
+    },
+
+    isDraggingView: false,
+
+    zoneResizing: {
+        active: false,
+        zoneIndex: -1,
+        handle: null,
+        startX: 0,
+        startY: 0,
+        originalZone: null
+    },
+
+    zoneMoving: {
+        active: false,
+        readyToMove: false,
+        zoneIndex: -1,
+        startX: 0,
+        startY: 0,
+        originalZone: null,
+        originalNodePositions: {},
+        originalNestedZones: {}
+    },
+
+    zoneEditing: {
+        active: false,
+        zoneIndex: -1,
+        inputElement: null,
+        backgroundElement: null
+    },
+
+    selectedZoneIndex: -1,
+
+    currentEditingElement: null,
+    originalContent: '',
+    inlineEditingSetup: false,
+    currentPreviewArticleId: null,
+
+    noteViewMode: 'article',
+    activeNoteId: null,
 };
 
-// Create local reference for convenience in this file
-let appData = window.appData;
-
-// ===== USER PERMISSIONS =====
-// Tracks current user's role for permission checks
-let currentUserRole = null; // 'owner', 'editor', 'viewer', or null
-let isReadOnly = false; // Computed from currentUserRole
-
-let isEditingEdgeLabel = false; // Flag to prevent view adjustments during edge label editing
-
-let currentEditingArticleId = null;
-let pendingImportArticle = null; // Store imported article data before saving
-let network = null;
-let currentCategoryFilter = '';
-let activeFilters = {
-    category: null
-};
-
-let connectionMode = {
-    active: false,
-    fromNodeId: null,
-    tempEdge: null
-};
-
-let selectedNodeId = null;
-let selectedEdgeId = null;
-let gridEnabled = false;
-let currentPulseInterval = null;
-
-// Multi-selection state
-let multiSelection = {
-    active: false,
-    selectedNodes: [],
-    selectionBox: null,
-    startX: 0,
-    startY: 0,
-    menuActive: false,
-    wasDragging: false,  // Track if we were dragging to restore state
-    emptyAreaSelection: null,  // Store empty area selection for zone creation
-    emptyAreaClickHandler: null,  // Handler for clicking outside empty area menu
-    selectedZonesForDrag: [],  // Zones to move when dragging selection
-    zonesDragStart: {},  // Original zone positions when dragging starts
-    nodeDragStart: null,  // Store initial node position for zone dragging
-    boxDragging: false,  // Track if we're dragging the selection box itself
-    boxDragStart: { x: 0, y: 0 },  // Start position for box drag
-    originalBoxPosition: { left: 0, top: 0 }  // Original box position
-};
-
-// Tag zones state
-let tagZones = [];
-
-// View dragging state
-let isDraggingView = false;
-
-// Zone resizing state
-let zoneResizing = {
-    active: false,
-    zoneIndex: -1,
-    handle: null, // 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
-    startX: 0,
-    startY: 0,
-    originalZone: null
-};
-
-// Zone moving state
-let zoneMoving = {
-    active: false,
-    readyToMove: false,
-    zoneIndex: -1,
-    startX: 0,
-    startY: 0,
-    originalZone: null,
-    originalNodePositions: {},
-    originalNestedZones: {}
-};
-
-// Zone editing state
-let zoneEditing = {
-    active: false,
-    zoneIndex: -1,
-    inputElement: null,
-    backgroundElement: null
-};
-
-// Selected zone for delete button
-let selectedZoneIndex = -1;
-
-let currentEditingElement = null;
-let originalContent = '';
-let inlineEditingSetup = false;
-let currentPreviewArticleId = null;  // ID of article currently shown in preview
-
-// Note view state for List View notebook mode
-let noteViewMode = 'article'; // 'article' or 'review'
-let activeNoteId = null;
+// ── Bridge for legacy code ──────────────────────────────────────────────
+// Keeps window.state pointing to the same canonical object.
+window.state = state;
