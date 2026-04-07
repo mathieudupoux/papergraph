@@ -27,7 +27,7 @@ jobs:
 
       # 3. Installe tes dépendances (npm, vite, etc.)
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       # 4. Construit ton projet (crée le fameux dossier dist)
       - name: Build project
