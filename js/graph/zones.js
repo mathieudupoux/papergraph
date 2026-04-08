@@ -7,6 +7,11 @@ import { updateCategoryFilters } from '../ui/filters.js';
 // ===== TAG ZONES =====
 // Zone visualization, interaction, and management
 
+const ZONE_TITLE_PADDING = 10;
+const ZONE_MENU_OFFSET_Y = 44;
+const ZONE_MENU_GAP = 8;
+const ZONE_MENU_BUTTON_SIZE = 36;
+
 export function drawTagZones(ctx) {
     if (!getStore().tagZones || getStore().tagZones.length === 0) return;
     
@@ -23,6 +28,7 @@ export function drawTagZones(ctx) {
     sortedZones.forEach((zone, sortedIndex) => {
         // Find the original index of this zone in getStore().tagZones array
         const originalIndex = getStore().tagZones.findIndex(z => z === zone);
+        const isSelected = originalIndex === getStore().selectedZoneIndex;
         
         // Convert color to rgba with low opacity
         const color = zone.color;
@@ -35,8 +41,8 @@ export function drawTagZones(ctx) {
         ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
         
         // Draw border (inset by half the lineWidth to prevent overflow)
-        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.3)`;
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = isSelected ? 'rgba(74, 144, 226, 0.8)' : `rgba(${r}, ${g}, ${b}, 0.3)`;
+        ctx.lineWidth = isSelected ? 2.5 : 3;
         ctx.setLineDash([10, 5]);
         // Inset the stroke by 1.5px (half of lineWidth) to keep it within bounds
         const halfStroke = ctx.lineWidth / 2;
@@ -61,8 +67,8 @@ export function drawTagZones(ctx) {
         const textPadding = 10;
         
         // Calculate initial title position
-        let titleX = zone.x + 10;
-        let titleY = zone.y + 10;
+        let titleX = zone.x + ZONE_TITLE_PADDING;
+        let titleY = zone.y + ZONE_TITLE_PADDING;
         
         // Check for overlap with existing titles and adjust
         let adjusted = false;
@@ -129,6 +135,29 @@ export function drawTagZones(ctx) {
                 height: textHeight + textPadding
             });
         }
+
+        if (isSelected) {
+            updateZoneRadialMenuPosition(originalIndex, { titleX, titleY });
+
+            const handleSize = 10;
+            const halfHandle = handleSize / 2;
+            const corners = [
+                { x: zone.x, y: zone.y },
+                { x: zone.x + zone.width, y: zone.y },
+                { x: zone.x, y: zone.y + zone.height },
+                { x: zone.x + zone.width, y: zone.y + zone.height }
+            ];
+
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#4a90e2';
+            ctx.lineWidth = 1.5;
+            corners.forEach(({ x, y }) => {
+                ctx.beginPath();
+                ctx.rect(x - halfHandle, y - halfHandle, handleSize, handleSize);
+                ctx.fill();
+                ctx.stroke();
+            });
+        }
     });
 }
 
@@ -161,26 +190,31 @@ export function showZoneDeleteButton(zoneIndex) {
     showZoneRadialMenu(zoneIndex);
 }
 
-export function showZoneRadialMenu(zoneIndex) {
+export function updateZoneRadialMenuPosition(zoneIndex, layout = null) {
+    const menu = document.getElementById('zoneRadialMenu');
+    if (!menu || parseInt(menu.dataset.zoneIndex, 10) !== zoneIndex) {
+        return;
+    }
+
     const zone = getStore().tagZones[zoneIndex];
+    if (!zone) {
+        hideZoneDeleteButton();
+        return;
+    }
+
     const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
-    
-    // Calculate text width to center menu above title
-    const ctx = canvas.getContext('2d');
-    ctx.font = 'bold 24px Arial';
-    const textMetrics = ctx.measureText(zone.tag);
-    const textWidth = textMetrics.width;
-    const textPadding = 10;
-    
-    // Position: centered above the zone title
-    const menuCanvasPos = {
-        x: zone.x + 10 + textPadding + (textWidth / 2),
-        y: zone.y + 10 - 35
-    };
-    const menuDomPos = getNetwork().canvasToDOM(menuCanvasPos);
-    const menuX = rect.left + menuDomPos.x;
-    const menuY = rect.top + menuDomPos.y;
+    const titleX = layout?.titleX ?? (zone.x + ZONE_TITLE_PADDING);
+    const titleY = layout?.titleY ?? (zone.y + ZONE_TITLE_PADDING);
+    const titleDomPos = getNetwork().canvasToDOM({ x: titleX, y: titleY });
+
+    menu.style.left = `${rect.left + titleDomPos.x}px`;
+    menu.style.top = `${rect.top + titleDomPos.y - ZONE_MENU_OFFSET_Y}px`;
+}
+
+export function showZoneRadialMenu(zoneIndex) {
+    const zone = getStore().tagZones[zoneIndex];
+    if (!zone) return;
     
     // Remove existing menu if any
     hideZoneDeleteButton();
@@ -190,8 +224,12 @@ export function showZoneRadialMenu(zoneIndex) {
     menuContainer.id = 'zoneRadialMenu';
     menuContainer.className = 'zone-radial-menu';
     menuContainer.style.position = 'fixed';
+    menuContainer.style.display = 'flex';
+    menuContainer.style.alignItems = 'center';
+    menuContainer.style.gap = `${ZONE_MENU_GAP}px`;
     menuContainer.style.pointerEvents = 'none';
     menuContainer.style.zIndex = '10000';
+    menuContainer.dataset.zoneIndex = String(zoneIndex);
     document.body.appendChild(menuContainer);
     
     const buttons = [
@@ -202,8 +240,6 @@ export function showZoneRadialMenu(zoneIndex) {
             </svg>`,
             action: () => openZoneColorDialog(zoneIndex),
             hoverColor: '#9b59b6',
-            offsetX: -50,
-            offsetY: 0,
             title: 'Changer la couleur'
         },
         {
@@ -221,8 +257,6 @@ export function showZoneRadialMenu(zoneIndex) {
                 }
             },
             hoverColor: '#e74c3c',
-            offsetX: 50,
-            offsetY: 0,
             title: 'Delete zone'
         }
     ];
@@ -233,21 +267,21 @@ export function showZoneRadialMenu(zoneIndex) {
         btn.className = 'zone-radial-btn';
         btn.title = btnConfig.title;
         btn.innerHTML = btnConfig.icon;
-        btn.style.position = 'fixed';
-        btn.style.width = '40px';
-        btn.style.height = '40px';
+        btn.style.position = 'relative';
+        btn.style.width = `${ZONE_MENU_BUTTON_SIZE}px`;
+        btn.style.height = `${ZONE_MENU_BUTTON_SIZE}px`;
         btn.style.borderRadius = '50%';
         btn.style.border = 'none';
+        btn.style.background = 'rgba(255, 255, 255, 0.96)';
+        btn.style.boxShadow = '0 8px 22px rgba(15, 23, 42, 0.18)';
         btn.style.cursor = 'pointer';
         btn.style.display = 'flex';
         btn.style.alignItems = 'center';
         btn.style.justifyContent = 'center';
         btn.style.transition = 'transform 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s';
         btn.style.pointerEvents = 'all';
-        btn.style.left = (menuX + btnConfig.offsetX) + 'px';
-        btn.style.top = (menuY + btnConfig.offsetY) + 'px';
         btn.style.opacity = '0';
-        btn.style.transform = 'scale(0)';
+        btn.style.transform = 'translateY(-4px) scale(0.94)';
         
         // Store hover color as data attribute
         btn.dataset.hoverColor = btnConfig.hoverColor;
@@ -271,9 +305,11 @@ export function showZoneRadialMenu(zoneIndex) {
         
         setTimeout(() => {
             btn.style.opacity = '1';
-            btn.style.transform = 'scale(1)';
+            btn.style.transform = 'translateY(0) scale(1)';
         }, index * 50);
     });
+
+    updateZoneRadialMenuPosition(zoneIndex);
 }
 
 // Global variables to store modal event handlers
@@ -645,7 +681,7 @@ export function checkNodeZoneMembership() {
 
 export function getZoneResizeHandle(event) {
     // Don't allow zone resizing in gallery viewer mode
-    if (getStore().isGalleryViewer) {
+    if (getStore().isGalleryViewer || getStore().selectedZoneIndex === -1) {
         return { zone: null, zoneIndex: -1, handle: null };
     }
     
@@ -661,6 +697,7 @@ export function getZoneResizeHandle(event) {
     const offsetY = -5; // Shift detection zone up
     
     for (let i = 0; i < getStore().tagZones.length; i++) {
+        if (i !== getStore().selectedZoneIndex) continue;
         const zone = getStore().tagZones[i];
         
         // Visual borders with offset adjustment
@@ -942,7 +979,7 @@ export function endZoneMove() {
         interaction: {
             dragNodes: true,
             dragView: false,
-            zoomView: true,
+            zoomView: false,
             hover: true
         }
     });
@@ -1063,7 +1100,7 @@ export function startEditZoneTitle(event, zoneIndex) {
             interaction: {
                 dragNodes: true,
                 dragView: false,
-                zoomView: true,
+                zoomView: false,
                 hover: true,
                 hoverConnectedEdges: true,
                 selectConnectedEdges: true,
@@ -1102,7 +1139,7 @@ export function startEditZoneTitle(event, zoneIndex) {
                 interaction: {
                     dragNodes: true,
                     dragView: false,
-                    zoomView: true,
+                    zoomView: false,
                     hover: true,
                     hoverConnectedEdges: true,
                     selectConnectedEdges: true,
@@ -1144,7 +1181,7 @@ export function startZoneResize(event, zoneIndex, handle) {
     getStore().updateZoneResizing({ active: true });
     getStore().updateZoneResizing({ zoneIndex: zoneIndex });
     getStore().updateZoneResizing({ handle: handle });
-    getStore().updateZoneResizing({ originalZone: { ...tagZones[zoneIndex] } });
+    getStore().updateZoneResizing({ originalZone: { ...getStore().tagZones[zoneIndex] } });
     
     const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
@@ -1248,7 +1285,7 @@ export function endZoneResize() {
         interaction: {
             dragNodes: true,
             dragView: false,
-            zoomView: true,
+            zoomView: false,
             hover: true
         }
     });

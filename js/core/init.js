@@ -4,7 +4,7 @@ import { exportProject, exportToBibtex, exportToPDF, exportToLatex, exportToImag
 import { importBibtexFile, setupImportZone, toggleManualForm } from '../data/import.js';
 import { openArticleModal, closeModal, saveArticle, deleteArticle, deleteArticleById } from '../ui/modal.js';
 import { toggleCategoryDropdown, updateCategoryFilters, updateActiveFiltersDisplay } from '../ui/filters.js';
-import { toggleGrid, closeMultiTagDialog } from '../ui/toolbar.js';
+import { toggleGrid, closeMultiTagDialog, deleteSelectedNodes } from '../ui/toolbar.js';
 import { searchInGraph } from '../graph/search.js';
 import { renderListView } from '../ui/list/sidebar.js';
 import { hideSelectionBox, applyNodeLabelFormat } from '../graph/selection.js';
@@ -13,6 +13,7 @@ import { hideEdgeMenu, startConnectionMode, cancelConnectionMode, deleteConnecti
 import { hideZoneDeleteButton, deleteZone } from '../graph/zones.js';
 import { updateGraph } from '../graph/render.js';
 import { setupLogoDropdown } from '../ui/logo-dropdown.js';
+import { hideContextMenu } from '../ui/context-menu.js';
 
 // ===== INITIALIZATION & EVENT LISTENERS =====
 // Application initialization and all event bindings
@@ -373,6 +374,7 @@ export function initializeEventListeners() {
             hideEdgeMenu();
             hideSelectionRadialMenu();
             hideZoneDeleteButton();
+            hideContextMenu();
             return;
         }
         
@@ -384,7 +386,9 @@ export function initializeEventListeners() {
             
             e.preventDefault();
             
-            if (getStore().selectedNodeId !== null) {
+            if (getStore().multiSelection.selectedNodes.length > 1) {
+                deleteSelectedNodes();
+            } else if (getStore().selectedNodeId !== null) {
                 if (confirm('Delete this article?')) {
                     deleteArticleById(getStore().selectedNodeId);
                     getStore().setSelectedNodeId(null);

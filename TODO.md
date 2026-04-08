@@ -1,36 +1,46 @@
-﻿# TODO: Architecture Refactor & Undo/Redo Implementation
+﻿Based on your request to overhaul the mouse interactions to align with professional design software like Figma, here is a structured TODO list. This plan modifies `events.js`, `zones.js`, `selection.js`, and `init.js` to shift from right-click panning to a scroll-based system and adds selection-based logic for zone editing.
 
-## Phase 1: Preparation and Tooling
-- [ ] Research and select a lightweight state management library compatible with vanilla JS/ES modules (Zustand is highly recommended).
-- [ ] Install the state manager via npm/yarn.
-- [ ] Install the associated undo/redo middleware (e.g., `zundo` if using Zustand).
+### 📝 TODO: Figma-like Mouse & Interaction Overhaul
 
-## Phase 2: State Manager Migration
-- [ ] Create a new directory and file for the new store (e.g., `js/store/appStore.js`).
-- [ ] Map out all properties currently inside `js/core/state.js` and categorize them (e.g., pure data like `appData`, UI flags like `isReadOnlyMode`, and runtime references like `network`).
-- [ ] Initialize the new store with the pure data and UI flags. *Note: Avoid putting complex class instances like the Vis.js `network` object directly into the reactive store; keep those as separate references.*
-- [ ] Define explicit action functions inside the store for every mutation (e.g., an action to add an article, an action to update a node position, an action to toggle read-only mode).
-- [ ] Wrap the store configuration with the undo/redo middleware, configuring it to only track changes to the actual application data (articles, connections, saved positions), ignoring ephemeral UI state like dragging or hover states.
+#### 1. Navigation (Scroll-based Panning & Zooming)
+* [ ] **Disable Right-Click Panning:** In `setupCanvasEvents`, remove the `event.button === 2` logic that triggers `setIsDraggingView`.
+* [ ] **Implement Scroll-to-Pan:**
+    * Add a `wheel` event listener to the canvas.
+    * Map `event.deltaX` and `event.deltaY` to `getNetwork().moveTo()`.
+    * Handle `Shift + Scroll` (vertical scroll becomes horizontal) for standard mouse users.
+* [ ] **Implement Ctrl + Wheel Zoom:**
+    * Update `wheel` listener to check for `event.ctrlKey` (or `metaKey`).
+    * Use `getNetwork().getScale()` and `getNetwork().moveTo()` to zoom toward the mouse cursor position.
+* [ ] **Touchpad Pinch-to-Zoom:** Ensure the `wheel` event handles `event.ctrlKey` which is triggered by touchpad pinch gestures on most modern browsers.
 
-## Phase 3: Decoupling Graph and UI
-- [ ] In `js/graph/render.js`, extract the DOM manipulation logic from the `setGraphInteractionMode` function. 
-- [ ] Refactor the UI elements (buttons, read-only indicators) to listen to state changes from the new store instead of being directly manipulated by the graph logic.
-- [ ] Break down the massive `updateGraph` function in `render.js` into three smaller, distinct helper functions: one for calculating node differences, one for calculating edge differences, and one for managing control points.
+#### 2. Visual Selection & Outlining
+* [ ] **Pre-selection Outline:** * In the `hoverNode` and `hoverEdge` event handlers in `setupNetworkEvents`, update the object's `shadow` or `borderWidth` to show an "outline" before the user clicks.
+* [ ] **Click-to-Select Logic:**
+    * Modify `mousedown` to distinguish between a simple selection click and a "drag-to-select" action.
+    * Update `vis.Network` options in `init.js` to ensure `chosen` properties provide a clear, persistent outline (e.g., a blue 2px border) for the currently selected object.
 
-## Phase 4: Integrating the Store
-- [ ] Go through the codebase and replace all direct mutations of the old `state` object with calls to your new store's action functions.
-- [ ] Replace all reads from the old `state` object with reactive subscriptions or get-calls to the new store.
-- [ ] Refactor `getGraphData` to pull filtered articles and node positions exclusively from the new store.
+#### 3. Refined Tag Zone Interactions
+* [ ] **Selection-based Resizing:**
+    * Modify `getZoneResizeHandle` in `zones.js` to return `null` if the zone is not currently selected (`zoneIndex !== getStore().selectedZoneIndex`).
+    * Update `drawTagZones` to only draw the resize corner handles (visual cues) when `originalIndex === getStore().selectedZoneIndex`.
+* [ ] **Restricted Movement:**
+    * In `mousedown` (within `events.js`), only allow the zone to move if the click is on the **Zone Title** or if the zone is already **Selected**.
+    * If a user clicks inside an unselected zone (not on the title), it should select the zone first but not move it until the next drag.
 
-## Phase 5: Implementing Undo/Redo
-- [ ] Create a new file for keyboard shortcuts (e.g., `js/core/shortcuts.js`).
-- [ ] Set up global event listeners for the `keydown` event.
-- [ ] Bind `Ctrl+Z` (and `Cmd+Z` for Mac) to the store's temporal `undo` action.
-- [ ] Bind `Ctrl+Y` (and `Cmd+Shift+Z` for Mac) to the store's temporal `redo` action.
-- [ ] Ensure that triggering an undo/redo automatically calls the graph update functions so the visual canvas reflects the restored state.
+#### 4. Right-Click Context Menu (Popup List)
+* [ ] **Replace Default Context Menu:**
+    * In the `contextmenu` listener in `events.js`, instead of just calling `preventDefault()`, trigger a new `showContextMenu(x, y)` function.
+* [ ] **Create UI Component:**
+    * Build a vertical list menu (HTML/CSS) for "Quick Access Commands" (e.g., Copy, Paste, Delete, Bring to Front, Group).
+    * Ensure the menu closes when clicking outside or pressing `Esc`.
 
-## Phase 6: Final Cleanup
-- [ ] Systematically search the codebase for `window.state` and remove all instances.
-- [ ] Systematically search the codebase for `window.setGraphInteractionMode` and remove all instances.
-- [ ] Search for and remove excessive or obsolete `console.log` debugging statements, particularly in `render.js`.
-- [ ] Verify that the old `js/core/state.js` file is no longer imported anywhere, and safely delete it.
+#### 5. Clean up & Physics
+* [ ] **Disable Interaction Conflicts:** In `init.js`, ensure `interaction.dragView` is set to `false` since we are moving to manual scroll-based panning.
+
+---
+**Established user intent:** The user wants to modify the mouse and keyboard interaction patterns of the Papergraph editor to mimic design tools like Figma, specifically changing how panning, zooming, selecting, and zone editing work.
+
+**Relevant files:** - `/js/graph/events.js` (Canvas/Mouse events)
+- `/js/graph/zones.js` (Zone interaction logic)
+- `/js/graph/init.js` (Network options)
+- `/js/graph/selection.js` (Selection box logic)

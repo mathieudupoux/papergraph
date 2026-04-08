@@ -7,7 +7,8 @@ import { save } from '../data/persistence.js';
 import { updateCategoryFilters } from '../ui/filters.js';
 import { renderListView } from '../ui/list/sidebar.js';
 import { showArticlePreview, closeArticlePreview } from '../ui/preview.js';
-import { showRadialMenu, hideRadialMenu, updateRadialMenuPosition, updateRadialMenuIfActive, hideSelectionRadialMenu, showSelectionRadialMenu, hideEmptyAreaMenu } from '../ui/radial-menu.js';
+import { showRadialMenu, hideRadialMenu, updateRadialMenuPosition, updateRadialMenuIfActive, hideSelectionRadialMenu, hideEmptyAreaMenu } from '../ui/radial-menu.js';
+import { showContextMenu, hideContextMenu } from '../ui/context-menu.js';
 import {
     getZoneResizeHandle, startZoneResize, getZoneTitleClick, startEditZoneTitle,
     hideZoneDeleteButton, showZoneDeleteButton, getZoneAtPosition, findNestedZones,
@@ -16,7 +17,7 @@ import {
 } from './zones.js';
 import {
     startSelectionBox, startSelectionBoxDrag, updateSelectionBoxDrag, endSelectionBoxDrag,
-    updateSelectionBox, endSelectionBox, hideSelectionBox
+    updateSelectionBox, endSelectionBox, hideSelectionBox, syncSelectionBoxToNodes
 } from './selection.js';
 import {
     handleConnectionModeClick, hideEdgeMenu, showEdgeMenu, editEdgeLabelInline,
@@ -24,171 +25,296 @@ import {
 } from './connections.js';
 import { positionNodesInZones, initializeZonesFromTags } from '../data/storage.js';
 
-let dragStartPos = { x: 0, y: 0 };
 let lastEdgeClickTime = 0;
 let lastEdgeClickId = null;
 let isAdjustingViewForNode = false;
+let pendingSelectionStart = null;
+let pendingZoneSelectionIndex = -1;
+let hoveredNodeId = null;
+
+function toRgba(color, alpha) {
+    if (!color) return `rgba(74, 144, 226, ${alpha})`;
+
+    if (color.startsWith('#')) {
+        const hex = color.slice(1);
+        const normalized = hex.length === 3
+            ? hex.split('').map((char) => char + char).join('')
+            : hex;
+
+        const r = parseInt(normalized.slice(0, 2), 16);
+        const g = parseInt(normalized.slice(2, 4), 16);
+        const b = parseInt(normalized.slice(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    const rgbMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if (rgbMatch) {
+        return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${alpha})`;
+    }
+
+    return `rgba(74, 144, 226, ${alpha})`;
+}
+
+function getNodeHoverColor(node) {
+    const nodeId = node?.id;
+    const liveNodeColor = nodeId !== undefined ? getNetwork()?.body?.data?.nodes?.get(nodeId)?.color : null;
+    const nodeColor = liveNodeColor || node?.options?.color;
+    if (!nodeColor) return '#4a90e2';
+    if (typeof nodeColor === 'string') return nodeColor;
+
+    const background = nodeColor.background || nodeColor.highlight?.background || nodeColor.hover?.background;
+    const border = nodeColor.border;
+
+    // Keep the original strong blue glow for untagged/default nodes.
+    if (background === '#e3f2fd' || border === '#4a90e2') {
+        return '#4a90e2';
+    }
+
+    return background || border || '#4a90e2';
+}
+
+function getCanvasPointer(event) {
+    const canvas = getNetwork().canvas.frame.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+
+    return {
+        rect,
+        mouseX,
+        mouseY,
+        canvasPosition: getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY })
+    };
+}
+
+function queueZoneMove(event, zoneIndex) {
+    const { canvasPosition } = getCanvasPointer(event);
+
+    getStore().setSelectedZoneIndex(zoneIndex);
+    showZoneDeleteButton(zoneIndex);
+    getStore().updateZoneMoving({ startX: canvasPosition.x });
+    getStore().updateZoneMoving({ startY: canvasPosition.y });
+    getStore().updateZoneMoving({ zoneIndex });
+    getStore().updateZoneMoving({ originalZone: { ...getStore().tagZones[zoneIndex] } });
+    getStore().updateZoneMoving({ readyToMove: true });
+    getStore().updateZoneMoving({ originalNodePositions: {} });
+
+    const zone = getStore().tagZones[zoneIndex];
+    getStore().appData.articles.forEach((article) => {
+        if ((article.categories || []).includes(zone.tag)) {
+            const pos = getNetwork().getPositions([article.id])[article.id];
+            if (pos) {
+                getStore().zoneMoving.originalNodePositions[article.id] = { x: pos.x, y: pos.y };
+            }
+        }
+    });
+
+    getStore().updateZoneMoving({ originalNestedZones: findNestedZones(zoneIndex) });
+    getNetwork().redraw();
+}
+
+function maybeStartSelectionDrag(event) {
+    if (!pendingSelectionStart) return false;
+    if ((event.buttons & 1) === 0) {
+        pendingSelectionStart = null;
+        pendingZoneSelectionIndex = -1;
+        return false;
+    }
+
+    const dx = Math.abs(event.clientX - pendingSelectionStart.clientX);
+    const dy = Math.abs(event.clientY - pendingSelectionStart.clientY);
+
+    if (dx <= 5 && dy <= 5) {
+        return false;
+    }
+
+    if (pendingZoneSelectionIndex !== -1) {
+        getStore().setSelectedZoneIndex(-1);
+        hideZoneDeleteButton();
+        getNetwork().redraw();
+    }
+
+    startSelectionBox(pendingSelectionStart);
+    updateSelectionBox(event);
+    pendingSelectionStart = null;
+    pendingZoneSelectionIndex = -1;
+    return true;
+}
+
+function normalizeWheelDelta(event) {
+    if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+        return { x: event.deltaX * 16, y: event.deltaY * 16 };
+    }
+
+    if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        return { x: event.deltaX * window.innerWidth, y: event.deltaY * window.innerHeight };
+    }
+
+    return { x: event.deltaX, y: event.deltaY };
+}
+
+function panViewFromWheel(event) {
+    const { x, y } = normalizeWheelDelta(event);
+    const dx = event.shiftKey && Math.abs(x) < 0.5 ? y : x;
+    const dy = event.shiftKey && Math.abs(x) < 0.5 ? 0 : y;
+    const currentPos = getNetwork().getViewPosition();
+    const scale = getNetwork().getScale();
+
+    getNetwork().moveTo({
+        position: {
+            x: currentPos.x + dx / scale,
+            y: currentPos.y + dy / scale
+        },
+        scale,
+        animation: false
+    });
+}
+
+function zoomTowardPointer(event) {
+    const { y } = normalizeWheelDelta(event);
+    const { mouseX, mouseY, canvasPosition } = getCanvasPointer(event);
+    const currentScale = getNetwork().getScale();
+    const zoomFactor = Math.exp(-y * 0.0015);
+    const nextScale = Math.min(3.5, Math.max(0.15, currentScale * zoomFactor));
+
+    if (nextScale === currentScale) return;
+
+    const currentView = getNetwork().getViewPosition();
+    const offsetX = canvasPosition.x - currentView.x;
+    const offsetY = canvasPosition.y - currentView.y;
+    const scaleRatio = currentScale / nextScale;
+    const nextView = {
+        x: canvasPosition.x - offsetX * scaleRatio,
+        y: canvasPosition.y - offsetY * scaleRatio
+    };
+
+    getNetwork().moveTo({
+        position: nextView,
+        scale: nextScale,
+        animation: false
+    });
+}
+
+function setNodeHoverOutline(nodeId, hovering, forceReset = false) {
+    const node = getNetwork()?.body?.nodes?.[nodeId];
+    if (!node || !node.options) return;
+
+    if (hovering) {
+        const hoverColor = getNodeHoverColor(node);
+        node.options.shadow = {
+            enabled: true,
+            color: toRgba(hoverColor, 0.45),
+            size: 16,
+            x: 0,
+            y: 0
+        };
+        node.options.borderWidth = Math.max(node.options.borderWidth || 3, 3.5);
+    } else if (forceReset || getStore().selectedNodeId !== nodeId) {
+        node.options.shadow = false;
+        node.options.borderWidth = 3;
+    }
+}
+
+function clearHoveredNodeState(forceReset = false) {
+    if (hoveredNodeId === null) return;
+    setNodeHoverOutline(hoveredNodeId, false, forceReset);
+    if (forceReset) {
+        hoveredNodeId = null;
+    }
+    getNetwork()?.redraw();
+}
 
 export function setupCanvasEvents() {
     const canvas = getNetwork().canvas.frame.canvas;
     
     canvas.addEventListener('mousedown', (event) => {
-        // In gallery viewer mode - allow node selection, right-click panning only
-        
-        if (getStore().isGalleryViewer) {
-            // Right-click for panning (same as normal editor)
-            if (event.button === 2) {
-                event.preventDefault();
-                event.stopPropagation();
-                getStore().setIsDraggingView(true);
-                dragStartPos = { x: event.clientX, y: event.clientY };
-                hideSelectionBox();
-                hideRadialMenu();
-                hideSelectionRadialMenu();
-            }
-            // Left-click: let vis-network handle node selection naturally
+        hideContextMenu();
+
+        if (event.button !== 0) {
+            pendingSelectionStart = null;
+            pendingZoneSelectionIndex = -1;
             return;
         }
-        
-        // Normal editor mode - right click for panning
-        if (event.button === 2) {
+
+        if (getStore().connectionMode.active) {
+            pendingSelectionStart = null;
+            pendingZoneSelectionIndex = -1;
+            return;
+        }
+
+        if (getStore().isGalleryViewer) {
+            pendingSelectionStart = null;
+            pendingZoneSelectionIndex = -1;
+            return;
+        }
+
+        const resizeHandle = getZoneResizeHandle(event);
+        if (resizeHandle.zone !== null) {
             event.preventDefault();
             event.stopPropagation();
-            getStore().setIsDraggingView(true);
-            dragStartPos = { x: event.clientX, y: event.clientY };
-            
-            // Hide selection box and radial menus when starting to pan
-            hideSelectionBox();
-            hideRadialMenu();
-            hideSelectionRadialMenu();
+            pendingSelectionStart = null;
+            pendingZoneSelectionIndex = -1;
+            startZoneResize(event, resizeHandle.zoneIndex, resizeHandle.handle);
             return;
         }
-        
-        // Left click interactions (only in normal editor mode)
-        if (event.button === 0 && !getStore().connectionMode.active) {
-            // Check if clicking on zone edge/corner for resize first
-            const resizeHandle = getZoneResizeHandle(event);
-            if (resizeHandle.zone !== null) {
+
+        const titleClick = getZoneTitleClick(event);
+        if (titleClick.zone !== null) {
+            event.preventDefault();
+            event.stopPropagation();
+            pendingSelectionStart = null;
+            pendingZoneSelectionIndex = -1;
+            queueZoneMove(event, titleClick.zoneIndex);
+            return;
+        }
+
+        const clickPos = { x: event.offsetX, y: event.offsetY };
+        const nodeId = getNetwork().getNodeAt(clickPos);
+        const edgeId = getNetwork().getEdgeAt(clickPos);
+
+        if (nodeId || edgeId) {
+            pendingSelectionStart = null;
+            pendingZoneSelectionIndex = -1;
+            return;
+        }
+
+        if (getStore().multiSelection.selectionBox && getStore().multiSelection.selectionBox.style.display !== 'none') {
+            const { mouseX, mouseY } = getCanvasPointer(event);
+            const boxLeft = parseFloat(getStore().multiSelection.selectionBox.style.left);
+            const boxTop = parseFloat(getStore().multiSelection.selectionBox.style.top);
+            const boxWidth = parseFloat(getStore().multiSelection.selectionBox.style.width);
+            const boxHeight = parseFloat(getStore().multiSelection.selectionBox.style.height);
+
+            if (mouseX >= boxLeft && mouseX <= boxLeft + boxWidth &&
+                mouseY >= boxTop && mouseY <= boxTop + boxHeight) {
                 event.preventDefault();
                 event.stopPropagation();
-                startZoneResize(event, resizeHandle.zoneIndex, resizeHandle.handle);
+                pendingSelectionStart = null;
+                pendingZoneSelectionIndex = -1;
+                startSelectionBoxDrag(event, mouseX, mouseY, boxLeft, boxTop);
                 return;
-            }
-            
-            // Check if clicking on zone title
-            const titleClick = getZoneTitleClick(event);
-            if (titleClick.zone !== null) {
-                event.preventDefault();
-                event.stopPropagation();
-                getStore().setSelectedZoneIndex(titleClick.zoneIndex);
-                
-                const canvas = getNetwork().canvas.frame.canvas;
-                const rect = canvas.getBoundingClientRect();
-                const mouseX = event.clientX - rect.left;
-                const mouseY = event.clientY - rect.top;
-                const mousePos = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
-                
-                getStore().updateZoneMoving({ startX: mousePos.x });
-                getStore().updateZoneMoving({ startY: mousePos.y });
-                getStore().updateZoneMoving({ zoneIndex: titleClick.zoneIndex });
-                getStore().updateZoneMoving({ originalZone: { ...getStore().tagZones[titleClick.zoneIndex] } });
-                getStore().updateZoneMoving({ readyToMove: true });
-                
-                const zone = getStore().tagZones[titleClick.zoneIndex];
-                getStore().updateZoneMoving({ originalNodePositions: {} });
-                getStore().appData.articles.forEach(article => {
-                    if (article.categories.includes(zone.tag)) {
-                        const pos = getNetwork().getPositions([article.id])[article.id];
-                        if (pos) {
-                            getStore().zoneMoving.originalNodePositions[article.id] = { x: pos.x, y: pos.y };
-                        }
-                    }
-                });
-                
-                // Find and store nested zones
-                getStore().updateZoneMoving({ originalNestedZones: findNestedZones(titleClick.zoneIndex) });
-                
-                getNetwork().redraw();
-                return;
-            }
-            
-            // Check if clicking inside a zone or selection box
-            const clickPos = { x: event.offsetX, y: event.offsetY };
-            const nodeId = getNetwork().getNodeAt(clickPos);
-            const edgeId = getNetwork().getEdgeAt(clickPos);
-            
-            if (!nodeId && !edgeId) {
-                // PRIORITY 1: Check if clicking inside an existing selection box FIRST
-                if (getStore().multiSelection.selectionBox && getStore().multiSelection.selectionBox.style.display !== 'none') {
-                    const canvas = getNetwork().canvas.frame.canvas;
-                    const rect = canvas.getBoundingClientRect();
-                    const mouseX = event.clientX - rect.left;
-                    const mouseY = event.clientY - rect.top;
-                    
-                    const boxLeft = parseFloat(getStore().multiSelection.selectionBox.style.left);
-                    const boxTop = parseFloat(getStore().multiSelection.selectionBox.style.top);
-                    const boxWidth = parseFloat(getStore().multiSelection.selectionBox.style.width);
-                    const boxHeight = parseFloat(getStore().multiSelection.selectionBox.style.height);
-                    
-                    // Check if click is inside the selection box
-                    if (mouseX >= boxLeft && mouseX <= boxLeft + boxWidth &&
-                        mouseY >= boxTop && mouseY <= boxTop + boxHeight) {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        startSelectionBoxDrag(event, mouseX, mouseY, boxLeft, boxTop);
-                        return;
-                    }
-                }
-                
-                // PRIORITY 2: Check if clicking inside a zone (only if NOT inside selection box)
-                const zoneClick = getZoneAtPosition(event);
-                if (zoneClick.zone !== null) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    getStore().setSelectedZoneIndex(zoneClick.zoneIndex);
-                    
-                    const canvas = getNetwork().canvas.frame.canvas;
-                    const rect = canvas.getBoundingClientRect();
-                    const mouseX = event.clientX - rect.left;
-                    const mouseY = event.clientY - rect.top;
-                    const mousePos = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
-                    
-                    getStore().updateZoneMoving({ startX: mousePos.x });
-                    getStore().updateZoneMoving({ startY: mousePos.y });
-                    getStore().updateZoneMoving({ zoneIndex: zoneClick.zoneIndex });
-                    getStore().updateZoneMoving({ originalZone: { ...getStore().tagZones[zoneClick.zoneIndex] } });
-                    getStore().updateZoneMoving({ readyToMove: true });
-                    
-                    const zone = getStore().tagZones[zoneClick.zoneIndex];
-                    getStore().updateZoneMoving({ originalNodePositions: {} });
-                    getStore().appData.articles.forEach(article => {
-                        if (article.categories.includes(zone.tag)) {
-                            const pos = getNetwork().getPositions([article.id])[article.id];
-                            if (pos) {
-                                getStore().zoneMoving.originalNodePositions[article.id] = { x: pos.x, y: pos.y };
-                            }
-                        }
-                    });
-                    
-                    // Find and store nested zones
-                    getStore().updateZoneMoving({ originalNestedZones: findNestedZones(zoneClick.zoneIndex) });
-                    
-                    getNetwork().redraw();
-                    return;
-                } else {
-                    if (getStore().selectedZoneIndex !== -1) {
-                        getStore().setSelectedZoneIndex(-1);
-                        hideZoneDeleteButton();
-                        getNetwork().redraw();
-                    }
-                    
-                    // PRIORITY 3: Start new selection box
-                    event.preventDefault();
-                    event.stopPropagation();
-                    startSelectionBox(event);
-                }
             }
         }
+
+        const zoneClick = getZoneAtPosition(event);
+        if (zoneClick.zone !== null) {
+            event.preventDefault();
+            event.stopPropagation();
+            pendingSelectionStart = { clientX: event.clientX, clientY: event.clientY };
+            pendingZoneSelectionIndex = zoneClick.zoneIndex;
+            return;
+        }
+
+        if (getStore().selectedZoneIndex !== -1) {
+            getStore().setSelectedZoneIndex(-1);
+            hideZoneDeleteButton();
+            getNetwork().redraw();
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        pendingSelectionStart = { clientX: event.clientX, clientY: event.clientY };
+        pendingZoneSelectionIndex = -1;
     }, true);
     
     canvas.addEventListener('dblclick', (event) => {
@@ -206,26 +332,77 @@ export function setupCanvasEvents() {
     
     canvas.addEventListener('contextmenu', (event) => {
         event.preventDefault();
-    });
+        event.stopPropagation();
+
+        const clickPos = { x: event.offsetX, y: event.offsetY };
+        const nodeId = getNetwork().getNodeAt(clickPos);
+        const edgeId = getNetwork().getEdgeAt(clickPos);
+        const zoneClick = !nodeId && !edgeId ? getZoneAtPosition(event) : { zoneIndex: -1, zone: null };
+        const { canvasPosition } = getCanvasPointer(event);
+
+        hideRadialMenu();
+        hideEdgeMenu();
+        hideZoneDeleteButton();
+        hideSelectionRadialMenu();
+
+        if (nodeId) {
+            const isMultiContext = getStore().multiSelection.selectedNodes.includes(nodeId) &&
+                getStore().multiSelection.selectedNodes.length > 1;
+
+            if (!isMultiContext) {
+                hideSelectionBox();
+                getStore().updateMultiSelection({ selectedNodes: [] });
+                getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+            }
+            getStore().setSelectedNodeId(isMultiContext ? null : nodeId);
+            getStore().setSelectedEdgeId(null);
+            getStore().setSelectedZoneIndex(-1);
+            getNetwork().selectNodes(isMultiContext ? getStore().multiSelection.selectedNodes : [nodeId]);
+        } else if (edgeId) {
+            hideSelectionBox();
+            getStore().updateMultiSelection({ selectedNodes: [] });
+            getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+            getStore().setSelectedNodeId(null);
+            getStore().setSelectedEdgeId(edgeId);
+            getStore().setSelectedZoneIndex(-1);
+        } else if (zoneClick.zone !== null) {
+            hideSelectionBox();
+            getStore().updateMultiSelection({ selectedNodes: [] });
+            getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+            getStore().setSelectedNodeId(null);
+            getStore().setSelectedEdgeId(null);
+            getStore().setSelectedZoneIndex(zoneClick.zoneIndex);
+            showZoneDeleteButton(zoneClick.zoneIndex);
+            getNetwork().redraw();
+        }
+
+        showContextMenu(event.clientX, event.clientY, {
+            canvasPosition,
+            nodeId,
+            edgeId,
+            zoneIndex: zoneClick.zoneIndex
+        });
+    }, true);
+
+    canvas.addEventListener('wheel', (event) => {
+        if (getStore().zoneEditing.active) return;
+
+        event.preventDefault();
+        hideContextMenu();
+
+        if (event.ctrlKey || event.metaKey) {
+            zoomTowardPointer(event);
+        } else {
+            panViewFromWheel(event);
+        }
+    }, { passive: false });
     
     canvas.addEventListener('mousemove', (event) => {
-        if (getStore().isDraggingView) {
-            const dx = event.clientX - dragStartPos.x;
-            const dy = event.clientY - dragStartPos.y;
-            
-            const currentPos = getNetwork().getViewPosition();
-            const scale = getNetwork().getScale();
-            
-            getNetwork().moveTo({
-                position: {
-                    x: currentPos.x - dx / scale,
-                    y: currentPos.y - dy / scale
-                },
-                animation: false
-            });
-            
-            dragStartPos = { x: event.clientX, y: event.clientY };
-        } else if (getStore().zoneMoving.readyToMove) {
+        if (maybeStartSelectionDrag(event)) {
+            return;
+        }
+
+        if (getStore().zoneMoving.readyToMove) {
             const canvas = getNetwork().canvas.frame.canvas;
             const rect = canvas.getBoundingClientRect();
             const mouseX = event.clientX - rect.left;
@@ -265,28 +442,26 @@ export function setupCanvasEvents() {
             updateSelectionBox(event);
         }
         
-        if (!getStore().isDraggingView && !getStore().zoneMoving.active && !getStore().zoneResizing.active && !getStore().multiSelection.active && !getStore().multiSelection.boxDragging && !getStore().connectionMode.active) {
+        if (!getStore().zoneMoving.active && !getStore().zoneResizing.active && !getStore().multiSelection.active && !getStore().multiSelection.boxDragging && !getStore().connectionMode.active) {
             updateZoneCursor(event);
         }
     }, true);
     
     canvas.addEventListener('mouseup', (event) => {
-        
-        // Stop panning on right click release
-        if (event.button === 2) {
-            getStore().setIsDraggingView(false);
+        if (event.button === 0 && pendingSelectionStart) {
+            if (pendingZoneSelectionIndex !== -1) {
+                getStore().setSelectedZoneIndex(pendingZoneSelectionIndex);
+                showZoneDeleteButton(pendingZoneSelectionIndex);
+                getNetwork().redraw();
+            }
+            pendingSelectionStart = null;
+            pendingZoneSelectionIndex = -1;
+        }
+
+        if (event.button === 0 && getStore().isGalleryViewer) {
             return;
         }
-        
-        // Stop panning on left click release in gallery viewer
-        if (event.button === 0 && getStore().isGalleryViewer) {
-            if (getStore().isDraggingView) {
-                getStore().setIsDraggingView(false);
-            }
-            return; // Exit early - no other interactions in gallery viewer
-        }
-        
-        // Normal editor interactions for left click
+
         if (event.button === 0 && (getStore().zoneMoving.active || getStore().zoneMoving.readyToMove)) {
             event.preventDefault();
             event.stopPropagation();
@@ -316,7 +491,7 @@ export function setupCanvasEvents() {
     }, true);
     
     getNetwork().canvas.body.container.addEventListener('mousemove', (event) => {
-        if (!getStore().isDraggingView && !getStore().zoneMoving.active && !getStore().zoneResizing.active && !getStore().multiSelection.active && !getStore().multiSelection.boxDragging && !getStore().connectionMode.active && !getStore().zoneEditing.active) {
+        if (!getStore().zoneMoving.active && !getStore().zoneResizing.active && !getStore().multiSelection.active && !getStore().multiSelection.boxDragging && !getStore().connectionMode.active && !getStore().zoneEditing.active) {
             updateZoneCursor(event);
         }
     }, false);
@@ -367,7 +542,8 @@ export function setupNetworkEvents() {
         }
         
         if (params.nodes.length > 0) {
-            const nodeId = params.nodes[0];
+            const clickedNodeId = getNetwork().getNodeAt(params.pointer.DOM) ?? params.nodes[params.nodes.length - 1];
+            const nodeId = clickedNodeId;
             
             // Check if it's a control point (negative ID)
             if (isControlPoint(nodeId)) {
@@ -383,93 +559,27 @@ export function setupNetworkEvents() {
             // Ctrl+Click for multi-selection
             if (params.event.srcEvent.ctrlKey || params.event.srcEvent.metaKey) {
                 console.log('🔵 Ctrl+Click on node:', nodeId);
-                
-                if (!getStore().multiSelection.selectedNodes.includes(nodeId)) {
-                    getStore().multiSelection.selectedNodes.push(nodeId);
-                    getStore().setSelectedNodeId(nodeId);
+
+                const baseSelection = getStore().multiSelection.selectedNodes.length > 0
+                    ? [...getStore().multiSelection.selectedNodes]
+                    : (getStore().selectedNodeId !== null ? [getStore().selectedNodeId] : []);
+
+                const nextSelectedNodes = baseSelection.includes(nodeId)
+                    ? baseSelection.filter((id) => id !== nodeId)
+                    : [...baseSelection, nodeId];
+
+                console.log('→ Selection now:', nextSelectedNodes);
+
+                if (nextSelectedNodes.length > 0) {
+                    syncSelectionBoxToNodes(nextSelectedNodes);
+                    getStore().setSelectedNodeId(nextSelectedNodes.length === 1 ? nextSelectedNodes[0] : null);
                 } else {
-                    getStore().updateMultiSelection({ selectedNodes: getStore().multiSelection.selectedNodes.filter(id => id !== nodeId) });
-                    getStore().setSelectedNodeId(getStore().multiSelection.selectedNodes.length > 0 ? getStore().multiSelection.selectedNodes[getStore().multiSelection.selectedNodes.length - 1] : null);
-                }
-                
-                console.log('→ Selection now:', getStore().multiSelection.selectedNodes);
-                
-                if (getStore().multiSelection.selectedNodes.length > 0) {
-                    getNetwork().selectNodes(getStore().multiSelection.selectedNodes);
-                    
-                    const positions = getNetwork().getPositions(getStore().multiSelection.selectedNodes);
-                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                    
-                    Object.values(positions).forEach(pos => {
-                        minX = Math.min(minX, pos.x);
-                        minY = Math.min(minY, pos.y);
-                        maxX = Math.max(maxX, pos.x);
-                        maxY = Math.max(maxY, pos.y);
-                    });
-                    
-                    const padding = 50;
-                    minX -= padding;
-                    minY -= padding;
-                    maxX += padding;
-                    maxY += padding;
-                    
-                    const topLeft = getNetwork().canvasToDOM({ x: minX, y: minY });
-                    const bottomRight = getNetwork().canvasToDOM({ x: maxX, y: maxY });
-                    
-                    const graphContainer = document.getElementById('graphContainer');
-                    const containerRect = graphContainer.getBoundingClientRect();
-                    
-                    if (!getStore().multiSelection.selectionBox) {
-                        getStore().updateMultiSelection({ selectionBox: document.createElement('div') });
-                        getStore().multiSelection.selectionBox.id = 'selectionBox';
-                        getStore().multiSelection.selectionBox.style.position = 'absolute';
-                        getStore().multiSelection.selectionBox.style.pointerEvents = 'none';
-                        getStore().multiSelection.selectionBox.style.zIndex = '1000';
-                        document.querySelector('#graphContainer > div').appendChild(getStore().multiSelection.selectionBox);
-                    }
-                    
-                    getStore().multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
-                    getStore().multiSelection.selectionBox.style.backgroundColor = 'rgba(74, 144, 226, 0.1)';
-                    getStore().multiSelection.selectionBox.style.left = topLeft.x + 'px';
-                    getStore().multiSelection.selectionBox.style.top = topLeft.y + 'px';
-                    getStore().multiSelection.selectionBox.style.width = (bottomRight.x - topLeft.x) + 'px';
-                    getStore().multiSelection.selectionBox.style.height = (bottomRight.y - topLeft.y) + 'px';
-                    getStore().multiSelection.selectionBox.style.display = 'block';
-                    
-                    console.log('📦 Calculating zones for selected nodes...');
-                    const zonesSet = new Set();
-                    getStore().multiSelection.selectedNodes.forEach(nodeId => {
-                        const article = getStore().appData.articles.find(a => a.id === nodeId);
-                        console.log(`Node ${nodeId} categories:`, article?.categories);
-                        if (article && article.categories.length > 0) {
-                            const nodeZones = [];
-                            article.categories.forEach(tag => {
-                                const zoneIdx = getStore().tagZones.findIndex(z => z.tag === tag);
-                                if (zoneIdx !== -1) {
-                                    const zone = getStore().tagZones[zoneIdx];
-                                    nodeZones.push({ idx: zoneIdx, zone: zone, area: zone.width * zone.height });
-                                }
-                            });
-                            
-                            console.log(`Node ${nodeId} has ${nodeZones.length} zones:`, nodeZones);
-                            if (nodeZones.length > 0) {
-                                nodeZones.sort((a, b) => a.area - b.area);
-                                zonesSet.add(nodeZones[0].idx);
-                                console.log(`Selected smallest zone ${nodeZones[0].idx} for node ${nodeId}`);
-                            }
-                        }
-                    });
-                    
-                    console.log('Final zones to drag:', Array.from(zonesSet));
-                    getStore().updateMultiSelection({ selectedZonesForDrag: Array.from(zonesSet) });
-                    
-                    const menuX = containerRect.left + (topLeft.x + bottomRight.x) / 2;
-                    const menuY = containerRect.top + topLeft.y - 30;
-                    
-                    showSelectionRadialMenu(menuX, menuY);
-                } else {
+                    clearHoveredNodeState(true);
                     hideSelectionRadialMenu();
                     hideSelectionBox();
+                    getStore().updateMultiSelection({ selectedNodes: [] });
+                    getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+                    getStore().setSelectedNodeId(null);
                     getNetwork().unselectAll();
                 }
                 
@@ -551,6 +661,7 @@ export function setupNetworkEvents() {
                 });
             }
         } else {
+            clearHoveredNodeState(true);
             hideRadialMenu();
             hideEdgeMenu();
             hideZoneDeleteButton();
@@ -660,7 +771,7 @@ export function setupNetworkEvents() {
             if (article) {
                 getStore().tagZones.forEach(zone => {
                     const isInZone = isNodeInZone(nodePos, zone);
-                    const hasTag = article.categories.includes(zone.tag);
+                    const hasTag = (article.categories || []).includes(zone.tag);
                     
                     if (isInZone && !hasTag) {
                         getStore().addArticleCategory(nodeId, zone.tag);
@@ -787,17 +898,32 @@ export function setupNetworkEvents() {
     });
     
     getNetwork().on('hoverNode', (params) => {
+        if (hoveredNodeId !== null && hoveredNodeId !== params.node) {
+            setNodeHoverOutline(hoveredNodeId, false);
+        }
+
+        hoveredNodeId = params.node;
+        setNodeHoverOutline(params.node, true);
+
         if (getStore().connectionMode.active && params.node !== getStore().connectionMode.fromNodeId) {
             getNetwork().canvas.body.container.style.cursor = "pointer";
         }
+
+        getNetwork().redraw();
     });
     
     getNetwork().on('blurNode', () => {
+        if (hoveredNodeId !== null) {
+            setNodeHoverOutline(hoveredNodeId, false);
+            hoveredNodeId = null;
+            getNetwork().redraw();
+        }
+
         if (getStore().connectionMode.active) {
             getNetwork().canvas.body.container.style.cursor = "crosshair";
         }
     });
-    
+
     getNetwork().on('zoom', () => {
         if (getStore().multiSelection.selectionBox && getStore().multiSelection.selectionBox.style.display !== 'none') {
             hideSelectionBox();
@@ -808,6 +934,8 @@ export function setupNetworkEvents() {
             getStore().updateMultiSelection({ selectedZonesForDrag: [] });
             getStore().updateMultiSelection({ emptyAreaSelection: null });
         }
+
+        hideContextMenu();
     });
 }
 

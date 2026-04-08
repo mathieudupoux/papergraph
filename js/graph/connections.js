@@ -294,8 +294,8 @@ export function hideEdgeMenu() {
         getNetwork().setOptions({ 
             interaction: { 
                 dragNodes: true,
-                dragView: true,
-                zoomView: true,
+                dragView: false,
+                zoomView: false,
                 hover: true,
                 tooltipDelay: 200
             } 
@@ -1046,8 +1046,8 @@ export function showControlPointMenu(x, y, controlPointId) {
             getNetwork().setOptions({ 
                 interaction: { 
                     dragNodes: true,
-                    dragView: true,
-                    zoomView: true
+                    dragView: false,
+                    zoomView: false
                 } 
             });
         }
@@ -1067,8 +1067,8 @@ export function showControlPointMenu(x, y, controlPointId) {
                     getNetwork().setOptions({ 
                         interaction: { 
                             dragNodes: true,
-                            dragView: true,
-                            zoomView: true
+                            dragView: false,
+                            zoomView: false
                         } 
                     });
                 }
