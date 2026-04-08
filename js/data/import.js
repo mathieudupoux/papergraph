@@ -318,7 +318,7 @@ export async function processBibTeXImport() {
             setTimeout(() => {
                 if (getNetwork() && getStore().savedNodePositions) {
                     const positions = getNetwork().getPositions();
-                    getStore().setSavedNodePositions({ ...state.savedNodePositions, ...positions });
+                    getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
                     console.log('Saved positions for newly imported articles');
                     
                     // Check node zone membership to update colors after positions are set
@@ -1008,7 +1008,7 @@ export async function importBibtexFile(event) {
         setTimeout(() => {
             if (getNetwork() && getStore().savedNodePositions) {
                 const positions = getNetwork().getPositions();
-                getStore().setSavedNodePositions({ ...state.savedNodePositions, ...positions });
+                getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
                 console.log('Saved positions for newly imported articles from .bib file');
                 
                 // Check node zone membership to update colors after positions are set

@@ -5,7 +5,7 @@
 
 import { loadProject, updateProject, autoSaveProject } from '../auth/projects.js';
 import { getCurrentUser } from '../auth/auth.js';
-import { getStore, getNetwork } from '../store/appStore.js';
+import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
 
 // Current project ID (from URL parameter)
@@ -37,12 +37,14 @@ export async function initCloudStorage() {
         localStorage.removeItem('papermap_next_control_point_id');
         
         // Clear global variables
+        pauseHistory();
         getStore().setArticles([]);
         getStore().setConnections([]);
         getStore().setNextArticleId(1);
         getStore().setNextConnectionId(1);
         getStore().tagZones.length = 0;
         getStore().setSavedNodePositions({});
+        resumeHistory();
         
         // Try to load project from cloud
         try {
@@ -84,6 +86,8 @@ async function loadProjectFromCloud() {
     
     // Load project data into app state
     if (project.data) {
+        pauseHistory();
+        try {
         // Load nodes and edges
         getStore().setArticles((project.data.nodes || []).map(a => ({
             ...a,
@@ -136,6 +140,9 @@ async function loadProjectFromCloud() {
         console.log('✓ Project loaded from cloud:', project.name, 
                    `(${getStore().appData.articles.length} nodes, ${getStore().appData.connections.length} edges)`);
         showNotification(`Loaded: ${project.name}`, 'success');
+        } finally {
+            resumeHistory();
+        }
     }
     
     return project;

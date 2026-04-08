@@ -43,7 +43,7 @@ export function initializeEventListeners() {
     
     // Logo dropdown — shared setup (toggle, submenus, outside-click)
     // Editor uses logoMenuBtnExtended as the trigger (in the logo-menu-btn-extended bar)
-    setupLogoDropdown({ triggerButtonId: 'logoMenuBtnExtended' });
+    const { closeAllSubmenus = () => {} } = setupLogoDropdown({ triggerButtonId: 'logoMenuBtnExtended' }) || {};
     
     const mainDropdown = document.getElementById('logoDropdown');
     
@@ -351,8 +351,7 @@ export function initializeEventListeners() {
     
     // Category filter
     document.getElementById('categoryFilter').addEventListener('change', (e) => {
-        getStore().currentCategoryFilter = e.target.value;
-        getStore().activeFilters.category = e.target.value || null;
+        getStore().setCategoryFilter(e.target.value);
         
         const graphView = document.getElementById('graphView');
         if (graphView.classList.contains('active')) {

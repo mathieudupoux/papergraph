@@ -446,20 +446,52 @@ export const appStore = createStore(
             edgeControlPoints: s.edgeControlPoints,
             nextControlPointId: s.nextControlPointId,
         }),
+        // Only record a snapshot when the tracked data actually changed.
+        // Without this, every set() call (including UI-only state) creates an entry.
+        equality: (a, b) => JSON.stringify(a) === JSON.stringify(b),
     })
 );
 
 // ── Convenience accessors ──────────────────────────────────────────────
 export const getStore = appStore.getState.bind(appStore);
 
+// Verify temporal middleware attached correctly
+if (!appStore.temporal) {
+    console.error('[appStore] zundo temporal middleware did not attach — undo/redo will not work');
+} else {
+    console.log('[appStore] temporal middleware ready, undo/redo available');
+}
+
+// ── Reference-counted pause/resume ────────────────────────────────────
+// A counter instead of a boolean prevents nested callers (e.g. save() called
+// during a drag) from accidentally resuming history before the outer caller
+// (dragEnd) finishes.
+let _pauseDepth = 0;
+
 /** Call undo() to revert the last tracked data change. */
-export const undo = () => appStore.temporal.getState().undo();
+export const undo = () => appStore.temporal?.getState().undo();
 
 /** Call redo() to re-apply a change that was undone. */
-export const redo = () => appStore.temporal.getState().redo();
+export const redo = () => appStore.temporal?.getState().redo();
 
-/** Pause undo history recording (e.g. during drag). */
-export const pauseHistory = () => appStore.temporal.getState().pause();
+/** Pause undo history recording. Nested-safe — pauses on first call only. */
+export const pauseHistory = () => {
+    _pauseDepth++;
+    if (_pauseDepth === 1) appStore.temporal?.getState().pause();
+};
 
-/** Resume undo history recording (e.g. after drag ends). */
-export const resumeHistory = () => appStore.temporal.getState().resume();
+/** Resume undo history recording. Nested-safe — resumes only when all callers have released. */
+export const resumeHistory = () => {
+    if (_pauseDepth > 0) _pauseDepth--;
+    if (_pauseDepth === 0) appStore.temporal?.getState().resume();
+};
+
+/** Returns true if history recording is currently paused (i.e. inside a drag or load block). */
+export const isHistoryPaused = () => _pauseDepth > 0;
+
+/** Clear all undo/redo history (called after initial load so load steps aren't undoable). */
+export const clearHistory = () => {
+    _pauseDepth = 0;
+    appStore.temporal?.getState().resume();
+    appStore.temporal?.getState().clear();
+};

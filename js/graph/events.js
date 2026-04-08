@@ -1,7 +1,7 @@
 // ===== GRAPH EVENT HANDLERS =====
 // Canvas and network event handlers, extracted from initializeGraph()
 
-import { getStore, getNetwork } from '../store/appStore.js';
+import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { darkenColor, getContrastColor, showNotification } from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
 import { updateCategoryFilters } from '../ui/filters.js';
@@ -91,7 +91,7 @@ export function setupCanvasEvents() {
                 getStore().updateZoneMoving({ startX: mousePos.x });
                 getStore().updateZoneMoving({ startY: mousePos.y });
                 getStore().updateZoneMoving({ zoneIndex: titleClick.zoneIndex });
-                getStore().updateZoneMoving({ originalZone: { ...state.tagZones[titleClick.zoneIndex] } });
+                getStore().updateZoneMoving({ originalZone: { ...getStore().tagZones[titleClick.zoneIndex] } });
                 getStore().updateZoneMoving({ readyToMove: true });
                 
                 const zone = getStore().tagZones[titleClick.zoneIndex];
@@ -156,7 +156,7 @@ export function setupCanvasEvents() {
                     getStore().updateZoneMoving({ startX: mousePos.x });
                     getStore().updateZoneMoving({ startY: mousePos.y });
                     getStore().updateZoneMoving({ zoneIndex: zoneClick.zoneIndex });
-                    getStore().updateZoneMoving({ originalZone: { ...state.tagZones[zoneClick.zoneIndex] } });
+                    getStore().updateZoneMoving({ originalZone: { ...getStore().tagZones[zoneClick.zoneIndex] } });
                     getStore().updateZoneMoving({ readyToMove: true });
                     
                     const zone = getStore().tagZones[zoneClick.zoneIndex];
@@ -569,6 +569,10 @@ export function setupNetworkEvents() {
         if (getStore().isGalleryViewer && params.nodes && params.nodes.length > 0) {
             return false;
         }
+        // Pause undo history during drag so the whole drag = one undo step
+        if (params.nodes && params.nodes.length > 0) {
+            pauseHistory();
+        }
     });
     
     getNetwork().on('dragging', (params) => {
@@ -709,6 +713,8 @@ export function setupNetworkEvents() {
             checkNodeZoneMembership();
             
             const positions = getNetwork().getPositions();
+            // Resume history and record ONE snapshot for the whole drag
+            resumeHistory();
             getStore().setSavedNodePositions(positions);
             console.log('Node dragged - positions updated in memory:', Object.keys(positions).length, 'nodes');
             

@@ -1,4 +1,4 @@
-import { getStore, getNetwork } from '../store/appStore.js';
+import { getStore, getNetwork, pauseHistory, resumeHistory, clearHistory } from '../store/appStore.js';
 import { initShortcuts } from '../core/shortcuts.js';
 import { showNotification } from '../utils/helpers.js';
 import { load } from '../data/persistence.js';
@@ -82,8 +82,7 @@ async function initApp() {
                     const { data: projectData, metadata } = JSON.parse(galleryProject);
                     
                     console.log('?? Loading gallery project:', metadata.title);
-
-                    
+                    pauseHistory();
                     // Load tag zones
                     const zones = projectData.zones || projectData.tagZones || [];
                     if (zones.length > 0) {
@@ -134,6 +133,8 @@ async function initApp() {
                 } catch (error) {
                     console.error('? Error loading gallery project:', error);
                     showNotification('Failed to load gallery project', 'error');
+                } finally {
+                    resumeHistory();
                 }
             } else {
                 // Try to initialize cloud storage first (if project ID or share token is present)
@@ -155,7 +156,7 @@ async function initApp() {
                     if (galleryProjectLocal) {
                         try {
                             const projectData = JSON.parse(galleryProjectLocal);
-                            
+                            pauseHistory();
                             // Import the project data
                             if (projectData.tagZones) {
                                 getStore().tagZones.length = 0;
@@ -178,6 +179,8 @@ Object.assign(getStore().appData, projectData);
                         } catch (err) {
                             console.error('Error loading gallery project:', err);
                             showNotification('Failed to load gallery project', 'error');
+                        } finally {
+                            resumeHistory();
                         }
                     }
                 } else if (!cloudLoaded) {
@@ -193,6 +196,8 @@ Object.assign(getStore().appData, projectData);
             initShortcuts();
             updateCategoryFilters();
             renderListView();
+            // Clear any history entries created during loading so undo starts clean
+            clearHistory();
 
             // Pre-build bibliography cache after initial load
             scheduleBibliographyRebuild();

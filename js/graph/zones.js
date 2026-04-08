@@ -1,4 +1,4 @@
-import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
+import { getStore, getNetwork, pauseHistory, resumeHistory, isHistoryPaused } from '../store/appStore.js';
 import { darkenColor, getContrastColor, showNotification } from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
 import { renderListView } from '../ui/list/sidebar.js';
@@ -632,7 +632,13 @@ export function checkNodeZoneMembership() {
     
     console.log(`✅ checkNodeZoneMembership completed - updated ${updatedCount} nodes with zone colors`);
     
-    save();
+    // Skip save() when called during a drag/load (history paused): the drag handler
+    // calls setSavedNodePositions() after resumeHistory(), and save() would overwrite
+    // savedNodePositions with post-drag values while still paused, causing the
+    // before/after equality check to pass and the drag snapshot to be lost.
+    if (!isHistoryPaused()) {
+        save();
+    }
     updateCategoryFilters();
     renderListView();
 }

@@ -2,7 +2,7 @@
 // Unified save/load abstraction for project data.
 // All modules call save() instead of touching localStorage directly.
 
-import { getStore, getNetwork } from '../store/appStore.js';
+import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
 
 const _onSaveCallbacks = [];
@@ -12,6 +12,8 @@ const _onSaveCallbacks = [];
  * Notifies all onSave subscribers after writing.
  */
 export function save(silent = false) {
+    // Saving must never create undo history entries
+    pauseHistory();
     try {
         // Gallery projects are read-only
         const urlParams = new URLSearchParams(window.location.search);
@@ -44,6 +46,8 @@ export function save(silent = false) {
         }
     } catch (e) {
         showNotification('Erreur lors de la sauvegarde: ' + e.message, 'error');
+    } finally {
+        resumeHistory();
     }
 }
 
@@ -52,6 +56,7 @@ export function save(silent = false) {
  * Handles gallery read-only mode and backward-compatible formats.
  */
 export function load() {
+    pauseHistory();
     try {
         // Gallery read-only projects are loaded from session state, not localStorage
         if (getStore().isReadOnlyMode && getStore().galleryProjectData) {
@@ -105,6 +110,8 @@ export function load() {
     } catch (e) {
         console.error('Error loading from localStorage:', e);
         showNotification('Erreur lors du chargement: ' + e.message, 'error');
+    } finally {
+        resumeHistory();
     }
 }
 
@@ -137,6 +144,8 @@ async function _syncToCloud() {
 }
 
 function _loadGalleryProject() {
+    pauseHistory();
+    try {
     const galleryData = getStore().galleryProjectData.data;
 
     if (galleryData.nodes && galleryData.edges) {
@@ -178,4 +187,7 @@ function _loadGalleryProject() {
     // Initialize control points
     getStore().setEdgeControlPoints({});
     getStore().setNextControlPointId(-1);
+    } finally {
+        resumeHistory();
+    }
 }
