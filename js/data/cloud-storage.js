@@ -42,7 +42,7 @@ export async function initCloudStorage() {
         getStore().setConnections([]);
         getStore().setNextArticleId(1);
         getStore().setNextConnectionId(1);
-        getStore().tagZones.length = 0;
+        getStore().setTagZones([]);
         getStore().setSavedNodePositions({});
         resumeHistory();
         
@@ -121,10 +121,11 @@ async function loadProjectFromCloud() {
         // Load tag zones if available
         const zones = project.data.zones || project.data.tagZones || [];
         if (zones.length > 0) {
-            getStore().tagZones.length = 0;
-            getStore().addTagZone(...zones);
+            getStore().setTagZones(zones);
             localStorage.setItem(`${projectKey}_zones`, JSON.stringify(zones));
             console.log('🏷️ Loaded', zones.length, 'tag zones from cloud');
+        } else {
+            getStore().setTagZones([]);
         }
         
         // Load positions if available

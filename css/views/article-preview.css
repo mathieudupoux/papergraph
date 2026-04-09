@@ -3,7 +3,7 @@
 /* Article Preview Panel */
 .article-preview {
     position: fixed;
-    left: 20px;
+    right: 20px;
     top: 90px;
     width: 400px;
     max-height: calc(100vh - 200px);

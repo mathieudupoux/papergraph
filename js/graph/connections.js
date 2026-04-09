@@ -204,17 +204,22 @@ export function showEdgeMenu(x, y, edgeId) {
     console.log('📍 Edge ID:', edgeId, 'Type:', typeof edgeId);
     console.log('📍 =========================================');
     
-    // Store original click position (screen coordinates)
-    menu.dataset.originalX = x;
-    menu.dataset.originalY = y;
-    
-    // Position menu with offset (down and left)
-    const offsetX = -30;  // Décalage vers la gauche
-    const offsetY = 30;   // Décalage vers le bas
-    menu.style.left = (x + offsetX) + 'px';
-    menu.style.top = (y + offsetY) + 'px';
+    const container = document.getElementById('graphContainer');
+    const rect = container.getBoundingClientRect();
+    const anchorDom = {
+        x: x - rect.left,
+        y: y - rect.top
+    };
+    const anchorCanvas = getNetwork().DOMtoCanvas(anchorDom);
+
+    // Store original click position in canvas coordinates so the menu follows pan/zoom
+    menu.dataset.anchorCanvasX = anchorCanvas.x;
+    menu.dataset.anchorCanvasY = anchorCanvas.y;
     menu.classList.add('active');
-    
+
+    // Position menu with offset (down and left)
+    updateEdgeMenuPosition();
+
     // Position buttons in a circle around the click point
     const buttons = menu.querySelectorAll('.edge-btn');
     console.log('Found', buttons.length, 'buttons in edge menu');
@@ -222,7 +227,12 @@ export function showEdgeMenu(x, y, edgeId) {
     const radius = 60;
     const startAngle = -Math.PI / 2; // Start at top
     const angleStep = (2 * Math.PI) / buttons.length;
-    
+
+    // Store edgeId for the menu actions
+    menu.dataset.edgeId = edgeId;
+    getStore().setSelectedEdgeId(edgeId);
+    console.log('✓ Edge menu shown, selectedEdgeId:', getStore().selectedEdgeId);
+
     buttons.forEach((button, index) => {
         const angle = startAngle + angleStep * index;
         const btnX = Math.cos(angle) * radius;
@@ -245,30 +255,22 @@ export function showEdgeMenu(x, y, edgeId) {
             
             if (action === 'add-control') {
                 console.log('Adding control point to edge:', edgeId);
+                const clickCanvasPos = getEdgeMenuAnchorCanvasPosition();
                 hideEdgeMenu();
                 
-                // Get the original click position and convert to canvas coordinates
-                const originalX = parseFloat(menu.dataset.originalX);
-                const originalY = parseFloat(menu.dataset.originalY);
-                const canvasPos = getNetwork().DOMtoCanvas({ x: originalX, y: originalY });
-                
-                console.log('📍 Canvas position for control point:', canvasPos);
-                addControlPointToEdge(edgeId, canvasPos);
+                if (clickCanvasPos) {
+                    console.log('📍 Canvas position for control point:', clickCanvasPos);
+                    addControlPointToEdge(edgeId, clickCanvasPos);
+                }
             } else if (action === 'edit-label') {
                 console.log('Editing label for edge:', edgeId);
+                const clickPointerDom = getEdgeMenuAnchorPointerDOM();
                 hideEdgeMenu();
                 
-                // Use the ORIGINAL click position (not menu position)
-                const container = document.getElementById('graphContainer');
-                const rect = container.getBoundingClientRect();
-                const originalX = parseFloat(menu.dataset.originalX);
-                const originalY = parseFloat(menu.dataset.originalY);
-                const pointerDOM = {
-                    x: originalX - rect.left,
-                    y: originalY - rect.top
-                };
-                console.log('Opening edit at original position:', pointerDOM);
-                editEdgeLabelInline(edgeId, null, pointerDOM);
+                if (clickPointerDom) {
+                    console.log('Opening edit at anchor position:', clickPointerDom);
+                    editEdgeLabelInline(edgeId, null, clickPointerDom);
+                }
             } else if (action === 'delete') {
                 console.log('Deleting edge:', edgeId);
                 hideEdgeMenu();
@@ -278,16 +280,61 @@ export function showEdgeMenu(x, y, edgeId) {
         
         console.log(`Button ${index} (${newButton.dataset.action}) positioned at:`, newButton.style.left, newButton.style.top);
     });
-    
-    // Store edgeId for the menu actions
-    menu.dataset.edgeId = edgeId;
-    getStore().setSelectedEdgeId(edgeId);
-    console.log('✓ Edge menu shown, selectedEdgeId:', getStore().selectedEdgeId);
+}
+
+function getEdgeMenuAnchorCanvasPosition() {
+    const menu = document.getElementById('edgeMenu');
+    const x = parseFloat(menu.dataset.anchorCanvasX);
+    const y = parseFloat(menu.dataset.anchorCanvasY);
+
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return null;
+    }
+
+    return { x, y };
+}
+
+function getEdgeMenuAnchorPointerDOM() {
+    const anchorCanvas = getEdgeMenuAnchorCanvasPosition();
+    if (!anchorCanvas) return null;
+
+    const anchorDom = getNetwork().canvasToDOM(anchorCanvas);
+
+    return {
+        x: anchorDom.x,
+        y: anchorDom.y
+    };
+}
+
+export function updateEdgeMenuPosition() {
+    const menu = document.getElementById('edgeMenu');
+    if (!menu || !menu.classList.contains('active')) {
+        return;
+    }
+
+    const anchorCanvas = getEdgeMenuAnchorCanvasPosition();
+    if (!anchorCanvas) {
+        return;
+    }
+
+    const container = document.getElementById('graphContainer');
+    const rect = container.getBoundingClientRect();
+    const anchorDom = getNetwork().canvasToDOM(anchorCanvas);
+
+    // Position menu with offset (down and left)
+    const offsetX = -30;  // Décalage vers la gauche
+    const offsetY = 30;   // Décalage vers le bas
+    menu.style.left = (rect.left + anchorDom.x + offsetX) + 'px';
+    menu.style.top = (rect.top + anchorDom.y + offsetY) + 'px';
+    menu.classList.add('active');
 }
 
 export function hideEdgeMenu() {
     const menu = document.getElementById('edgeMenu');
     menu.classList.remove('active');
+    delete menu.dataset.anchorCanvasX;
+    delete menu.dataset.anchorCanvasY;
+    delete menu.dataset.edgeId;
     getStore().setSelectedEdgeId(null);
     
     // Re-enable interactions

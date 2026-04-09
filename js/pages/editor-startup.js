@@ -85,12 +85,7 @@ async function initApp() {
                     pauseHistory();
                     // Load tag zones
                     const zones = projectData.zones || projectData.tagZones || [];
-                    if (zones.length > 0) {
-                        getStore().tagZones.length = 0;
-                        getStore().addTagZone(...zones);
-                    } else {
-                        getStore().tagZones.length = 0;
-                    }
+                    getStore().setTagZones(zones);
                     
                     // Load positions (check both 'positions' and 'nodePositions' for compatibility)
                     const positions = projectData.positions || projectData.nodePositions || {};
@@ -159,8 +154,7 @@ async function initApp() {
                             pauseHistory();
                             // Import the project data
                             if (projectData.tagZones) {
-                                getStore().tagZones.length = 0;
-                                getStore().addTagZone(...projectData.tagZones);
+                                getStore().setTagZones(projectData.tagZones);
                                 delete projectData.tagZones;
                             }
                             if (projectData.nodePositions) {
@@ -593,5 +587,4 @@ window.toggleAuthorsContent = function toggleAuthorsContent() {
         btn.textContent = "?";
     }
 };
-
 

@@ -5,6 +5,7 @@ import { initUserDropdown } from '../ui/user-dropdown.js';
 import { openModal, closeModal } from '../ui/modal-manager.js';
 import { setupLogoDropdown } from '../ui/logo-dropdown.js';
 import { icon } from '../ui/icons.js';
+import { importProjectFileAsNewProject } from '../data/project-import.js';
 window.navigateTo = navigateTo;
 
 import { supabase } from '../auth/config.js';
@@ -471,68 +472,10 @@ window.importProject = function() {
     input.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const imported = JSON.parse(event.target.result);
-                
-                console.log('Import - Raw imported data:', imported);
-                
-                if (!imported || typeof imported !== 'object') {
-                    throw new Error('Invalid file format');
-                }
-                
-                // Prepare project data in cloud format (nodes/edges/zones/positions)
-                let projectData = {
-                    nodes: [],
-                    edges: [],
-                    zones: [],
-                    positions: {}
-                };
-                
-                // Check different formats
-                if (imported.articles && imported.connections) {
-                    // Editor export format (articles/connections)
-                    console.log('Import - Editor format detected (articles/connections)');
-                    projectData.nodes = imported.articles || [];
-                    projectData.edges = imported.connections || [];
-                    projectData.zones = imported.tagZones || [];
-                    projectData.positions = imported.nodePositions || {};
-                } else if (imported.data && imported.data.nodes && imported.data.edges) {
-                    // Cloud export format with nested data object
-                    console.log('Import - Cloud format detected (nested data)');
-                    projectData = imported.data;
-                    // Normalize field names
-                    if (!projectData.zones && projectData.tagZones) {
-                        projectData.zones = projectData.tagZones;
-                    }
-                    if (!projectData.positions && projectData.nodePositions) {
-                        projectData.positions = projectData.nodePositions;
-                    }
-                } else if (imported.nodes && imported.edges) {
-                    // Direct format with nodes/edges
-                    console.log('Import - Direct format detected (nodes/edges)');
-                    projectData.nodes = imported.nodes || [];
-                    projectData.edges = imported.edges || [];
-                    projectData.zones = imported.zones || imported.tagZones || [];
-                    projectData.positions = imported.positions || imported.nodePositions || {};
-                } else {
-                    throw new Error('Invalid file format - missing nodes/edges or articles/connections');
-                }
-                
-                console.log('Import - Prepared project data:', projectData);
-                console.log('Import - Nodes count:', projectData.nodes?.length || 0);
-                console.log('Import - Edges count:', projectData.edges?.length || 0);
-                
-                // Create project name from filename (remove .papergraph or .json extension)
-                const projectName = file.name.replace(/\.(papergraph|json)$/i, '');
-                console.log('Import - Creating project:', projectName);
-                
-                // Create new project with imported data
-                const newProject = await createProject(projectName, projectData);
-                console.log('Import - Project created:', newProject);
-                
+
+        try {
+                const newProject = await importProjectFileAsNewProject(file);
+
                 // Refresh projects list to show updated stats
                 await refreshProjects();
                 
@@ -549,12 +492,9 @@ window.importProject = function() {
             } catch (error) {
                 console.error('Import error:', error);
                 alert('Failed to import project: ' + error.message);
+            } finally {
+                e.target.value = '';
             }
-        };
-        reader.readAsText(file);
-        
-        // Reset file input
-        e.target.value = '';
     };
     input.click();
 };

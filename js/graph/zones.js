@@ -216,6 +216,12 @@ export function updateZoneRadialMenuPosition(zoneIndex, layout = null) {
 export function showZoneRadialMenu(zoneIndex) {
     const zone = getStore().tagZones[zoneIndex];
     if (!zone) return;
+
+    const existingMenu = document.getElementById('zoneRadialMenu');
+    if (existingMenu && parseInt(existingMenu.dataset.zoneIndex, 10) === zoneIndex) {
+        updateZoneRadialMenuPosition(zoneIndex);
+        return;
+    }
     
     // Remove existing menu if any
     hideZoneDeleteButton();
@@ -234,6 +240,16 @@ export function showZoneRadialMenu(zoneIndex) {
     document.body.appendChild(menuContainer);
     
     const buttons = [
+        {
+            id: 'zone-edit-btn',
+            icon: icon('edit'),
+            action: () => {
+                hideZoneDeleteButton();
+                startEditZoneTitle(null, zoneIndex);
+            },
+            hoverColor: '#4a90e2',
+            title: 'Edit tag'
+        },
         {
             id: 'zone-color-btn',
             icon: icon('eyedropper'),
@@ -987,6 +1003,8 @@ export function endZoneMove() {
 
 export function startEditZoneTitle(event, zoneIndex) {
     if (getStore().zoneEditing.active) return;
+
+    hideZoneDeleteButton();
     
     const zone = getStore().tagZones[zoneIndex];
     const canvas = getNetwork().canvas.frame.canvas;
@@ -1087,7 +1105,7 @@ export function startEditZoneTitle(event, zoneIndex) {
         getStore().updateZoneEditing({ inputElement: null });
         getStore().updateZoneEditing({ backgroundElement: null });
         
-        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('pointerdown', handleClickOutside, true);
         
         // Re-enable interactions
         getNetwork().setOptions({
@@ -1113,7 +1131,7 @@ export function startEditZoneTitle(event, zoneIndex) {
     };
     
     setTimeout(() => {
-        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('pointerdown', handleClickOutside, true);
     }, 100);
     
     input.addEventListener('blur', saveEdit);
@@ -1127,7 +1145,7 @@ export function startEditZoneTitle(event, zoneIndex) {
             getStore().updateZoneEditing({ inputElement: null });
             getStore().updateZoneEditing({ backgroundElement: null });
             
-            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('pointerdown', handleClickOutside, true);
             
             getNetwork().setOptions({
                 interaction: {

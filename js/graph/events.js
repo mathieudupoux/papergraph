@@ -21,7 +21,7 @@ import {
     updateSelectionBox, endSelectionBox, hideSelectionBox, syncSelectionBoxToNodes, refreshSelectionOverlayPosition
 } from './selection.js';
 import {
-    handleConnectionModeClick, hideEdgeMenu, showEdgeMenu, editEdgeLabelInline,
+    handleConnectionModeClick, hideEdgeMenu, showEdgeMenu, editEdgeLabelInline, updateEdgeMenuPosition,
     isControlPoint, showControlPointMenu
 } from './connections.js';
 import { positionNodesInZones, initializeZonesFromTags } from '../data/storage.js';
@@ -170,10 +170,12 @@ function panViewFromWheel(event) {
         animation: false
     });
 
-    if (getStore().selectedZoneIndex !== -1) {
-        requestAnimationFrame(() => updateZoneRadialMenuPosition(getStore().selectedZoneIndex));
-    }
-    requestAnimationFrame(() => refreshSelectionOverlayPosition());
+        if (getStore().selectedZoneIndex !== -1) {
+            requestAnimationFrame(() => updateZoneRadialMenuPosition(getStore().selectedZoneIndex));
+        }
+        requestAnimationFrame(() => updateRadialMenuIfActive());
+        requestAnimationFrame(() => updateEdgeMenuPosition());
+        requestAnimationFrame(() => refreshSelectionOverlayPosition());
 }
 
 function zoomTowardPointer(event) {
@@ -199,6 +201,8 @@ function zoomTowardPointer(event) {
         scale: nextScale,
         animation: false
     });
+    requestAnimationFrame(() => updateRadialMenuIfActive());
+    requestAnimationFrame(() => updateEdgeMenuPosition());
 }
 
 function setNodeHoverOutline(nodeId, hovering, forceReset = false) {
@@ -266,6 +270,11 @@ export function setupCanvasEvents() {
 
         const titleClick = getZoneTitleClick(event);
         if (titleClick.zone !== null) {
+            if (event.detail > 1) {
+                pendingSelectionStart = null;
+                pendingZoneSelectionIndex = -1;
+                return;
+            }
             event.preventDefault();
             event.stopPropagation();
             pendingSelectionStart = null;
@@ -306,6 +315,10 @@ export function setupCanvasEvents() {
         if (zoneClick.zone !== null) {
             event.preventDefault();
             event.stopPropagation();
+            if (zoneClick.zoneIndex === getStore().selectedZoneIndex) {
+                queueZoneMove(event, zoneClick.zoneIndex);
+                return;
+            }
             pendingSelectionStart = { clientX: event.clientX, clientY: event.clientY };
             pendingZoneSelectionIndex = zoneClick.zoneIndex;
             return;
@@ -950,6 +963,8 @@ export function setupNetworkEvents() {
         if (getStore().selectedZoneIndex !== -1) {
             requestAnimationFrame(() => updateZoneRadialMenuPosition(getStore().selectedZoneIndex));
         }
+        requestAnimationFrame(() => updateRadialMenuIfActive());
+        requestAnimationFrame(() => updateEdgeMenuPosition());
     });
 }
 
@@ -972,21 +987,21 @@ export function openRadialMenuForNode(nodeId) {
     const previewWidth = 400;
     const menuRadius = 70;
     const margin = 70;
-    const leftThreshold = previewWidth + margin;
+    const menuButtonSize = 44;
+    const previewThreshold = window.innerWidth - previewWidth - margin;
+    const menuRight = rect.left + canvasPosition.x + nodeWidth / 2 + menuRadius + menuButtonSize;
     
-    const menuLeft = canvasPosition.x - menuRadius;
-    
-    if (menuLeft < leftThreshold) {
+    if (menuRight > previewThreshold) {
         isAdjustingViewForNode = true;
         
         const currentView = getNetwork().getViewPosition();
         const currentScale = getNetwork().getScale();
         
-        const targetX = leftThreshold + menuRadius;
-        const shiftNeeded = (targetX - canvasPosition.x) / currentScale;
+        const targetScreenX = previewThreshold - menuRadius - menuButtonSize - nodeWidth / 2;
+        const shiftNeeded = (canvasPosition.x - targetScreenX) / currentScale;
         
         getNetwork().moveTo({
-            position: { x: currentView.x - shiftNeeded, y: currentView.y },
+            position: { x: currentView.x + shiftNeeded, y: currentView.y },
             scale: currentScale,
             animation: false
         });

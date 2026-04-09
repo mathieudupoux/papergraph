@@ -288,6 +288,11 @@ appStore.subscribe((state, prevState) => {
 });
 
 export function showReadOnlyIndicator() {
+    if (getStore().isGalleryViewer) {
+        hideReadOnlyIndicator();
+        return;
+    }
+
     let indicator = document.getElementById('readOnlyIndicator');
     if (!indicator) {
         indicator = document.createElement('div');

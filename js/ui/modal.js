@@ -25,6 +25,7 @@ export function openArticleModal(articleId = null) {
     const deleteBtn = document.getElementById('deleteArticleBtn');
     
     getStore().setCurrentEditingArticleId(articleId);
+    modal.classList.toggle('modal-transparent-overlay', articleId === null);
     
     // Hide selection box when opening modal
     hideSelectionBox();
@@ -85,7 +86,9 @@ export function openArticleModal(articleId = null) {
 }
 
 export function closeModal() {
-    document.getElementById('articleModal').classList.remove('active');
+    const modal = document.getElementById('articleModal');
+    modal.classList.remove('active');
+    modal.classList.remove('modal-transparent-overlay');
     getStore().setCurrentEditingArticleId(null);
     getStore().setPendingImportArticle(null); // Clear pending import data
     setPendingArticlePosition(null);

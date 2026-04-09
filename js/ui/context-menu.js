@@ -4,6 +4,7 @@ import { deleteZone } from '../graph/zones.js';
 import { deleteArticleById, openArticleModal, setPendingArticlePosition } from './modal.js';
 import { openMultiTagDialog, deleteSelectedNodes } from './toolbar.js';
 import { applyNodeLabelFormat } from '../graph/selection.js';
+import { fitGraphView } from '../graph/view.js';
 import { icon } from './icons.js';
 
 let outsideClickHandler = null;
@@ -209,7 +210,7 @@ function buildMenuItems(context = {}) {
             label: 'Fit View',
             enabled: true,
             iconId: 'fit-view',
-            onSelect: () => getNetwork()?.fit({ animation: false })
+            onSelect: () => fitGraphView()
         }
     ];
 }

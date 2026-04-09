@@ -338,8 +338,7 @@ export function handleProjectUpdate(newData, updatedAt) {
     
     // Update zones
     if (newData.zones && Array.isArray(newData.zones) && typeof getStore().tagZones !== 'undefined') {
-        getStore().tagZones.length = 0;
-        getStore().addTagZone(...newData.zones);
+        getStore().setTagZones(newData.zones);
     }
     
     // Update edge control points
