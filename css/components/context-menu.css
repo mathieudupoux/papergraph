@@ -1,58 +1,49 @@
 .graph-context-menu {
-    position: fixed;
-    min-width: 220px;
-    padding: 8px;
-    border: 1px solid rgba(74, 144, 226, 0.2);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
-    backdrop-filter: blur(16px);
     z-index: 10020;
 }
 
-.graph-context-menu__item {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 11px 12px;
-    border: none;
-    border-radius: 10px;
-    background: transparent;
-    color: #183153;
-    font: 600 0.94rem/1.2 "Chillax", sans-serif;
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+.graph-context-submenu {
+    z-index: 10021;
 }
 
-.graph-context-menu__item:hover:not(:disabled),
-.graph-context-menu__item:focus-visible:not(:disabled) {
-    background: rgba(74, 144, 226, 0.12);
-    color: #0d47a1;
-    outline: none;
-    transform: translateX(2px);
-}
-
-.graph-context-menu__item:disabled {
-    color: rgba(24, 49, 83, 0.45);
+.graph-context-menu .logo-dropdown-item:disabled,
+.graph-context-submenu .logo-dropdown-item:disabled {
+    opacity: 0.45;
     cursor: not-allowed;
-}
-
-.graph-context-menu__item--destructive:hover:not(:disabled),
-.graph-context-menu__item--destructive:focus-visible:not(:disabled) {
-    background: rgba(231, 76, 60, 0.12);
-    color: #c0392b;
-}
-
-.graph-context-menu__label {
     pointer-events: none;
 }
 
-.graph-context-menu__shortcut {
-    color: rgba(24, 49, 83, 0.55);
-    font-size: 0.78rem;
-    font-weight: 500;
+.graph-context-menu .logo-dropdown-item:disabled svg,
+.graph-context-submenu .logo-dropdown-item:disabled svg {
+    opacity: 0.4;
+}
+
+.graph-context-menu .graph-context-menu__icon-slot,
+.graph-context-submenu .graph-context-menu__icon-slot {
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 18px;
+}
+
+.graph-context-menu .graph-context-menu__label,
+.graph-context-submenu .graph-context-menu__label {
+    flex: 1 1 auto;
+}
+
+.graph-context-menu .graph-context-menu__submenu-caret {
+    flex: 0 0 auto;
+    color: var(--dropdown-icon-color);
+    font-size: 16px;
+    line-height: 1;
+}
+
+.graph-context-submenu.graph-context-submenu--measuring {
+    display: block;
+    opacity: 0;
     pointer-events: none;
+    transform: none;
+    transition: none;
 }

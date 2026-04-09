@@ -77,6 +77,7 @@ const storeDefinition = (set, get) => ({
         menuActive: false,
         wasDragging: false,
         emptyAreaSelection: null,
+        selectionBoundsCanvas: null,
         emptyAreaClickHandler: null,
         selectedZonesForDrag: [],
         zonesDragStart: {},

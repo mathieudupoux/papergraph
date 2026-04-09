@@ -13,11 +13,12 @@ import {
     getZoneResizeHandle, startZoneResize, getZoneTitleClick, startEditZoneTitle,
     hideZoneDeleteButton, showZoneDeleteButton, getZoneAtPosition, findNestedZones,
     updateZoneMove, endZoneMove, updateZoneResize, endZoneResize, isNodeInZone,
+    updateZoneRadialMenuPosition,
     updateZoneSizes, checkNodeZoneMembership, drawTagZones, updateZoneCursor
 } from './zones.js';
 import {
     startSelectionBox, startSelectionBoxDrag, updateSelectionBoxDrag, endSelectionBoxDrag,
-    updateSelectionBox, endSelectionBox, hideSelectionBox, syncSelectionBoxToNodes
+    updateSelectionBox, endSelectionBox, hideSelectionBox, syncSelectionBoxToNodes, refreshSelectionOverlayPosition
 } from './selection.js';
 import {
     handleConnectionModeClick, hideEdgeMenu, showEdgeMenu, editEdgeLabelInline,
@@ -168,6 +169,11 @@ function panViewFromWheel(event) {
         scale,
         animation: false
     });
+
+    if (getStore().selectedZoneIndex !== -1) {
+        requestAnimationFrame(() => updateZoneRadialMenuPosition(getStore().selectedZoneIndex));
+    }
+    requestAnimationFrame(() => refreshSelectionOverlayPosition());
 }
 
 function zoomTowardPointer(event) {
@@ -733,6 +739,10 @@ export function setupNetworkEvents() {
             
             getNetwork().redraw();
         }
+
+        if (params.nodes.length === 0 && getStore().selectedZoneIndex !== -1) {
+            updateZoneRadialMenuPosition(getStore().selectedZoneIndex);
+        }
         
         if (params.nodes.length > 0) {
             hideSelectionBox();
@@ -936,6 +946,10 @@ export function setupNetworkEvents() {
         }
 
         hideContextMenu();
+
+        if (getStore().selectedZoneIndex !== -1) {
+            requestAnimationFrame(() => updateZoneRadialMenuPosition(getStore().selectedZoneIndex));
+        }
     });
 }
 

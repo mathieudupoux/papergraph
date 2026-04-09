@@ -14,6 +14,7 @@
     
     <!-- Modular CSS - Components -->
     <link rel="stylesheet" href="css/components/buttons.css">
+    <link rel="stylesheet" href="css/components/icons.css">
     <link rel="stylesheet" href="css/components/dropdown.css">
     <link rel="stylesheet" href="css/components/modals.css">
     <link rel="stylesheet" href="css/components/footer.css">
@@ -55,12 +56,8 @@
             <div class="pg-dashboard-header">
                 <h1>Explore Gallery</h1>
                 <div class="pg-header-buttons">
-                    <button id="submitToGalleryBtn" class="btn-primary" onclick="openSubmitToGalleryModal()" style="display: none;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="17 8 12 3 7 8"/>
-                            <line x1="12" y1="3" x2="12" y2="15"/>
-                        </svg>
+                    <button id="submitToGalleryBtn" class="btn-primary btn-with-icon" onclick="openSubmitToGalleryModal()" style="display: none;">
+                        <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#upload"></use></svg>
                         Submit to Gallery
                     </button>
                 </div>

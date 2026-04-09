@@ -5,6 +5,7 @@ import { getBibliography, escapeBibTeX, escapeLatex } from '../../data/bibliogra
 import { generateBibtexContent, getExportFilename } from '../../data/export.js';
 import { generateContentHash } from './sidebar.js';
 import { listState } from './shared.js';
+import { icon } from '../icons.js';
 
 // ===== PDF PREVIEW & COMPILATION =====
 // LaTeX compilation, PDF rendering, bibliography generation, and LaTeX preview
@@ -26,7 +27,7 @@ export function addPreviewToggle() {
     // PDF Compile button
     const compileBtn = document.createElement('button');
     compileBtn.className = 'compile-pdf-btn';
-    compileBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v6m0 0l-3-3m3 3l3-3M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17"/></svg>';
+    compileBtn.innerHTML = icon('compile', { size: 'sm' });
     compileBtn.title = 'Compile LaTeX to PDF';
     compileBtn.style.cssText = 'background: #4a90e2; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500;';
 
@@ -41,7 +42,7 @@ export function addPreviewToggle() {
     // Download .zip button
     const downloadTexBtn = document.createElement('button');
     downloadTexBtn.className = 'download-tex-btn';
-    downloadTexBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg><span style="margin-left: 4px;">.zip</span>';
+    downloadTexBtn.innerHTML = `${icon('download', { size: 'sm' })}<span style="margin-left: 4px;">.zip</span>`;
     downloadTexBtn.title = 'Download LaTeX source (.zip with .tex and .bib)';
     downloadTexBtn.style.cssText = 'background: #6c757d; color: white; border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; font-size: 12px;';
 
@@ -138,7 +139,7 @@ export function addPreviewToggle() {
     // Download .pdf button
     const downloadPdfBtn = document.createElement('button');
     downloadPdfBtn.className = 'download-pdf-btn';
-    downloadPdfBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg><span style="margin-left: 4px;">.pdf</span>';
+    downloadPdfBtn.innerHTML = `${icon('download', { size: 'sm' })}<span style="margin-left: 4px;">.pdf</span>`;
     downloadPdfBtn.title = 'Download compiled PDF';
     downloadPdfBtn.style.cssText = 'background: #28a745; color: white; border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; font-size: 12px;';
 

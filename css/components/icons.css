@@ -1,0 +1,40 @@
+.ui-icon {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    vertical-align: middle;
+    color: currentColor;
+}
+
+.ui-icon--xs {
+    width: 12px;
+    height: 12px;
+}
+
+.ui-icon--sm {
+    width: 14px;
+    height: 14px;
+}
+
+.ui-icon--md {
+    width: 18px;
+    height: 18px;
+}
+
+.ui-icon--lg {
+    width: 20px;
+    height: 20px;
+}
+
+.ui-icon--xl {
+    width: 24px;
+    height: 24px;
+}
+
+.btn-with-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}

@@ -5,6 +5,7 @@ import { updateCategoryFilters } from './filters.js';
 import { renderListView } from './list/sidebar.js';
 import { updateGraph } from '../graph/render.js';
 import { hideSelectionRadialMenu, hideEmptyAreaMenu } from './radial-menu.js';
+import { icon } from './icons.js';
 
 // ===== TOOLBAR & MULTI-SELECTION =====
 // Toolbar actions, multi-tag dialog, and multi-selection operations
@@ -106,10 +107,8 @@ export function openMultiTagDialog(isEmptyAreaMode = false) {
                 ${colorPaletteHTML}
                 <div class="color-option color-picker-option" id="customColorOption"
                      style="width: 28px; height: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 6px; cursor: pointer; 
-                            border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; display: flex; align-items: center; justify-content: center;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
-                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-                    </svg>
+                            border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; display: flex; align-items: center; justify-content: center; color: white;">
+                    ${icon('eyedropper', { size: 'sm' })}
                 </div>
             </div>
             <div id="customColorPicker" style="display: none; margin-top: 12px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">

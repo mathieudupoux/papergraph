@@ -4,6 +4,7 @@ import '../ui/preferences.js';
 import { initUserDropdown } from '../ui/user-dropdown.js';
 import { openModal, closeModal } from '../ui/modal-manager.js';
 import { setupLogoDropdown } from '../ui/logo-dropdown.js';
+import { icon } from '../ui/icons.js';
 window.navigateTo = navigateTo;
 
 import { supabase } from '../auth/config.js';
@@ -164,33 +165,19 @@ function renderProjectCard(project) {
                 >${safeName}</h3>
                         <div class="pg-project-menu">
                             <button class="pg-project-menu-btn" onclick="event.stopPropagation(); toggleProjectMenu('${project.id}')" data-menu-id="${project.id}">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="1"/>
-                                    <circle cx="12" cy="5" r="1"/>
-                                    <circle cx="12" cy="19" r="1"/>
-                                </svg>
+                                ${icon('more-vertical')}
                             </button>
                             <div class="pg-project-menu-dropdown" id="menu-${project.id}" style="display: none;">
                                 <button onclick="event.stopPropagation(); openProject('${project.id}')">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                                        <polyline points="15 3 21 3 21 9"/>
-                                        <line x1="10" y1="14" x2="21" y2="3"/>
-                                    </svg>
+                                    ${icon('open', { size: 'sm' })}
                                     Open
                                 </button>
                                 <button onclick="event.stopPropagation(); startRenameFromMenu('${project.id}')">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                    </svg>
+                                    ${icon('edit', { size: 'sm' })}
                                     Rename
                                 </button>
                                 <button class="danger" onclick="event.stopPropagation(); deleteProjectPrompt('${project.id}')">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="3 6 5 6 21 6"/>
-                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                                    </svg>
+                                    ${icon('delete', { size: 'sm' })}
                                     Delete
                                 </button>
                             </div>
@@ -198,15 +185,11 @@ function renderProjectCard(project) {
                     </div>
                     <div class="pg-project-stats">
                         <div class="pg-stat">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/>
-                            </svg>
+                            ${icon('node', { size: 'sm' })}
                             <span>${stats.nodes} nodes</span>
                         </div>
                         <div class="pg-stat">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <line x1="5" y1="12" x2="19" y2="12"/>
-                            </svg>
+                            ${icon('edge', { size: 'sm' })}
                             <span>${stats.edges} connections</span>
                         </div>
                     </div>

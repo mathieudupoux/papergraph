@@ -12,6 +12,12 @@ import { renderListView } from './list/sidebar.js';
 import { save } from '../data/persistence.js';
 import { showArticlePreview } from './preview.js';
 
+let pendingArticlePosition = null;
+
+export function setPendingArticlePosition(position) {
+    pendingArticlePosition = position ? { x: position.x, y: position.y } : null;
+}
+
 export function openArticleModal(articleId = null) {
     const modal = document.getElementById('articleModal');
     const modalTitle = document.getElementById('modalTitle');
@@ -82,6 +88,7 @@ export function closeModal() {
     document.getElementById('articleModal').classList.remove('active');
     getStore().setCurrentEditingArticleId(null);
     getStore().setPendingImportArticle(null); // Clear pending import data
+    setPendingArticlePosition(null);
     resetImportZone();
 }
 
@@ -180,8 +187,11 @@ export function saveArticle(e) {
             }
         }
         
-        // Position at the center of the current viewport (not project center)
-        if (typeof getNetwork() !== 'undefined' && getNetwork()) {
+        // Use the requested creation point when available, otherwise fall back to the viewport center.
+        if (pendingArticlePosition) {
+            newArticle.x = pendingArticlePosition.x;
+            newArticle.y = pendingArticlePosition.y;
+        } else if (typeof getNetwork() !== 'undefined' && getNetwork()) {
             const viewCenter = getNetwork().getViewPosition();
             newArticle.x = viewCenter.x;
             newArticle.y = viewCenter.y;

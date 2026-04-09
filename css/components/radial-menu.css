@@ -18,8 +18,8 @@
 
 .radial-btn {
     position: fixed;
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     border: none;
     background: var(--color-bg);
@@ -94,8 +94,8 @@
 /* Zone Delete Button */
 .zone-delete-btn {
     position: fixed;
-    width: 40px;
-    height: 40px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     border: none;
     background: var(--color-bg);
@@ -125,8 +125,8 @@
 /* Zone Radial Menu Buttons */
 .zone-radial-btn {
     position: fixed;
-    width: 40px;
-    height: 40px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     border: none;
     background: var(--color-bg);
@@ -155,8 +155,8 @@
 
 .edge-btn {
     position: absolute;
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     border: none;
     background: var(--color-bg);

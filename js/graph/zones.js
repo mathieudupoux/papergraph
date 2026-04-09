@@ -3,6 +3,7 @@ import { darkenColor, getContrastColor, showNotification } from '../utils/helper
 import { save } from '../data/persistence.js';
 import { renderListView } from '../ui/list/sidebar.js';
 import { updateCategoryFilters } from '../ui/filters.js';
+import { icon } from '../ui/icons.js';
 
 // ===== TAG ZONES =====
 // Zone visualization, interaction, and management
@@ -10,7 +11,7 @@ import { updateCategoryFilters } from '../ui/filters.js';
 const ZONE_TITLE_PADDING = 10;
 const ZONE_MENU_OFFSET_Y = 44;
 const ZONE_MENU_GAP = 8;
-const ZONE_MENU_BUTTON_SIZE = 36;
+const ZONE_MENU_BUTTON_SIZE = 40;
 
 export function drawTagZones(ctx) {
     if (!getStore().tagZones || getStore().tagZones.length === 0) return;
@@ -235,19 +236,14 @@ export function showZoneRadialMenu(zoneIndex) {
     const buttons = [
         {
             id: 'zone-color-btn',
-            icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-            </svg>`,
+            icon: icon('eyedropper'),
             action: () => openZoneColorDialog(zoneIndex),
             hoverColor: '#9b59b6',
             title: 'Changer la couleur'
         },
         {
             id: 'zone-delete-btn',
-            icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>`,
+            icon: icon('delete'),
             action: () => {
                 if (getStore().selectedZoneIndex !== -1) {
                     if (confirm('Delete this zone/tag?')) {
@@ -359,10 +355,8 @@ export function openZoneColorDialog(zoneIndex) {
                 ${colorPaletteHTML}
                 <div class="color-option color-picker-option" id="zoneCustomColorOption"
                      style="width: 28px; height: 28px; background: ${zone.color}; border-radius: 6px; cursor: pointer; 
-                            border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; display: flex; align-items: center; justify-content: center;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
-                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-                    </svg>
+                            border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; display: flex; align-items: center; justify-content: center; color: white;">
+                    ${icon('eyedropper', { size: 'sm' })}
                 </div>
             </div>
             <div id="zoneCustomColorPicker" class="zone-custom-picker" style="display: none; margin-top: 12px; padding: 12px; border-radius: 8px;">

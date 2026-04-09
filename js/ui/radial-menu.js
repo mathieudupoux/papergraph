@@ -4,6 +4,7 @@
 import { getStore, getNetwork } from '../store/appStore.js';
 import { showArticlePreview } from './preview.js';
 import { openMultiTagDialog, deleteSelectedNodes, applyEmptyAreaZoneFromDialog } from './toolbar.js';
+import { icon } from './icons.js';
 
 let activePulseNodeId = null;
 
@@ -262,21 +263,13 @@ export function showSelectionRadialMenu(x, y) {
     const buttons = [
         {
             id: 'selection-tag-btn',
-            icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-                <line x1="7" y1="7" x2="7.01" y2="7"/>
-            </svg>`,
+            icon: icon('tag'),
             action: openMultiTagDialog,
             hoverColor: '#27ae60',
         },
         {
             id: 'selection-delete-btn',
-            icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                <line x1="10" y1="11" x2="10" y2="17"/>
-                <line x1="14" y1="11" x2="14" y2="17"/>
-            </svg>`,
+            icon: icon('delete'),
             action: deleteSelectedNodes,
             hoverColor: '#e74c3c',
         }
@@ -288,8 +281,8 @@ export function showSelectionRadialMenu(x, y) {
         btn.className = 'selection-radial-btn';
         btn.innerHTML = btnConfig.icon;
         btn.style.position = 'relative';
-        btn.style.width = '44px';
-        btn.style.height = '44px';
+        btn.style.width = '40px';
+        btn.style.height = '40px';
         btn.style.borderRadius = '50%';
         btn.style.border = 'none';
         btn.style.background = 'white';
@@ -373,13 +366,10 @@ export function showEmptyAreaMenu(x, y) {
     const btn = document.createElement('button');
     btn.id = 'empty-area-zone-btn';
     btn.className = 'empty-area-btn';
-    btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-        <line x1="7" y1="7" x2="7.01" y2="7"/>
-    </svg>`;
+    btn.innerHTML = icon('tag');
     btn.style.position = 'fixed';
-    btn.style.width = '44px';
-    btn.style.height = '44px';
+    btn.style.width = '40px';
+    btn.style.height = '40px';
     btn.style.borderRadius = '50%';
     btn.style.border = 'none';
     btn.style.background = 'white';

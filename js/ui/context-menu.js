@@ -1,31 +1,46 @@
 import { getStore, getNetwork } from '../store/appStore.js';
-import { showNotification } from '../utils/helpers.js';
-import { save } from '../data/persistence.js';
-import { updateGraph } from '../graph/render.js';
-import { renderListView } from './list/sidebar.js';
-import { updateCategoryFilters } from './filters.js';
 import { deleteConnection } from '../graph/connections.js';
 import { deleteZone } from '../graph/zones.js';
-import { deleteArticleById } from './modal.js';
+import { deleteArticleById, openArticleModal, setPendingArticlePosition } from './modal.js';
 import { openMultiTagDialog, deleteSelectedNodes } from './toolbar.js';
+import { applyNodeLabelFormat } from '../graph/selection.js';
+import { icon } from './icons.js';
 
-let graphClipboard = null;
-let lastPasteOffset = 0;
 let outsideClickHandler = null;
 let escapeHandler = null;
+let nodeLabelSubmenuHideTimeout = null;
+let nodeLabelTriggerButton = null;
+
+const NODE_LABEL_OPTIONS = [
+    { format: 'bibtexId', label: 'BibTeX ID' },
+    { format: 'title', label: 'Title' },
+    { format: 'citation', label: 'Citation (Author, Year)' },
+    { format: 'author', label: 'First Author' }
+];
 
 function getMenu() {
     let menu = document.getElementById('graphContextMenu');
     if (!menu) {
         menu = document.createElement('div');
         menu.id = 'graphContextMenu';
-        menu.className = 'graph-context-menu';
+        menu.className = 'logo-dropdown graph-context-menu';
         menu.setAttribute('role', 'menu');
-        menu.style.display = 'none';
         document.body.appendChild(menu);
     }
 
     return menu;
+}
+
+function getSubmenu() {
+    let submenu = document.getElementById('graphContextNodeLabelSubmenu');
+    if (!submenu) {
+        submenu = document.createElement('div');
+        submenu.id = 'graphContextNodeLabelSubmenu';
+        submenu.className = 'dropdown-submenu graph-context-submenu';
+        document.body.appendChild(submenu);
+    }
+
+    return submenu;
 }
 
 function getSelectedNodeIds() {
@@ -40,208 +55,142 @@ function getSelectedNodeIds() {
     return [];
 }
 
-function getDeleteState() {
+function deleteSelection() {
     const selectedNodeIds = getSelectedNodeIds();
 
     if (selectedNodeIds.length > 1) {
-        return { type: 'multi-node', enabled: true };
+        deleteSelectedNodes();
+        return;
     }
 
     if (selectedNodeIds.length === 1 && getStore().selectedEdgeId === null && getStore().selectedZoneIndex === -1) {
-        return { type: 'node', enabled: true };
+        deleteArticleById(selectedNodeIds[0]);
+        return;
     }
 
     if (getStore().selectedEdgeId !== null) {
-        return { type: 'edge', enabled: true };
+        deleteConnection(getStore().selectedEdgeId);
+        return;
     }
 
     if (getStore().selectedZoneIndex !== -1) {
-        return { type: 'zone', enabled: true };
+        deleteZone(getStore().selectedZoneIndex);
     }
-
-    return { type: null, enabled: false };
-}
-
-function copySelectionToClipboard() {
-    const network = getNetwork();
-    const selectedNodeIds = getSelectedNodeIds();
-
-    if (!network || selectedNodeIds.length === 0) {
-        showNotification('Select at least one node to copy', 'info');
-        return;
-    }
-
-    const positions = network.getPositions(selectedNodeIds);
-    const selectedIdSet = new Set(selectedNodeIds);
-
-    graphClipboard = {
-        articles: selectedNodeIds
-            .map((nodeId) => getStore().appData.articles.find((article) => article.id === nodeId))
-            .filter(Boolean)
-            .map((article) => ({
-                ...article,
-                categories: [...(article.categories || [])]
-            })),
-        connections: getStore().appData.connections
-            .filter((connection) => selectedIdSet.has(connection.from) && selectedIdSet.has(connection.to))
-            .map((connection) => ({ ...connection })),
-        positions
-    };
-
-    showNotification(
-        selectedNodeIds.length === 1 ? 'Node copied' : `${selectedNodeIds.length} nodes copied`,
-        'success'
-    );
-}
-
-function pasteClipboard(targetPosition = null) {
-    if (!graphClipboard || graphClipboard.articles.length === 0) {
-        showNotification('Copy a node selection first', 'info');
-        return;
-    }
-
-    const network = getNetwork();
-    if (!network) return;
-
-    lastPasteOffset += 40;
-
-    const fallbackPosition = network.getViewPosition();
-    const pasteCenter = targetPosition || {
-        x: fallbackPosition.x + lastPasteOffset,
-        y: fallbackPosition.y + lastPasteOffset
-    };
-
-    const sourcePositions = graphClipboard.articles
-        .map((article) => graphClipboard.positions[article.id])
-        .filter(Boolean);
-
-    const sourceCenter = sourcePositions.length > 0
-        ? sourcePositions.reduce(
-            (acc, position) => ({
-                x: acc.x + position.x / sourcePositions.length,
-                y: acc.y + position.y / sourcePositions.length
-            }),
-            { x: 0, y: 0 }
-        )
-        : { x: 0, y: 0 };
-
-    const idMap = new Map();
-    const newNodeIds = [];
-
-    graphClipboard.articles.forEach((article) => {
-        const { id, x, y, ...articleFields } = article;
-        const newId = getStore().createArticle({
-            ...articleFields,
-            categories: [...(article.categories || [])]
-        });
-
-        idMap.set(article.id, newId);
-        newNodeIds.push(newId);
-    });
-
-    graphClipboard.connections.forEach((connection) => {
-        const newFrom = idMap.get(connection.from);
-        const newTo = idMap.get(connection.to);
-
-        if (newFrom && newTo) {
-            getStore().createConnection(newFrom, newTo, connection.label || '');
-        }
-    });
-
-    updateGraph();
-
-    const updatedPositions = { ...getStore().savedNodePositions };
-    graphClipboard.articles.forEach((article) => {
-        const newId = idMap.get(article.id);
-        const originalPosition = graphClipboard.positions[article.id] || sourceCenter;
-        const x = pasteCenter.x + (originalPosition.x - sourceCenter.x);
-        const y = pasteCenter.y + (originalPosition.y - sourceCenter.y);
-
-        network.moveNode(newId, x, y);
-        updatedPositions[newId] = { x, y };
-    });
-
-    getStore().setSavedNodePositions(updatedPositions);
-    getStore().updateMultiSelection({ selectedNodes: newNodeIds });
-    getStore().setSelectedNodeId(newNodeIds.length === 1 ? newNodeIds[0] : null);
-    getStore().setSelectedEdgeId(null);
-    getStore().setSelectedZoneIndex(-1);
-
-    network.selectNodes(newNodeIds);
-    renderListView();
-    updateCategoryFilters();
-    save(true);
-
-    showNotification(
-        newNodeIds.length === 1 ? 'Node pasted' : `${newNodeIds.length} nodes pasted`,
-        'success'
-    );
 }
 
 function tagSelectedNodes() {
     const selectedNodeIds = getSelectedNodeIds();
-
-    if (selectedNodeIds.length === 0) {
-        showNotification('Select at least one node to tag', 'info');
-        return;
-    }
+    if (selectedNodeIds.length === 0) return;
 
     getStore().updateMultiSelection({ selectedNodes: selectedNodeIds });
     openMultiTagDialog();
 }
 
-function deleteSelection() {
-    const deleteState = getDeleteState();
+function buildNodeLabelSubmenu() {
+    const submenu = getSubmenu();
+    const currentFormat = localStorage.getItem('nodeLabelFormat') || 'bibtexId';
 
-    if (!deleteState.enabled) {
-        showNotification('Nothing selected to delete', 'info');
-        return;
+    submenu.innerHTML = '';
+    NODE_LABEL_OPTIONS.forEach((option) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'logo-dropdown-item node-label-option';
+        button.dataset.format = option.format;
+        if (option.format === currentFormat) {
+            button.classList.add('selected');
+        }
+
+        button.innerHTML = `
+            <span class="graph-context-menu__icon-slot" aria-hidden="true"></span>
+            <span class="graph-context-menu__label">${option.label}</span>
+        `;
+        button.addEventListener('click', () => {
+            applyNodeLabelFormat(option.format);
+            hideContextMenu();
+        });
+
+        submenu.appendChild(button);
+    });
+
+    return submenu;
+}
+
+function cancelNodeLabelSubmenuHide() {
+    if (nodeLabelSubmenuHideTimeout !== null) {
+        clearTimeout(nodeLabelSubmenuHideTimeout);
+        nodeLabelSubmenuHideTimeout = null;
     }
+}
 
-    if (deleteState.type === 'multi-node') {
-        deleteSelectedNodes();
-        return;
+function scheduleNodeLabelSubmenuHide() {
+    cancelNodeLabelSubmenuHide();
+    nodeLabelSubmenuHideTimeout = window.setTimeout(() => {
+        const submenu = document.getElementById('graphContextNodeLabelSubmenu');
+        if (submenu && submenu.matches(':hover')) return;
+        if (nodeLabelTriggerButton && nodeLabelTriggerButton.matches(':hover')) return;
+        hideNodeLabelSubmenu();
+    }, 140);
+}
+
+function showNodeLabelSubmenu(triggerButton) {
+    cancelNodeLabelSubmenuHide();
+    nodeLabelTriggerButton = triggerButton;
+    const submenu = buildNodeLabelSubmenu();
+    const rect = triggerButton.getBoundingClientRect();
+    const gap = 10;
+    const viewportPadding = 12;
+
+    submenu.classList.remove('active');
+    submenu.classList.add('graph-context-submenu--measuring');
+    submenu.style.top = '0px';
+    submenu.style.left = '0px';
+
+    const submenuRect = submenu.getBoundingClientRect();
+    const openOnRight = rect.right + gap + submenuRect.width <= window.innerWidth - viewportPadding;
+    submenu.style.left = openOnRight
+        ? `${rect.right + gap}px`
+        : `${Math.max(viewportPadding, rect.left - submenuRect.width - gap)}px`;
+    submenu.style.top = `${rect.top}px`;
+    if (submenuRect.bottom > window.innerHeight - 12) {
+        submenu.style.top = `${Math.max(12, window.innerHeight - submenuRect.height - 12)}px`;
     }
+    submenu.classList.remove('graph-context-submenu--measuring');
+    requestAnimationFrame(() => submenu.classList.add('active'));
+}
 
-    if (deleteState.type === 'node') {
-        deleteArticleById(getSelectedNodeIds()[0]);
-        return;
-    }
-
-    if (deleteState.type === 'edge') {
-        deleteConnection(getStore().selectedEdgeId);
-        return;
-    }
-
-    if (deleteState.type === 'zone') {
-        deleteZone(getStore().selectedZoneIndex);
+function hideNodeLabelSubmenu() {
+    cancelNodeLabelSubmenuHide();
+    nodeLabelTriggerButton = null;
+    const submenu = document.getElementById('graphContextNodeLabelSubmenu');
+    if (submenu) {
+        submenu.classList.remove('active');
+        submenu.classList.remove('graph-context-submenu--measuring');
+        submenu.innerHTML = '';
     }
 }
 
 function buildMenuItems(context = {}) {
     const readOnly = getStore().isReadOnlyMode || getStore().isGalleryViewer;
     const selectedNodeIds = getSelectedNodeIds();
-    const deleteState = getDeleteState();
+    const hasDeleteTarget = selectedNodeIds.length > 0 || getStore().selectedEdgeId !== null || getStore().selectedZoneIndex !== -1;
 
     return [
         {
-            label: 'Copy',
-            shortcut: 'Ctrl/Cmd+C',
-            enabled: selectedNodeIds.length > 0,
-            onSelect: copySelectionToClipboard
+            label: 'Add Node',
+            enabled: !readOnly,
+            iconId: 'add',
+            onSelect: () => {
+                setPendingArticlePosition(context.canvasPosition || getNetwork()?.getViewPosition() || { x: 0, y: 0 });
+                openArticleModal();
+            }
         },
         {
-            label: 'Paste',
-            shortcut: 'Ctrl/Cmd+V',
-            enabled: !readOnly && !!graphClipboard,
-            onSelect: () => pasteClipboard(context.canvasPosition)
+            label: 'Node Labels',
+            enabled: true,
+            submenu: true
         },
         {
-            label: 'Delete',
-            shortcut: 'Del',
-            enabled: !readOnly && deleteState.enabled,
-            destructive: true,
-            onSelect: deleteSelection
+            divider: true
         },
         {
             label: 'Tag Selection',
@@ -249,8 +198,17 @@ function buildMenuItems(context = {}) {
             onSelect: tagSelectedNodes
         },
         {
+            label: 'Delete',
+            enabled: !readOnly && hasDeleteTarget,
+            onSelect: deleteSelection
+        },
+        {
+            divider: true
+        },
+        {
             label: 'Fit View',
             enabled: true,
+            iconId: 'fit-view',
             onSelect: () => getNetwork()?.fit({ animation: false })
         }
     ];
@@ -259,7 +217,11 @@ function buildMenuItems(context = {}) {
 function bindDismissHandlers() {
     outsideClickHandler = (event) => {
         const menu = document.getElementById('graphContextMenu');
-        if (menu && !menu.contains(event.target)) {
+        const submenu = document.getElementById('graphContextNodeLabelSubmenu');
+        const clickedInMenu = menu && menu.contains(event.target);
+        const clickedInSubmenu = submenu && submenu.contains(event.target);
+
+        if (!clickedInMenu && !clickedInSubmenu) {
             hideContextMenu();
         }
     };
@@ -279,9 +241,11 @@ function bindDismissHandlers() {
 export function hideContextMenu() {
     const menu = document.getElementById('graphContextMenu');
     if (menu) {
-        menu.style.display = 'none';
+        menu.classList.remove('active');
         menu.innerHTML = '';
     }
+
+    hideNodeLabelSubmenu();
 
     if (outsideClickHandler) {
         document.removeEventListener('mousedown', outsideClickHandler);
@@ -299,33 +263,44 @@ export function showContextMenu(x, y, context = {}) {
 
     const menu = getMenu();
     const items = buildMenuItems(context);
+    menu.innerHTML = '';
 
     items.forEach((item) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'graph-context-menu__item';
-        if (item.destructive) {
-            button.classList.add('graph-context-menu__item--destructive');
+        if (item.divider) {
+            const divider = document.createElement('div');
+            divider.className = 'logo-dropdown-divider';
+            menu.appendChild(divider);
+            return;
         }
 
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `logo-dropdown-item${item.submenu ? ' logo-dropdown-item-submenu' : ''}`;
         button.disabled = !item.enabled;
         button.innerHTML = `
+            <span class="graph-context-menu__icon-slot" aria-hidden="true">${item.iconId ? icon(item.iconId) : ''}</span>
             <span class="graph-context-menu__label">${item.label}</span>
-            ${item.shortcut ? `<span class="graph-context-menu__shortcut">${item.shortcut}</span>` : ''}
+            ${item.submenu ? `<span class="graph-context-menu__submenu-caret" aria-hidden="true">›</span>` : ''}
         `;
 
-        button.addEventListener('click', () => {
-            if (!item.enabled) return;
-            hideContextMenu();
-            item.onSelect();
-        });
+        if (item.submenu) {
+            button.addEventListener('mouseenter', () => showNodeLabelSubmenu(button));
+            button.addEventListener('mouseleave', scheduleNodeLabelSubmenuHide);
+        } else {
+            button.addEventListener('mouseenter', hideNodeLabelSubmenu);
+            button.addEventListener('click', () => {
+                if (!item.enabled) return;
+                hideContextMenu();
+                item.onSelect();
+            });
+        }
 
         menu.appendChild(button);
     });
 
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
-    menu.style.display = 'block';
+    menu.classList.add('active');
 
     const rect = menu.getBoundingClientRect();
     if (rect.right > window.innerWidth - 12) {
@@ -334,6 +309,16 @@ export function showContextMenu(x, y, context = {}) {
     if (rect.bottom > window.innerHeight - 12) {
         menu.style.top = `${Math.max(12, window.innerHeight - rect.height - 12)}px`;
     }
+
+    menu.onmouseleave = scheduleNodeLabelSubmenuHide;
+    menu.onmouseenter = cancelNodeLabelSubmenuHide;
+
+    const submenu = getSubmenu();
+    submenu.onmouseenter = () => {
+        cancelNodeLabelSubmenuHide();
+        submenu.classList.add('active');
+    };
+    submenu.onmouseleave = scheduleNodeLabelSubmenuHide;
 
     bindDismissHandlers();
 }

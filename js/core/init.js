@@ -2,7 +2,7 @@ import { getStore, getNetwork } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
 import { exportProject, exportToBibtex, exportToPDF, exportToLatex, exportToImage, exportToSVG, newProject, importProject } from '../data/export.js';
 import { importBibtexFile, setupImportZone, toggleManualForm } from '../data/import.js';
-import { openArticleModal, closeModal, saveArticle, deleteArticle, deleteArticleById } from '../ui/modal.js';
+import { openArticleModal, closeModal, saveArticle, deleteArticle, deleteArticleById, setPendingArticlePosition } from '../ui/modal.js';
 import { toggleCategoryDropdown, updateCategoryFilters, updateActiveFiltersDisplay } from '../ui/filters.js';
 import { toggleGrid, closeMultiTagDialog, deleteSelectedNodes } from '../ui/toolbar.js';
 import { searchInGraph } from '../graph/search.js';
@@ -226,6 +226,7 @@ export function initializeEventListeners() {
     
     // Toolbar actions
     document.getElementById('addArticleBtn').addEventListener('click', () => {
+        setPendingArticlePosition(null);
         openArticleModal();
     });
     document.getElementById('categoryFilterBtn').addEventListener('click', toggleCategoryDropdown);
