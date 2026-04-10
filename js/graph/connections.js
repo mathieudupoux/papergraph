@@ -3,6 +3,7 @@ import { showNotification } from '../utils/helpers.js';
 import { updateGraph } from './render.js';
 import { save } from '../data/persistence.js';
 import { icon } from '../ui/icons.js';
+import { getGraphInteractionOptions } from './interaction.js';
 
 // ===== CONNECTIONS =====
 // Connection/edge management and creation
@@ -340,13 +341,11 @@ export function hideEdgeMenu() {
     // Re-enable interactions
     if (getNetwork()) {
         getNetwork().setOptions({ 
-            interaction: { 
+            interaction: getGraphInteractionOptions({
                 dragNodes: true,
-                dragView: false,
-                zoomView: false,
                 hover: true,
                 tooltipDelay: 200
-            } 
+            })
         });
     }
 }
@@ -440,7 +439,7 @@ export function startConnectionMode(fromNodeId) {
             }
         };
         getStore().updateConnectionMode({ mouseMoveHandler });
-        canvas.addEventListener('mousemove', getStore().connectionMode.mouseMoveHandler);
+        canvas.addEventListener('pointermove', getStore().connectionMode.mouseMoveHandler);
         
         // Track hover for snapping
         const hoverHandler = function(params) {
@@ -538,7 +537,7 @@ export function cancelConnectionMode() {
     // Remove listeners
     if (getStore().connectionMode.mouseMoveHandler && getNetwork()) {
         const canvas = getNetwork().canvas.frame.canvas;
-        canvas.removeEventListener('mousemove', getStore().connectionMode.mouseMoveHandler);
+        canvas.removeEventListener('pointermove', getStore().connectionMode.mouseMoveHandler);
         getStore().updateConnectionMode({ mouseMoveHandler: null });
     }
     
@@ -1087,11 +1086,9 @@ export function showControlPointMenu(x, y, controlPointId) {
         // Re-enable interactions
         if (getNetwork()) {
             getNetwork().setOptions({ 
-                interaction: { 
-                    dragNodes: true,
-                    dragView: false,
-                    zoomView: false
-                } 
+                interaction: getGraphInteractionOptions({
+                    dragNodes: true
+                })
             });
         }
     };
@@ -1108,11 +1105,9 @@ export function showControlPointMenu(x, y, controlPointId) {
                 // Re-enable interactions
                 if (getNetwork()) {
                     getNetwork().setOptions({ 
-                        interaction: { 
-                            dragNodes: true,
-                            dragView: false,
-                            zoomView: false
-                        } 
+                        interaction: getGraphInteractionOptions({
+                            dragNodes: true
+                        })
                     });
                 }
             }
