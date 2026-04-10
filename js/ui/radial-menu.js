@@ -5,6 +5,7 @@ import { getStore, getNetwork } from '../store/appStore.js';
 import { showArticlePreview } from './preview.js';
 import { openMultiTagDialog, deleteSelectedNodes, applyEmptyAreaZoneFromDialog } from './toolbar.js';
 import { icon } from './icons.js';
+import { getGraphInteractionOptions } from '../graph/interaction.js';
 
 let activePulseNodeId = null;
 
@@ -76,13 +77,11 @@ export function openRadialMenuForNode(nodeId) {
     
     // Keep drag enabled but disable panning and zoom when menu is open
     getNetwork().setOptions({ 
-        interaction: { 
+        interaction: getGraphInteractionOptions({
             dragNodes: true,
-            dragView: false,
-            zoomView: false,
             hover: true,
             hoverConnectedEdges: false
-        } 
+        })
     });
 }
 
@@ -228,13 +227,11 @@ export function hideRadialMenu() {
     // Re-enable interactions
     if (getNetwork()) {
         getNetwork().setOptions({ 
-            interaction: { 
+            interaction: getGraphInteractionOptions({
                 dragNodes: true,
-                dragView: false,
-                zoomView: false,
                 hover: true,
                 tooltipDelay: 200
-            } 
+            })
         });
     }
 }

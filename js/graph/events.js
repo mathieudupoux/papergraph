@@ -25,6 +25,7 @@ import {
     isControlPoint, showControlPointMenu
 } from './connections.js';
 import { positionNodesInZones, initializeZonesFromTags } from '../data/storage.js';
+import { getGraphInteractionOptions } from './interaction.js';
 
 let lastEdgeClickTime = 0;
 let lastEdgeClickId = null;
@@ -117,7 +118,12 @@ function queueZoneMove(event, zoneIndex) {
 
 function maybeStartSelectionDrag(event) {
     if (!pendingSelectionStart) return false;
-    if ((event.buttons & 1) === 0) {
+    const isMousePointer = event.pointerType === 'mouse';
+    const hasActivePress = isMousePointer
+        ? (event.buttons & 1) !== 0
+        : event.buttons !== 0 || event.pressure > 0;
+
+    if (!hasActivePress) {
         pendingSelectionStart = null;
         pendingZoneSelectionIndex = -1;
         return false;
@@ -235,16 +241,30 @@ function clearHoveredNodeState(forceReset = false) {
     getNetwork()?.redraw();
 }
 
+function isPrimaryPointerDown(event) {
+    if (event.pointerType === 'mouse') {
+        return event.button === 0;
+    }
+
+    return event.isPrimary !== false;
+}
+
 export function setupCanvasEvents() {
     const canvas = getNetwork().canvas.frame.canvas;
     
-    canvas.addEventListener('mousedown', (event) => {
+    canvas.addEventListener('pointerdown', (event) => {
         hideContextMenu();
 
-        if (event.button !== 0) {
+        if (!isPrimaryPointerDown(event)) {
             pendingSelectionStart = null;
             pendingZoneSelectionIndex = -1;
             return;
+        }
+
+        if (canvas.setPointerCapture) {
+            try {
+                canvas.setPointerCapture(event.pointerId);
+            } catch {}
         }
 
         if (getStore().connectionMode.active) {
@@ -285,7 +305,8 @@ export function setupCanvasEvents() {
             return;
         }
 
-        const clickPos = { x: event.offsetX, y: event.offsetY };
+        const { mouseX, mouseY } = getCanvasPointer(event);
+        const clickPos = { x: mouseX, y: mouseY };
         const nodeId = getNetwork().getNodeAt(clickPos);
         const edgeId = getNetwork().getEdgeAt(clickPos);
 
@@ -418,7 +439,7 @@ export function setupCanvasEvents() {
         }
     }, { passive: false });
     
-    canvas.addEventListener('mousemove', (event) => {
+    canvas.addEventListener('pointermove', (event) => {
         if (maybeStartSelectionDrag(event)) {
             return;
         }
@@ -439,11 +460,11 @@ export function setupCanvasEvents() {
                 getStore().updateZoneMoving({ readyToMove: false });
                 
                 getNetwork().setOptions({
-                    interaction: {
+                    interaction: getGraphInteractionOptions({
                         dragNodes: false,
                         dragView: false,
                         zoomView: false
-                    }
+                    })
                 });
             }
         } else if (getStore().zoneMoving.active) {
@@ -469,8 +490,8 @@ export function setupCanvasEvents() {
         }
     }, true);
     
-    canvas.addEventListener('mouseup', (event) => {
-        if (event.button === 0 && pendingSelectionStart) {
+    const finalizePointerInteraction = (event) => {
+        if (isPrimaryPointerDown(event) && pendingSelectionStart) {
             if (pendingZoneSelectionIndex !== -1) {
                 getStore().setSelectedZoneIndex(pendingZoneSelectionIndex);
                 showZoneDeleteButton(pendingZoneSelectionIndex);
@@ -480,11 +501,17 @@ export function setupCanvasEvents() {
             pendingZoneSelectionIndex = -1;
         }
 
-        if (event.button === 0 && getStore().isGalleryViewer) {
+        if (canvas.releasePointerCapture) {
+            try {
+                canvas.releasePointerCapture(event.pointerId);
+            } catch {}
+        }
+
+        if (getStore().isGalleryViewer) {
             return;
         }
 
-        if (event.button === 0 && (getStore().zoneMoving.active || getStore().zoneMoving.readyToMove)) {
+        if (getStore().zoneMoving.active || getStore().zoneMoving.readyToMove) {
             event.preventDefault();
             event.stopPropagation();
             
@@ -497,22 +524,25 @@ export function setupCanvasEvents() {
             }
             getStore().updateZoneMoving({ readyToMove: false });
             getStore().updateZoneMoving({ active: false });
-        } else if (event.button === 0 && getStore().zoneResizing.active) {
+        } else if (getStore().zoneResizing.active) {
             event.preventDefault();
             event.stopPropagation();
             endZoneResize();
-        } else if (event.button === 0 && getStore().multiSelection.boxDragging) {
+        } else if (getStore().multiSelection.boxDragging) {
             event.preventDefault();
             event.stopPropagation();
             endSelectionBoxDrag();
-        } else if (event.button === 0 && getStore().multiSelection.active) {
+        } else if (getStore().multiSelection.active) {
             event.preventDefault();
             event.stopPropagation();
             endSelectionBox();
         }
-    }, true);
+    };
+
+    canvas.addEventListener('pointerup', finalizePointerInteraction, true);
+    canvas.addEventListener('pointercancel', finalizePointerInteraction, true);
     
-    getNetwork().canvas.body.container.addEventListener('mousemove', (event) => {
+    getNetwork().canvas.body.container.addEventListener('pointermove', (event) => {
         if (!getStore().zoneMoving.active && !getStore().zoneResizing.active && !getStore().multiSelection.active && !getStore().multiSelection.boxDragging && !getStore().connectionMode.active && !getStore().zoneEditing.active) {
             updateZoneCursor(event);
         }
@@ -677,12 +707,12 @@ export function setupNetworkEvents() {
                 
                 showEdgeMenu(screenX, screenY, edgeId);
                 
-                getNetwork().setOptions({ 
-                    interaction: { 
+                getNetwork().setOptions({
+                    interaction: getGraphInteractionOptions({
                         dragNodes: false,
                         dragView: false,
                         zoomView: false
-                    } 
+                    })
                 });
             }
         } else {
@@ -1037,12 +1067,10 @@ export function openRadialMenuForNode(nodeId) {
     }
     
     getNetwork().setOptions({ 
-        interaction: { 
+        interaction: getGraphInteractionOptions({
             dragNodes: true,
-            dragView: false,
-            zoomView: false,
             hover: true,
             hoverConnectedEdges: false
-        } 
+        })
     });
 }

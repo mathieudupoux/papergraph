@@ -3,6 +3,7 @@ import { getArticleZones, getNodeAppearanceForZones } from '../utils/helpers.js'
 import { getNodeLabel } from './selection.js';
 import { rebuildEdgeWithControlPoints } from './connections.js';
 import { initializeGraph } from './init.js';
+import { getGraphInteractionOptions } from './interaction.js';
 import { icon } from '../ui/icons.js';
 
 // ===== GRAPH RENDERING & DATA =====
@@ -245,16 +246,10 @@ export function setGraphInteractionMode(readOnly = false) {
     if (!network) return;
 
     network.setOptions({
-        interaction: {
-            hover: true,
-            hoverConnectedEdges: true,
-            selectConnectedEdges: true,
-            tooltipDelay: 200,
-            dragView: false,
+        interaction: getGraphInteractionOptions({
             multiselect: !readOnly,
-            selectable: true,
             dragNodes: !readOnly,
-        },
+        }),
         manipulation: { enabled: false },
     });
 
