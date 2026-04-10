@@ -8,6 +8,16 @@ import { updateCategoryFilters } from '../ui/filters.js';
 import { initializeGraph } from '../graph/init.js';
 import { initCloudStorage } from '../data/cloud-storage.js';
 import { includesReady } from '../utils/load-footer.js';
+import { getSession } from '../auth/auth.js';
+import { config } from '../auth/config.js';
+
+function redirectToLanding() {
+    window.location.replace('index.html');
+}
+
+function redirectToProjects() {
+    window.location.replace('projects.html');
+}
 
 async function initApp() {
             // Check if importing from gallery
@@ -34,6 +44,25 @@ async function initApp() {
                     }
                 } catch { galleryProject = null; }
             }
+
+            const isGalleryAccess = Boolean(gallerySlug || galleryProject);
+            const hasExplicitProjectContext = Boolean(projectId || shareToken || importFromGallery);
+            const session = await getSession();
+
+            // Signed-in users should only reach the editor when opening a real
+            // project context. Gallery access stays allowed separately.
+            if (!isGalleryAccess && session && !hasExplicitProjectContext) {
+                redirectToProjects();
+                return;
+            }
+
+            // On the hosted app, unauthenticated users should not access the
+            // editor directly unless they are viewing a gallery project.
+            if (!config.isDevelopment && !isGalleryAccess && !session) {
+                redirectToLanding();
+                return;
+            }
+
             if (gallerySlug && !galleryProject) {
                 try {
                     const [metaResp, dataResp] = await Promise.all([
@@ -168,8 +197,29 @@ Object.assign(getStore().appData, projectData);
                         } finally {
                             resumeHistory();
                         }
+                    } else if (session || !config.isDevelopment) {
+                        redirectToProjects();
+                        return;
                     }
                 } else if (!cloudLoaded) {
+                    // If a signed-in user tried to open a cloud/shared project but it
+                    // couldn't be resolved, do not fall back to cached local data.
+                    if (session && hasExplicitProjectContext) {
+                        redirectToProjects();
+                        return;
+                    }
+
+                    // On the hosted app, unauthenticated users also shouldn't
+                    // fall back to cached local data for broken project links.
+                    if (!config.isDevelopment && hasExplicitProjectContext) {
+                        if (session) {
+                            redirectToProjects();
+                        } else {
+                            redirectToLanding();
+                        }
+                        return;
+                    }
+
                     // Normal load from localStorage (only if not loaded from cloud)
                     load();
                 }
