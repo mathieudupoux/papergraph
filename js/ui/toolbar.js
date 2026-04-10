@@ -1,11 +1,11 @@
 import { getStore, getNetwork } from '../store/appStore.js';
-import { darkenColor, showNotification } from '../utils/helpers.js';
+import { getUniqueName, showNotification } from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
 import { updateCategoryFilters } from './filters.js';
-import { renderListView } from './list/sidebar.js';
 import { updateGraph } from '../graph/render.js';
 import { hideSelectionRadialMenu, hideEmptyAreaMenu } from './radial-menu.js';
 import { icon } from './icons.js';
+import { getZoneNamesForConflicts } from '../graph/zones.js';
 
 // ===== TOOLBAR & MULTI-SELECTION =====
 // Toolbar actions, multi-tag dialog, and multi-selection operations
@@ -43,9 +43,8 @@ export function openQuickTagModal(articleId) {
     const newTag = prompt('Ajouter une catégorie:', '');
     if (newTag && newTag.trim()) {
         if (!article.categories.includes(newTag.trim())) {
-            article.categories.push(newTag.trim());
+            getStore().addArticleCategory(articleId, newTag.trim());
             updateGraph();
-            renderListView();
             updateCategoryFilters();
             save();
             showNotification('Catégorie ajoutée!', 'success');
@@ -277,14 +276,17 @@ export function closeMultiTagDialog() {
 }
 
 export function applyMultiTagFromDialog(tagColor) {
-    const tagName = document.getElementById('multiTagInput').value.trim();
+    const requestedTagName = document.getElementById('multiTagInput').value.trim();
     
-    if (!tagName) {
+    if (!requestedTagName) {
         showNotification('Please enter a tag name', 'error');
         return;
     }
     
     if (!tagColor) tagColor = '#e74c3c';
+
+    const existingNames = getZoneNamesForConflicts();
+    const tagName = getUniqueName(requestedTagName, existingNames);
     
     const minZoneSize = 150; // Minimum zone size
     let zone;
@@ -346,34 +348,31 @@ export function applyMultiTagFromDialog(tagColor) {
         };
     }
     
-    const existingIndex = getStore().tagZones.findIndex(z => z.tag === tagName);
-    if (existingIndex >= 0) {
-        getStore().replaceTagZone(existingIndex, zone);
-    } else {
-        getStore().addTagZone(zone);
-    }
-    
-    // Apply tag to nodes
-    getStore().multiSelection.selectedNodes.forEach(nodeId => {
-        const article = getStore().appData.articles.find(a => a.id === nodeId);
-        if (article) {
-            if (!article.categories.includes(tagName)) {
-                article.categories.push(tagName);
-            }
-            getNetwork().body.data.nodes.update({
-                id: nodeId,
-                color: {
-                    background: tagColor,
-                    border: darkenColor(tagColor, 20)
-                }
-            });
+    const selectedNodeIds = new Set(getStore().multiSelection.selectedNodes);
+    const nextArticles = getStore().appData.articles.map((article) => {
+        if (!selectedNodeIds.has(article.id)) {
+            return article;
         }
+
+        const categories = Array.isArray(article.categories) ? article.categories : [];
+        if (categories.includes(tagName)) {
+            return article;
+        }
+
+        return {
+            ...article,
+            categories: [...categories, tagName],
+        };
+    });
+
+    getStore().commitTrackedGraphState({
+        articles: nextArticles,
+        tagZones: [...getStore().tagZones, zone],
     });
     
     save();
     updateCategoryFilters();
-    renderListView();
-    getNetwork().redraw();
+    updateGraph();
     
     if (getStore().multiSelection.selectionBox) {
         getStore().multiSelection.selectionBox.style.display = 'none';
@@ -381,14 +380,18 @@ export function applyMultiTagFromDialog(tagColor) {
     }
     
     const appliedCount = getStore().multiSelection.selectedNodes.length;
-    showNotification(`Tag "${tagName}" appliqué à ${appliedCount} nœud(s)`, 'success');
+    if (tagName !== requestedTagName) {
+        showNotification(`Tag "${requestedTagName}" existe déjà, créé comme "${tagName}"`, 'info');
+    } else {
+        showNotification(`Tag "${tagName}" appliqué à ${appliedCount} nœud(s)`, 'success');
+    }
     closeMultiTagDialog();
 }
 
 export function applyEmptyAreaZoneFromDialog(zoneColor) {
-    const zoneName = document.getElementById('multiTagInput').value.trim();
+    const requestedZoneName = document.getElementById('multiTagInput').value.trim();
     
-    if (!zoneName) {
+    if (!requestedZoneName) {
         showNotification('Please enter a zone name', 'error');
         return;
     }
@@ -408,6 +411,9 @@ export function applyEmptyAreaZoneFromDialog(zoneColor) {
     // Ensure minimum size
     if (zoneWidth < minZoneSize) zoneWidth = minZoneSize;
     if (zoneHeight < minZoneSize) zoneHeight = minZoneSize;
+
+    const existingNames = getZoneNamesForConflicts();
+    const zoneName = getUniqueName(requestedZoneName, existingNames);
     
     const zone = {
         tag: zoneName,
@@ -418,14 +424,9 @@ export function applyEmptyAreaZoneFromDialog(zoneColor) {
         height: zoneHeight
     };
     
-    // Check if zone with this tag already exists
-    const existingZoneIndex = getStore().tagZones.findIndex(z => z.tag === zoneName);
-    if (existingZoneIndex !== -1) {
-        showNotification('A zone with this tag already exists', 'error');
-        return;
-    }
-    
-    getStore().addTagZone(zone);
+    getStore().commitTrackedGraphState({
+        tagZones: [...getStore().tagZones, zone],
+    });
     
     // Save current view position before updating graph
     const currentView = getNetwork().getViewPosition();
@@ -455,34 +456,37 @@ export function applyEmptyAreaZoneFromDialog(zoneColor) {
 }
 
 export function deleteSelectedNodes() {
-    if (getStore().multiSelection.selectedNodes.length === 0) return;
-    
-    const count = getStore().multiSelection.selectedNodes.length;
-    const message = count === 1 
-        ? 'Do you really want to delete this node?' 
-        : `Do you really want to delete these ${count} nodes?`;
-    
-    if (!confirm(message)) {
-        hideSelectionRadialMenu();
-        return;
-    }
-    
-    getStore().multiSelection.selectedNodes.forEach(nodeId => {
-        const articleIndex = getStore().appData.articles.findIndex(a => a.id === nodeId);
-        if (articleIndex >= 0) {
-            getStore().appData.articles.splice(articleIndex, 1);
-        }
-        
-        getStore().setConnections(getStore().appData.connections.filter(
-            conn => conn.from !== nodeId && conn.to !== nodeId
-        ));
-    });
+    const selectedNodeIds = [...new Set(getStore().multiSelection.selectedNodes)];
+    const selectedZoneIndexes = [...new Set(getStore().multiSelection.selectedZonesForDrag)];
+    if (selectedNodeIds.length === 0 && selectedZoneIndexes.length === 0) return;
+
+    const zoneTagsToDelete = selectedZoneIndexes
+        .map((zoneIdx) => getStore().tagZones[zoneIdx]?.tag)
+        .filter(Boolean);
+
+    const articlesAfterZoneRemoval = getStore().appData.articles.map((article) => ({
+        ...article,
+        categories: (article.categories || []).filter((category) => !zoneTagsToDelete.includes(category)),
+    }));
+
+    const remainingArticles = articlesAfterZoneRemoval.filter((article) => !selectedNodeIds.includes(article.id));
+    const remainingConnections = getStore().appData.connections.filter(
+        (conn) => !selectedNodeIds.includes(conn.from) && !selectedNodeIds.includes(conn.to)
+    );
+    const remainingZones = getStore().tagZones.filter((_, idx) => !selectedZoneIndexes.includes(idx));
+
+    getStore().setArticles(remainingArticles);
+    getStore().setConnections(remainingConnections);
+    getStore().setTagZones(remainingZones);
+    getStore().setSelectedZoneIndex(-1);
     
     updateGraph();
-    renderListView();
     updateCategoryFilters();
     save();
     
-    showNotification(`${count} nœud(s) supprimé(s)`, 'info');
+    const summaryParts = [];
+    if (selectedNodeIds.length > 0) summaryParts.push(`${selectedNodeIds.length} nœud(s)`);
+    if (selectedZoneIndexes.length > 0) summaryParts.push(`${selectedZoneIndexes.length} zone(s)`);
+    showNotification(`${summaryParts.join(' et ')} supprimé(s)`, 'info');
     hideSelectionRadialMenu();
 }

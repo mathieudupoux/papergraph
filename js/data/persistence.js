@@ -67,13 +67,6 @@ export function load() {
         const saved = localStorage.getItem('papermap_data');
         if (saved) {
             getStore().setAppData(JSON.parse(saved));
-
-            if (!getStore().appData.projectReview) {
-                getStore().setProjectReview("");
-            }
-            if (!getStore().appData.projectReviewMeta) {
-                getStore().updateProjectReviewMeta({ title: 'Project Review', authors: '' });
-            }
         }
 
         // Tag zones
@@ -153,13 +146,6 @@ function _loadGalleryProject() {
         getStore().setAppData({
             articles: (galleryData.nodes || []).map(a => ({ ...a, categories: Array.isArray(a.categories) ? a.categories : [] })),
             connections: galleryData.edges || [],
-            projectReview: galleryData.projectReview || '',
-            projectReviewMeta: galleryData.projectReviewMeta || {
-                title: 'Project Review',
-                authorsData: [{ name: '', affiliationNumbers: [] }],
-                affiliationsData: [{ text: '' }],
-                abstract: ''
-            },
             nextArticleId: Math.max(0, ...(galleryData.nodes || []).map(n => n.id || 0)) + 1,
             nextConnectionId: Math.max(0, ...(galleryData.edges || []).map(e => e.id || 0)) + 1,
         });
@@ -170,13 +156,6 @@ function _loadGalleryProject() {
         getStore().setAppData({
             articles: (galleryData.articles || []).map(a => ({ ...a, categories: Array.isArray(a.categories) ? a.categories : [] })),
             connections: galleryData.connections || [],
-            projectReview: galleryData.projectReview || '',
-            projectReviewMeta: galleryData.projectReviewMeta || {
-                title: 'Project Review',
-                authorsData: [{ name: '', affiliationNumbers: [] }],
-                affiliationsData: [{ text: '' }],
-                abstract: ''
-            },
             nextArticleId: galleryData.nextArticleId || Math.max(0, ...(galleryData.articles || []).map(n => n.id || 0)) + 1,
             nextConnectionId: galleryData.nextConnectionId || Math.max(0, ...(galleryData.connections || []).map(e => e.id || 0)) + 1,
         });

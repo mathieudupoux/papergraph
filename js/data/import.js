@@ -6,7 +6,6 @@ import { showNotification } from '../utils/helpers.js';
 import { isBibTeXFormat, parseBibTeXEntry, parseMultipleBibTeXEntries } from './bibtex-parser.js';
 import { save } from './persistence.js';
 import { updateGraph } from '../graph/render.js';
-import { renderListView } from '../ui/list/sidebar.js';
 import { updateCategoryFilters } from '../ui/filters.js';
 import { closeModal } from '../ui/modal.js';
 import { checkNodeZoneMembership } from '../graph/zones.js';
@@ -312,7 +311,6 @@ export async function processBibTeXImport() {
             
             save();
             updateGraph();
-            renderListView();
             
             // Save initial positions to ensure they persist
             setTimeout(() => {
@@ -1002,7 +1000,6 @@ export async function importBibtexFile(event) {
         
         save();
         updateGraph();
-        renderListView();
         
         // Save initial positions to ensure they persist
         setTimeout(() => {
@@ -1054,6 +1051,5 @@ export async function importBibtexFile(event) {
         event.target.value = '';
     }
 }
-
 
 

@@ -408,11 +408,16 @@ export function sanitizeBibTextField(value) {
         .replace(/(?<!\\)_/g, '\\_');
 }
 
-export function articleToBibTeX(article) {
+export function articleToBibTeX(article, options = {}) {
     if (!article) return '';
+
+    const {
+        includeNote = true,
+        preferOriginal = true
+    } = options;
     
     // Use original BibTeX if available
-    if (article.originalBibTeX) {
+    if (preferOriginal && article.originalBibTeX) {
         return article.originalBibTeX;
     }
     
@@ -437,7 +442,7 @@ export function articleToBibTeX(article) {
         publisher: article.publisher,
         isbn: article.isbn,
         keywords: article.keywords || (article.categories ? article.categories.join(', ') : ''),
-        note: article.note
+        note: includeNote ? article.note : null
     };
 
     // Fields that must remain unescaped (URLs, DOIs, numeric values)
@@ -466,4 +471,3 @@ export function articleToBibTeX(article) {
     
     return bibtex;
 }
-

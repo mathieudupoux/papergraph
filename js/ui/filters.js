@@ -1,6 +1,5 @@
 import { getStore, getNetwork } from '../store/appStore.js';
 import { updateGraph } from '../graph/render.js';
-import { renderListView } from './list/sidebar.js';
 
 // ===== CATEGORY FILTERS =====
 // Filter management and UI
@@ -85,8 +84,5 @@ export function removeFilter(filterType) {
     const graphView = document.getElementById('graphView');
     if (graphView.classList.contains('active')) {
         updateGraph();
-    } else {
-        const searchInput = document.getElementById('searchBoxToolbar');
-        renderListView(searchInput ? searchInput.value : '');
     }
 }

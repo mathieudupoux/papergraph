@@ -8,7 +8,6 @@ import { resetImportZone } from '../data/import.js';
 import { generateBibtexId } from '../data/bibtex-parser.js';
 import { updateCategoryFilters } from './filters.js';
 import { updateGraph } from '../graph/render.js';
-import { renderListView } from './list/sidebar.js';
 import { save } from '../data/persistence.js';
 import { showArticlePreview } from './preview.js';
 
@@ -63,7 +62,7 @@ export function openArticleModal(articleId = null) {
             document.getElementById('articleIssn').value = article.issn || '';
             document.getElementById('articleLink').value = article.link || article.url || '';
             document.getElementById('articlePdf').value = article.pdf || '';
-            document.getElementById('articleAbstract').value = article.abstract || article.text || '';
+            document.getElementById('articleAbstract').value = article.abstract || '';
             document.getElementById('articleNote').value = article.note || '';
             document.getElementById('articleCategories').value = article.categories ? article.categories.join(', ') : '';
             
@@ -127,7 +126,7 @@ export function saveArticle(e) {
             const updates = {
                 title, authors, year, entryType, journal, volume, number, pages,
                 publisher, doi, isbn, issn, link, pdf, abstract, note,
-                text: abstract || note,
+                text: note,
                 categories,
             };
             if (!article.bibtexId && (authors || title)) {
@@ -155,7 +154,7 @@ export function saveArticle(e) {
             pdf,
             abstract,
             note,
-            text: abstract || note,
+            text: note,
             categories
         };
         
@@ -212,7 +211,6 @@ export function saveArticle(e) {
     closeModal();
     updateCategoryFilters();
     updateGraph();
-    renderListView();
     save(true);  // Silent save, notification already shown
     showNotification('Article saved!', 'success');
     
@@ -224,11 +222,9 @@ export function saveArticle(e) {
 
 export function deleteArticle() {
     if (!getStore().currentEditingArticleId) return;
-    
-    if (confirm('Delete this article?')) {
-        deleteArticleById(getStore().currentEditingArticleId);
-        closeModal();
-    }
+
+    deleteArticleById(getStore().currentEditingArticleId);
+    closeModal();
 }
 
 export function deleteArticleById(articleId) {
@@ -284,7 +280,6 @@ export function deleteArticleById(articleId) {
     
     updateCategoryFilters();
     updateGraph();
-    renderListView();
     save();
     showNotification('Article deleted', 'info');
 }

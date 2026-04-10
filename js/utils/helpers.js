@@ -39,6 +39,122 @@ export function darkenColor(color, percent) {
         .toString(16).slice(1);
 }
 
+const DEFAULT_NODE_COLOR = {
+    border: '#4a90e2',
+    background: '#e3f2fd',
+};
+
+const DEFAULT_NODE_FONT = {
+    color: '#333333',
+};
+
+export function getDefaultNodeAppearance() {
+    return {
+        color: { ...DEFAULT_NODE_COLOR },
+        font: { ...DEFAULT_NODE_FONT },
+    };
+}
+
+export function getSmallestZone(zones = []) {
+    if (!Array.isArray(zones) || zones.length === 0) return null;
+
+    return [...zones].sort((a, b) => (a.width * a.height) - (b.width * b.height))[0];
+}
+
+export function getArticleZones(article, tagZones = []) {
+    const categories = Array.isArray(article?.categories) ? article.categories : [];
+    return tagZones.filter((zone) => categories.includes(zone.tag));
+}
+
+export function getNodeAppearanceForZones(zones = []) {
+    const smallestZone = getSmallestZone(zones);
+    if (!smallestZone) {
+        return getDefaultNodeAppearance();
+    }
+
+    return {
+        color: {
+            background: smallestZone.color,
+            border: darkenColor(smallestZone.color, 20),
+        },
+        font: {
+            color: getContrastColor(smallestZone.color),
+        },
+    };
+}
+
+export function stripTrailingNumberSuffix(name = '') {
+    return (name || '').trim().replace(/\s+\(\d+\)$/, '').trim();
+}
+
+function escapeRegExp(value = '') {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function parseNumberedName(name = '') {
+    const trimmedName = (name || '').trim();
+    if (!trimmedName) {
+        return { baseName: '', suffix: null, isNumbered: false };
+    }
+
+    const match = trimmedName.match(/^(.*)\s+\((\d+)\)$/);
+    if (!match) {
+        return {
+            baseName: trimmedName,
+            suffix: null,
+            isNumbered: false,
+        };
+    }
+
+    return {
+        baseName: match[1].trim(),
+        suffix: Number.parseInt(match[2], 10),
+        isNumbered: true,
+    };
+}
+
+export function getUniqueName(baseName, existingNames = [], excludedName = null) {
+    const trimmedBaseName = (baseName || '').trim();
+    if (!trimmedBaseName) return '';
+
+    const canonicalBaseName = stripTrailingNumberSuffix(trimmedBaseName);
+    if (!canonicalBaseName) return '';
+
+    const excluded = excludedName ? excludedName.trim().toLowerCase() : null;
+    const normalizedCanonicalBaseName = canonicalBaseName.toLowerCase();
+    const relevantExistingNames = existingNames
+        .map((name) => (name || '').trim())
+        .filter(Boolean)
+        .filter((name) => name.toLowerCase() !== excluded);
+
+    const exactBaseExists = relevantExistingNames.some(
+        (name) => name.toLowerCase() === normalizedCanonicalBaseName
+    );
+
+    if (!exactBaseExists) {
+        return canonicalBaseName;
+    }
+
+    const numberedNamePattern = new RegExp(`^${escapeRegExp(canonicalBaseName)}\\s+\\((\\d+)\\)$`, 'i');
+    let highestSuffix = 0;
+
+    relevantExistingNames.forEach((name) => {
+        const match = name.match(numberedNamePattern);
+        if (!match) return;
+        highestSuffix = Math.max(highestSuffix, Number.parseInt(match[1], 10) || 0);
+    });
+
+    let counter = Math.max(1, highestSuffix + 1);
+    let candidate = `${canonicalBaseName} (${counter})`;
+    const normalizedExisting = new Set(relevantExistingNames.map((name) => name.toLowerCase()));
+    while (normalizedExisting.has(candidate.toLowerCase())) {
+        counter += 1;
+        candidate = `${canonicalBaseName} (${counter})`;
+    }
+
+    return candidate;
+}
+
 // Highlight search terms in text
 export function highlightSearchTerm(text, searchTerm) {
     if (!searchTerm || !text) return text;

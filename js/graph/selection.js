@@ -3,6 +3,7 @@ import { showNotification } from '../utils/helpers.js';
 import { checkNodeZoneMembership, hideZoneDeleteButton } from './zones.js';
 import { save } from '../data/persistence.js';
 import { showSelectionRadialMenu, showEmptyAreaMenu } from '../ui/radial-menu.js';
+import { updateCategoryFilters } from '../ui/filters.js';
 
 // ===== MULTI-SELECTION BOX =====
 
@@ -295,8 +296,10 @@ export function updateSelectionBoxDrag(event) {
             const zone = getStore().tagZones[zoneIdx];
             const startPos = getStore().multiSelection.zonesDragStart[zoneIdx];
             if (startPos) {
-                zone.x = startPos.x + canvasDx;
-                zone.y = startPos.y + canvasDy;
+                getStore().updateTagZone(zoneIdx, {
+                    x: startPos.x + canvasDx,
+                    y: startPos.y + canvasDy,
+                });
                 console.log(`  Moved zone ${zoneIdx} (${zone.tag}) by dx=${canvasDx.toFixed(1)}, dy=${canvasDy.toFixed(1)}`);
             } else {
                 console.warn(`  ⚠️ No start position for zone ${zoneIdx}`);
@@ -313,12 +316,32 @@ export function endSelectionBoxDrag() {
     if (!getStore().multiSelection.boxDragging) return;
     
     getStore().updateMultiSelection({ boxDragging: false });
-    
-    // Update zone membership for moved nodes
-    checkNodeZoneMembership();
-    
-    // Save positions and create undo snapshot
-    const positions = getNetwork().getPositions();
+
+    const draggedZoneIndexes = getStore().multiSelection.selectedZonesForDrag || [];
+    const currentTagZones = getStore().tagZones;
+    const finalTagZones = draggedZoneIndexes.length > 0
+        ? currentTagZones.map((zone) => ({ ...zone }))
+        : null;
+
+    if (finalTagZones) {
+        const revertedTagZones = currentTagZones.map((zone, index) => {
+            const startPos = getStore().multiSelection.zonesDragStart[index];
+            return startPos
+                ? { ...zone, x: startPos.x, y: startPos.y }
+                : { ...zone };
+        });
+        getStore().setTagZones(revertedTagZones);
+    }
+
+    const positions = getNetwork().getPositions(getStore().appData.articles.map((article) => article.id));
+    const { articles: finalArticles } = checkNodeZoneMembership({
+        positions,
+        tagZones: finalTagZones || getStore().tagZones,
+        persistToStore: false,
+        saveChanges: false,
+        refreshFilters: false,
+    });
+
     const boxLeft = parseFloat(getStore().multiSelection.selectionBox.style.left);
     const boxTop = parseFloat(getStore().multiSelection.selectionBox.style.top);
     const boxWidth = parseFloat(getStore().multiSelection.selectionBox.style.width);
@@ -332,7 +355,12 @@ export function endSelectionBoxDrag() {
         height: bottomRight.y - topLeft.y
     });
     resumeHistory();
-    getStore().setSavedNodePositions(positions);
+    getStore().commitTrackedGraphState({
+        articles: finalArticles,
+        savedNodePositions: positions,
+        ...(finalTagZones ? { tagZones: finalTagZones } : {}),
+    });
+    updateCategoryFilters();
     save(true);
     
     getNetwork().setOptions({

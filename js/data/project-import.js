@@ -11,8 +11,6 @@ export function normalizeImportedProjectData(imported) {
             edges: imported.connections || [],
             zones: imported.tagZones || [],
             positions: imported.nodePositions || {},
-            projectReview: imported.projectReview || '',
-            projectReviewMeta: imported.projectReviewMeta || null
         };
     }
 
@@ -21,8 +19,6 @@ export function normalizeImportedProjectData(imported) {
             ...imported.data,
             zones: imported.data.zones || imported.data.tagZones || [],
             positions: imported.data.positions || imported.data.nodePositions || {},
-            projectReview: imported.data.projectReview || '',
-            projectReviewMeta: imported.data.projectReviewMeta || null
         };
     }
 
@@ -31,8 +27,6 @@ export function normalizeImportedProjectData(imported) {
             ...imported,
             zones: imported.zones || imported.tagZones || [],
             positions: imported.positions || imported.nodePositions || {},
-            projectReview: imported.projectReview || '',
-            projectReviewMeta: imported.projectReviewMeta || null
         };
     }
 

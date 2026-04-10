@@ -2,10 +2,9 @@
 // Canvas and network event handlers, extracted from initializeGraph()
 
 import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
-import { darkenColor, getContrastColor, showNotification } from '../utils/helpers.js';
+import { getNodeAppearanceForZones } from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
 import { updateCategoryFilters } from '../ui/filters.js';
-import { renderListView } from '../ui/list/sidebar.js';
 import { showArticlePreview, closeArticlePreview } from '../ui/preview.js';
 import { showRadialMenu, hideRadialMenu, updateRadialMenuPosition, updateRadialMenuIfActive, hideSelectionRadialMenu, hideEmptyAreaMenu } from '../ui/radial-menu.js';
 import { showContextMenu, hideContextMenu } from '../ui/context-menu.js';
@@ -14,7 +13,8 @@ import {
     hideZoneDeleteButton, showZoneDeleteButton, getZoneAtPosition, findNestedZones,
     updateZoneMove, endZoneMove, updateZoneResize, endZoneResize, isNodeInZone,
     updateZoneRadialMenuPosition,
-    updateZoneSizes, checkNodeZoneMembership, drawTagZones, updateZoneCursor
+    updateZoneSizes, checkNodeZoneMembership, drawTagZones, updateZoneCursor,
+    pruneStaleAutoNumberedZones
 } from './zones.js';
 import {
     startSelectionBox, startSelectionBoxDrag, updateSelectionBoxDrag, endSelectionBoxDrag,
@@ -32,6 +32,7 @@ let isAdjustingViewForNode = false;
 let pendingSelectionStart = null;
 let pendingZoneSelectionIndex = -1;
 let hoveredNodeId = null;
+let suppressNextNetworkBackgroundClick = false;
 
 function toRgba(color, alpha) {
     if (!color) return `rgba(74, 144, 226, ${alpha})`;
@@ -277,6 +278,7 @@ export function setupCanvasEvents() {
             }
             event.preventDefault();
             event.stopPropagation();
+            suppressNextNetworkBackgroundClick = true;
             pendingSelectionStart = null;
             pendingZoneSelectionIndex = -1;
             queueZoneMove(event, titleClick.zoneIndex);
@@ -432,6 +434,7 @@ export function setupCanvasEvents() {
             const dy = Math.abs(mousePos.y - getStore().zoneMoving.startY);
             
             if (dx > 5 || dy > 5) {
+                pauseHistory();
                 getStore().updateZoneMoving({ active: true });
                 getStore().updateZoneMoving({ readyToMove: false });
                 
@@ -541,6 +544,7 @@ export function setupNetworkEvents() {
                     if (typeof checkNodeZoneMembership === 'function' && getStore().tagZones.length > 0) {
                         console.log('🎨 Checking zone membership after project load...');
                         checkNodeZoneMembership();
+                        pruneStaleAutoNumberedZones({ saveChanges: false, refreshFilters: true });
                     }
                 }, 100);
             }
@@ -561,6 +565,7 @@ export function setupNetworkEvents() {
         }
         
         if (params.nodes.length > 0) {
+            suppressNextNetworkBackgroundClick = false;
             const clickedNodeId = getNetwork().getNodeAt(params.pointer.DOM) ?? params.nodes[params.nodes.length - 1];
             const nodeId = clickedNodeId;
             
@@ -630,6 +635,7 @@ export function setupNetworkEvents() {
                 openRadialMenuForNode(nodeId);
             }
         } else if (params.edges.length > 0) {
+            suppressNextNetworkBackgroundClick = false;
             const edgeId = params.edges[0];
             const now = Date.now();
             
@@ -680,6 +686,10 @@ export function setupNetworkEvents() {
                 });
             }
         } else {
+            if (suppressNextNetworkBackgroundClick) {
+                suppressNextNetworkBackgroundClick = false;
+                return;
+            }
             clearHoveredNodeState(true);
             hideRadialMenu();
             hideEdgeMenu();
@@ -744,10 +754,11 @@ export function setupNetworkEvents() {
             const dy = currentPos.y - getStore().multiSelection.nodeDragStart.y;
             
             getStore().multiSelection.selectedZonesForDrag.forEach(zoneIdx => {
-                const zone = getStore().tagZones[zoneIdx];
                 const startPos = getStore().multiSelection.zonesDragStart[zoneIdx];
-                zone.x = startPos.x + dx;
-                zone.y = startPos.y + dy;
+                getStore().updateTagZone(zoneIdx, {
+                    x: startPos.x + dx,
+                    y: startPos.y + dy,
+                });
             });
             
             getNetwork().redraw();
@@ -792,39 +803,20 @@ export function setupNetworkEvents() {
             const article = getStore().appData.articles.find(a => a.id === nodeId);
             
             if (article) {
+                const containingZones = [];
+
                 getStore().tagZones.forEach(zone => {
                     const isInZone = isNodeInZone(nodePos, zone);
-                    const hasTag = (article.categories || []).includes(zone.tag);
-                    
-                    if (isInZone && !hasTag) {
-                        getStore().addArticleCategory(nodeId, zone.tag);
-                        getNetwork().body.data.nodes.update({
-                            id: nodeId,
-                            color: {
-                                background: zone.color,
-                                border: darkenColor(zone.color, 20)
-                            },
-                            font: { color: getContrastColor(zone.color) }
-                        });
-                        save();
-                        updateCategoryFilters();
-                        renderListView();
-                        showNotification(`Tag "${zone.tag}" ajouté`, 'success');
-                    } else if (!isInZone && hasTag) {
-                        getStore().removeArticleCategory(nodeId, zone.tag);
-                        getNetwork().body.data.nodes.update({
-                            id: nodeId,
-                            color: {
-                                border: '#4a90e2',
-                                background: '#e3f2fd'
-                            },
-                            font: { color: '#333333' }
-                        });
-                        save();
-                        updateCategoryFilters();
-                        renderListView();
-                        showNotification(`Tag "${zone.tag}" retiré`, 'info');
+                    if (isInZone) {
+                        containingZones.push(zone);
                     }
+                });
+
+                const { color, font } = getNodeAppearanceForZones(containingZones);
+                getNetwork().body.data.nodes.update({
+                    id: nodeId,
+                    color,
+                    font,
                 });
             }
         }
@@ -836,20 +828,42 @@ export function setupNetworkEvents() {
         }
         
         if (params.nodes.length > 0) {
-            if (getStore().multiSelection.selectedZonesForDrag.length > 0) {
-                save(true);
+            const draggedZoneIndexes = getStore().multiSelection.selectedZonesForDrag || [];
+            const currentTagZones = getStore().tagZones;
+            const finalTagZones = draggedZoneIndexes.length > 0
+                ? currentTagZones.map((zone) => ({ ...zone }))
+                : null;
+
+            if (finalTagZones) {
+                const revertedTagZones = currentTagZones.map((zone, index) => {
+                    const startPos = getStore().multiSelection.zonesDragStart[index];
+                    return startPos
+                        ? { ...zone, x: startPos.x, y: startPos.y }
+                        : { ...zone };
+                });
+                getStore().setTagZones(revertedTagZones);
             }
-            
+
             getStore().updateMultiSelection({ zonesDragStart: {} });
             getStore().updateMultiSelection({ nodeDragStart: null });
             
             updateZoneSizes();
-            checkNodeZoneMembership();
-            
-            const positions = getNetwork().getPositions();
+            const positions = getNetwork().getPositions(getStore().appData.articles.map((article) => article.id));
+            const { articles: finalArticles } = checkNodeZoneMembership({
+                positions,
+                tagZones: finalTagZones || getStore().tagZones,
+                persistToStore: false,
+                saveChanges: false,
+                refreshFilters: false,
+            });
+
             // Resume history and record ONE snapshot for the whole drag
             resumeHistory();
-            getStore().setSavedNodePositions(positions);
+            getStore().commitTrackedGraphState({
+                articles: finalArticles,
+                savedNodePositions: positions,
+                ...(finalTagZones ? { tagZones: finalTagZones } : {}),
+            });
             console.log('Node dragged - positions updated in memory:', Object.keys(positions).length, 'nodes');
             
             const draggedControlPoints = params.nodes.filter(nodeId => nodeId < 0);
@@ -873,6 +887,7 @@ export function setupNetworkEvents() {
                 });
             }
             
+            updateCategoryFilters();
             save(true);
             
             getStore().updateMultiSelection({ wasDragging: false });

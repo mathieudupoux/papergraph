@@ -1,7 +1,13 @@
 import { getStore, getNetwork, pauseHistory, resumeHistory, isHistoryPaused } from '../store/appStore.js';
-import { darkenColor, getContrastColor, showNotification } from '../utils/helpers.js';
+import {
+    getArticleZones,
+    getNodeAppearanceForZones,
+    getUniqueName,
+    parseNumberedName,
+    stripTrailingNumberSuffix,
+    showNotification,
+} from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
-import { renderListView } from '../ui/list/sidebar.js';
 import { updateCategoryFilters } from '../ui/filters.js';
 import { icon } from '../ui/icons.js';
 
@@ -12,6 +18,285 @@ const ZONE_TITLE_PADDING = 10;
 const ZONE_MENU_OFFSET_Y = 44;
 const ZONE_MENU_GAP = 8;
 const ZONE_MENU_BUTTON_SIZE = 40;
+
+function getContainingZonesForNode(nodePos) {
+    return getStore().tagZones.filter((zone) => isNodeInZone(nodePos, zone));
+}
+
+function updateNodeAppearance(nodeId, zones) {
+    if (!getNetwork()) return;
+    const { color, font } = getNodeAppearanceForZones(zones);
+    getNetwork().body.data.nodes.update({
+        id: nodeId,
+        color,
+        font,
+    });
+}
+
+function cloneTagZones(tagZones) {
+    return tagZones.map((zone) => ({ ...zone }));
+}
+
+function sameCategories(a = [], b = []) {
+    return a.length === b.length && a.every((tag, index) => tag === b[index]);
+}
+
+function getZoneTag(zone) {
+    return (zone?.tag || '').trim();
+}
+
+function getAutoNumberedZoneBaseName(tag) {
+    const { baseName, isNumbered } = parseNumberedName(tag);
+    return isNumbered ? baseName : null;
+}
+
+function getStaleAutoNumberedZoneTags(
+    tagZones = getStore().tagZones,
+    articles = getStore().appData.articles,
+    positions = null
+) {
+    const resolvedPositions = positions || (getNetwork()
+        ? getNetwork().getPositions(articles.map((article) => article.id))
+        : null);
+
+    if (!resolvedPositions) {
+        return new Set();
+    }
+
+    const zoneTags = new Set(tagZones.map((zone) => getZoneTag(zone)).filter(Boolean));
+    const staleTags = new Set();
+
+    tagZones.forEach((zone) => {
+        const tag = getZoneTag(zone);
+        const baseName = getAutoNumberedZoneBaseName(tag);
+        if (!tag || !baseName || !zoneTags.has(baseName)) {
+            return;
+        }
+
+        const taggedArticles = articles.filter((article) => (article.categories || []).includes(tag));
+        const hasAnyNodeInside = articles.some((article) => {
+            const pos = resolvedPositions[article.id];
+            return pos && isNodeInZone(pos, zone);
+        });
+
+        if (taggedArticles.length === 0 && !hasAnyNodeInside) {
+            staleTags.add(tag);
+            return;
+        }
+
+        if (taggedArticles.length === 0) {
+            return;
+        }
+
+        const hasTaggedNodeInside = taggedArticles.some((article) => {
+            const pos = resolvedPositions[article.id];
+            return pos && isNodeInZone(pos, zone);
+        });
+
+        if (!hasTaggedNodeInside) {
+            staleTags.add(tag);
+        }
+    });
+
+    return staleTags;
+}
+
+function pruneEmptyAutoNumberedZonesForBaseName(baseName, excludedTags = []) {
+    const normalizedBaseName = stripTrailingNumberSuffix(baseName).toLowerCase();
+    if (!normalizedBaseName) return [];
+
+    const excluded = new Set(excludedTags.map((tag) => (tag || '').trim().toLowerCase()).filter(Boolean));
+    const articles = getStore().appData.articles;
+    const removableTags = getStore().tagZones
+        .map((zone) => getZoneTag(zone))
+        .filter(Boolean)
+        .filter((tag) => !excluded.has(tag.toLowerCase()))
+        .filter((tag) => getAutoNumberedZoneBaseName(tag)?.toLowerCase() === normalizedBaseName)
+        .filter((tag) => !articles.some((article) => (article.categories || []).includes(tag)));
+
+    if (removableTags.length === 0) {
+        return [];
+    }
+
+    getStore().setTagZones(
+        getStore().tagZones.filter((zone) => !removableTags.includes(getZoneTag(zone)))
+    );
+
+    return removableTags;
+}
+
+function sanitizeAutoNumberedStateForBaseName(
+    baseName,
+    {
+        excludedTags = [],
+        tagZones = getStore().tagZones,
+        articles = getStore().appData.articles,
+        positions = null,
+    } = {}
+) {
+    const normalizedBaseName = stripTrailingNumberSuffix(baseName).toLowerCase();
+    if (!normalizedBaseName) {
+        return {
+            tagZones: cloneTagZones(tagZones),
+            articles: articles.map((article) => ({
+                ...article,
+                categories: Array.isArray(article.categories) ? [...article.categories] : [],
+            })),
+            removedTags: [],
+        };
+    }
+
+    const excluded = new Set(excludedTags.map((tag) => (tag || '').trim().toLowerCase()).filter(Boolean));
+    const resolvedPositions = positions || (getNetwork()
+        ? getNetwork().getPositions(articles.map((article) => article.id))
+        : {});
+
+    const nextZones = cloneTagZones(tagZones);
+    const nextArticles = articles.map((article) => ({
+        ...article,
+        categories: Array.isArray(article.categories) ? [...article.categories] : [],
+    }));
+
+    const allZoneTags = new Set(nextZones.map((zone) => getZoneTag(zone)).filter(Boolean));
+    const removableTags = new Set();
+
+    nextZones.forEach((zone) => {
+        const tag = getZoneTag(zone);
+        const numberedBaseName = getAutoNumberedZoneBaseName(tag);
+
+        if (!tag || !numberedBaseName || excluded.has(tag.toLowerCase())) {
+            return;
+        }
+
+        if (numberedBaseName.toLowerCase() !== normalizedBaseName || !allZoneTags.has(numberedBaseName)) {
+            return;
+        }
+
+        const taggedArticles = nextArticles.filter((article) => article.categories.includes(tag));
+        const hasAnyNodeInside = nextArticles.some((article) => {
+            const pos = resolvedPositions[article.id];
+            return pos && isNodeInZone(pos, zone);
+        });
+        const hasTaggedNodeInside = taggedArticles.some((article) => {
+            const pos = resolvedPositions[article.id];
+            return pos && isNodeInZone(pos, zone);
+        });
+
+        if (!hasAnyNodeInside || !hasTaggedNodeInside) {
+            removableTags.add(tag);
+        }
+    });
+
+    nextArticles.forEach((article) => {
+        article.categories = article.categories.filter((tag) => {
+            const numberedBaseName = getAutoNumberedZoneBaseName(tag);
+            if (!numberedBaseName || excluded.has(tag.toLowerCase())) {
+                return true;
+            }
+
+            if (numberedBaseName.toLowerCase() !== normalizedBaseName) {
+                return true;
+            }
+
+            return allZoneTags.has(tag) && !removableTags.has(tag);
+        });
+    });
+
+    return {
+        tagZones: nextZones.filter((zone) => !removableTags.has(getZoneTag(zone))),
+        articles: nextArticles,
+        removedTags: Array.from(removableTags),
+    };
+}
+
+export function getZoneNamesForConflicts(
+    excludedTag = null,
+    {
+        tagZones = getStore().tagZones,
+        articles = getStore().appData.articles,
+        positions = null,
+    } = {}
+) {
+    const staleTags = getStaleAutoNumberedZoneTags(tagZones, articles, positions);
+    const excluded = excludedTag ? excludedTag.trim().toLowerCase() : null;
+
+    return [
+        ...new Set(
+            tagZones
+                .map((zone) => getZoneTag(zone))
+                .filter(Boolean)
+                .filter((tag) => !staleTags.has(tag))
+                .filter((tag) => tag.toLowerCase() !== excluded)
+        ),
+    ];
+}
+
+export function pruneStaleAutoNumberedZones({ saveChanges = false, refreshFilters = true } = {}) {
+    const staleTags = getStaleAutoNumberedZoneTags();
+    if (staleTags.size === 0) {
+        return [];
+    }
+
+    pauseHistory();
+    try {
+        const nextZones = getStore().tagZones.filter((zone) => !staleTags.has(getZoneTag(zone)));
+        getStore().setTagZones(nextZones);
+        staleTags.forEach((tag) => {
+            getStore().removeArticleCategoryGlobal(tag);
+        });
+        checkNodeZoneMembership({
+            persistToStore: true,
+            saveChanges: false,
+            refreshFilters,
+        });
+        if (saveChanges) {
+            save(true);
+        }
+    } finally {
+        resumeHistory();
+    }
+
+    return Array.from(staleTags);
+}
+
+export function deriveArticlesForZoneMembership(
+    positions,
+    tagZones = getStore().tagZones,
+    articles = getStore().appData.articles
+) {
+    const zoneTags = new Set(tagZones.map((zone) => zone.tag));
+
+    return articles.map((article) => {
+        const currentCategories = Array.isArray(article.categories) ? article.categories : [];
+        const nodePos = positions?.[article.id];
+
+        if (!nodePos) {
+            return currentCategories === article.categories
+                ? article
+                : { ...article, categories: [...currentCategories] };
+        }
+
+        const containingTags = new Set(
+            tagZones
+                .filter((zone) => isNodeInZone(nodePos, zone))
+                .map((zone) => zone.tag)
+        );
+
+        const nextCategories = currentCategories.filter(
+            (category) => !zoneTags.has(category) || containingTags.has(category)
+        );
+
+        containingTags.forEach((tag) => {
+            if (!nextCategories.includes(tag)) {
+                nextCategories.push(tag);
+            }
+        });
+
+        return sameCategories(currentCategories, nextCategories)
+            ? article
+            : { ...article, categories: nextCategories };
+    });
+}
 
 export function drawTagZones(ctx) {
     if (!getStore().tagZones || getStore().tagZones.length === 0) return;
@@ -262,10 +547,8 @@ export function showZoneRadialMenu(zoneIndex) {
             icon: icon('delete'),
             action: () => {
                 if (getStore().selectedZoneIndex !== -1) {
-                    if (confirm('Delete this zone/tag?')) {
-                        deleteZone(getStore().selectedZoneIndex);
-                        hideZoneDeleteButton();
-                    }
+                    deleteZone(getStore().selectedZoneIndex);
+                    hideZoneDeleteButton();
                 }
             },
             hoverColor: '#e74c3c',
@@ -505,40 +788,18 @@ export function closeZoneColorDialog() {
 export function applyZoneColor(zoneIndex, newColor) {
     if (zoneIndex < 0 || zoneIndex >= getStore().tagZones.length) return;
     
+    getStore().updateTagZone(zoneIndex, { color: newColor });
     const zone = getStore().tagZones[zoneIndex];
-    zone.color = newColor;
     
     save();
     
-    // Update node colors with priority for smallest zone (same logic as checkNodeZoneMembership)
     if (getNetwork()) {
         const nodesToUpdate = [];
         
         getStore().appData.articles.forEach(article => {
-            // Check if this article has this zone's tag in its categories
             if (article.categories && article.categories.includes(zone.tag)) {
-                // Find all zones containing this article's tags
-                const articleZones = getStore().tagZones.filter(z => article.categories.includes(z.tag));
-                
-                if (articleZones.length > 0) {
-                    // Sort by area to find smallest zone (priority)
-                    articleZones.sort((a, b) => {
-                        const areaA = a.width * a.height;
-                        const areaB = b.width * b.height;
-                        return areaA - areaB;
-                    });
-                    
-                    // Apply color from smallest zone
-                    const smallestZone = articleZones[0];
-                    nodesToUpdate.push({
-                        id: article.id,
-                        color: {
-                            background: smallestZone.color,
-                            border: darkenColor(smallestZone.color, 20)
-                        },
-                        font: { color: getContrastColor(smallestZone.color) }
-                    });
-                }
+                const { color, font } = getNodeAppearanceForZones(getArticleZones(article, getStore().tagZones));
+                nodesToUpdate.push({ id: article.id, color, font });
             }
         });
         
@@ -546,9 +807,8 @@ export function applyZoneColor(zoneIndex, newColor) {
             getNetwork().body.data.nodes.update(nodesToUpdate);
         }
         
-        // Also redraw to update zones and refresh list view
+        // Also redraw to update zones
         getNetwork().redraw();
-        renderListView();
     }
     
     closeZoneColorDialog();
@@ -612,68 +872,36 @@ export function updateZoneSizes() {
     */
 }
 
-export function checkNodeZoneMembership() {
+export function checkNodeZoneMembership(options = {}) {
+    const {
+        positions = null,
+        tagZones = getStore().tagZones,
+        articles = getStore().appData.articles,
+        persistToStore = true,
+        saveChanges = !isHistoryPaused(),
+        refreshFilters = true,
+    } = options;
+
     console.log('🎨 checkNodeZoneMembership called');
     let updatedCount = 0;
-    
-    getStore().appData.articles.forEach(article => {
-        const pos = getNetwork().getPositions([article.id])[article.id];
+
+    if (!getNetwork()) {
+        return { articles, changed: false };
+    }
+
+    const resolvedPositions = positions || getNetwork().getPositions(articles.map((article) => article.id));
+    const updatedArticles = deriveArticlesForZoneMembership(resolvedPositions, tagZones, articles);
+    const changed = updatedArticles.some((article, index) => article !== articles[index]);
+
+    updatedArticles.forEach((article) => {
+        const pos = resolvedPositions[article.id];
         if (!pos) {
             return;
         }
-        
-        // Find all zones containing this node
-        const containingZones = [];
-        
-        getStore().tagZones.forEach(zone => {
-            const isInZone = isNodeInZone(pos, zone);
-            if (!article.categories) getStore().updateArticle(article.id, { categories: [] });
-            const categories = getStore().appData.articles.find(a => a.id === article.id)?.categories || [];
-            const hasTag = categories.includes(zone.tag);
-            
-            if (isInZone) {
-                containingZones.push(zone);
-                // Add tag if not present
-                if (!hasTag) {
-                    getStore().addArticleCategory(article.id, zone.tag);
-                }
-            } else if (hasTag) {
-                // Node exited zone - remove tag
-                getStore().removeArticleCategory(article.id, zone.tag);
-            }
-        });
-        
-        // Determine node color based on smallest containing zone
-        if (containingZones.length > 0) {
-            // Sort zones by area (width * height) to find smallest
-            containingZones.sort((a, b) => {
-                const areaA = a.width * a.height;
-                const areaB = b.width * b.height;
-                return areaA - areaB;
-            });
-            
-            // Apply color from smallest zone
-            const smallestZone = containingZones[0];
-            getNetwork().body.data.nodes.update({
-                id: article.id,
-                color: {
-                    background: smallestZone.color,
-                    border: darkenColor(smallestZone.color, 20)
-                },
-                font: { color: getContrastColor(smallestZone.color) }
-            });
-            updatedCount++;
-        } else {
-            // Node not in any zone - use default color
-            getNetwork().body.data.nodes.update({
-                id: article.id,
-                color: {
-                    border: '#4a90e2',
-                    background: '#e3f2fd'
-                },
-                font: { color: '#333333' }
-            });
-        }
+
+        const containingZones = tagZones.filter((zone) => isNodeInZone(pos, zone));
+        updateNodeAppearance(article.id, containingZones);
+        if (containingZones.length > 0) updatedCount++;
     });
     
     console.log(`✅ checkNodeZoneMembership completed - updated ${updatedCount} nodes with zone colors`);
@@ -682,11 +910,18 @@ export function checkNodeZoneMembership() {
     // calls setSavedNodePositions() after resumeHistory(), and save() would overwrite
     // savedNodePositions with post-drag values while still paused, causing the
     // before/after equality check to pass and the drag snapshot to be lost.
-    if (!isHistoryPaused()) {
+    if (persistToStore && changed) {
+        getStore().setArticles(updatedArticles);
+    }
+
+    if (saveChanges && !isHistoryPaused()) {
         save();
     }
-    updateCategoryFilters();
-    renderListView();
+    if (refreshFilters) {
+        updateCategoryFilters();
+    }
+
+    return { articles: updatedArticles, changed, positions: resolvedPositions };
 }
 
 export function getZoneResizeHandle(event) {
@@ -935,11 +1170,13 @@ export function updateZoneMove(event) {
     const dx = mousePos.x - getStore().zoneMoving.startX;
     const dy = mousePos.y - getStore().zoneMoving.startY;
     
-    const zone = getStore().tagZones[getStore().zoneMoving.zoneIndex];
     const orig = getStore().zoneMoving.originalZone;
-    
-    zone.x = orig.x + dx;
-    zone.y = orig.y + dy;
+    const movingZoneIndex = getStore().zoneMoving.zoneIndex;
+
+    getStore().updateTagZone(movingZoneIndex, {
+        x: orig.x + dx,
+        y: orig.y + dy,
+    });
     
     // Move nodes with this tag
     if (getStore().zoneMoving.originalNodePositions) {
@@ -960,8 +1197,10 @@ export function updateZoneMove(event) {
         Object.keys(getStore().zoneMoving.originalNestedZones).forEach(zoneIdx => {
             const idx = parseInt(zoneIdx);
             const origZone = getStore().zoneMoving.originalNestedZones[zoneIdx];
-            getStore().tagZones[idx].x = origZone.x + dx;
-            getStore().tagZones[idx].y = origZone.y + dy;
+            getStore().updateTagZone(idx, {
+                x: origZone.x + dx,
+                y: origZone.y + dy,
+            });
             console.log(`📦 Moved nested zone ${idx} (${getStore().tagZones[idx].tag}) by dx=${dx.toFixed(1)}, dy=${dy.toFixed(1)}`);
         });
     }
@@ -971,12 +1210,38 @@ export function updateZoneMove(event) {
 
 export function endZoneMove() {
     const movedZoneIdx = getStore().zoneMoving.zoneIndex;
-    resumeHistory();
-    // Trigger a store snapshot with final zone positions
-    if (movedZoneIdx >= 0) {
-        const finalZone = getStore().tagZones[movedZoneIdx];
-        getStore().updateTagZone(movedZoneIdx, { x: finalZone.x, y: finalZone.y });
+    const originalZone = getStore().zoneMoving.originalZone;
+    const originalNestedZones = getStore().zoneMoving.originalNestedZones || {};
+    const finalTagZones = cloneTagZones(getStore().tagZones);
+    const revertedTagZones = cloneTagZones(getStore().tagZones);
+
+    if (movedZoneIdx >= 0 && originalZone) {
+        revertedTagZones[movedZoneIdx] = { ...revertedTagZones[movedZoneIdx], x: originalZone.x, y: originalZone.y };
     }
+
+    Object.entries(originalNestedZones).forEach(([zoneIdx, position]) => {
+        const idx = parseInt(zoneIdx, 10);
+        if (revertedTagZones[idx]) {
+            revertedTagZones[idx] = { ...revertedTagZones[idx], x: position.x, y: position.y };
+        }
+    });
+
+    const finalPositions = getNetwork().getPositions(getStore().appData.articles.map((article) => article.id));
+    const { articles: finalArticles } = checkNodeZoneMembership({
+        positions: finalPositions,
+        tagZones: finalTagZones,
+        persistToStore: false,
+        saveChanges: false,
+        refreshFilters: false,
+    });
+
+    getStore().setTagZones(revertedTagZones);
+    resumeHistory();
+    getStore().commitTrackedGraphState({
+        articles: finalArticles,
+        tagZones: finalTagZones,
+        savedNodePositions: finalPositions,
+    });
     getStore().updateZoneMoving({ active: false });
     getStore().updateZoneMoving({ readyToMove: false });
     getStore().updateZoneMoving({ zoneIndex: -1 });
@@ -994,11 +1259,9 @@ export function endZoneMove() {
         }
     });
     
-    // Update all zone sizes
-    setTimeout(() => {
-        updateZoneSizes();
-        save();
-    }, 200);
+    updateCategoryFilters();
+    save(true);
+    getNetwork().redraw();
 }
 
 export function startEditZoneTitle(event, zoneIndex) {
@@ -1081,25 +1344,81 @@ export function startEditZoneTitle(event, zoneIndex) {
     
     input.addEventListener('input', autoResize);
     
+    let editFinalized = false;
+
     // Save on blur or enter
     const saveEdit = () => {
-        if (!getStore().zoneEditing.active) return;
+        if (editFinalized || !getStore().zoneEditing.active) return;
+        editFinalized = true;
         
         const newTag = input.value.trim();
         const oldTag = zone.tag;
         
         if (newTag && newTag !== '' && newTag !== oldTag) {
-            // Update all articles with this tag and the zone
-            getStore().renameArticleCategory(oldTag, newTag);
-            getStore().updateTagZone(zoneIndex, { tag: newTag });
-            
-            save();
+            const positions = getNetwork()
+                ? getNetwork().getPositions(getStore().appData.articles.map((article) => article.id))
+                : {};
+
+            const sanitizedState = sanitizeAutoNumberedStateForBaseName(newTag, {
+                excludedTags: [oldTag],
+                positions,
+            });
+
+            const existingNames = getZoneNamesForConflicts(oldTag, {
+                tagZones: sanitizedState.tagZones,
+                articles: sanitizedState.articles,
+                positions,
+            });
+            const uniqueTag = getUniqueName(newTag, existingNames);
+            const targetZoneIndex = sanitizedState.tagZones.findIndex(
+                (tagZone) => getZoneTag(tagZone).toLowerCase() === oldTag.toLowerCase()
+            );
+
+            if (targetZoneIndex === -1) {
+                throw new Error(`Unable to find zone "${oldTag}" during rename`);
+            }
+
+            const renamedZones = sanitizedState.tagZones.map((tagZone, idx) => (
+                idx === targetZoneIndex ? { ...tagZone, tag: uniqueTag } : tagZone
+            ));
+
+            const renamedArticles = sanitizedState.articles.map((article) => ({
+                ...article,
+                categories: (() => {
+                    const currentCategories = article.categories || [];
+                    const nextCategories = currentCategories.filter((tag) => tag !== oldTag);
+                    if (currentCategories.includes(oldTag) && !nextCategories.includes(uniqueTag)) {
+                        nextCategories.push(uniqueTag);
+                    }
+                    return nextCategories;
+                })(),
+            }));
+
+            const normalizedArticles = deriveArticlesForZoneMembership(
+                positions,
+                renamedZones,
+                renamedArticles
+            );
+
+            getStore().commitTrackedGraphState({
+                articles: normalizedArticles,
+                tagZones: renamedZones,
+                savedNodePositions: positions,
+            });
+
             updateCategoryFilters();
-            renderListView();
-            showNotification(`Zone renommée en "${newTag}"`, 'success');
+            save();
+
+            if (uniqueTag !== newTag) {
+                showNotification(`Zone "${newTag}" existe déjà, renommée en "${uniqueTag}"`, 'info');
+            } else {
+                showNotification(`Zone renommée en "${uniqueTag}"`, 'success');
+            }
         }
         
-        input.remove();
+        if (input.isConnected) {
+            input.remove();
+        }
         getStore().updateZoneEditing({ active: false });
         getStore().updateZoneEditing({ zoneIndex: -1 });
         getStore().updateZoneEditing({ inputElement: null });
@@ -1139,7 +1458,11 @@ export function startEditZoneTitle(event, zoneIndex) {
         if (e.key === 'Enter') {
             saveEdit();
         } else if (e.key === 'Escape') {
-            input.remove();
+            if (editFinalized) return;
+            editFinalized = true;
+            if (input.isConnected) {
+                input.remove();
+            }
             getStore().updateZoneEditing({ active: false });
             getStore().updateZoneEditing({ zoneIndex: -1 });
             getStore().updateZoneEditing({ inputElement: null });
@@ -1226,67 +1549,88 @@ export function updateZoneResize(event) {
     const dx = mousePos.x - getStore().zoneResizing.startX;
     const dy = mousePos.y - getStore().zoneResizing.startY;
     
-    const zone = getStore().tagZones[getStore().zoneResizing.zoneIndex];
     const orig = getStore().zoneResizing.originalZone;
+    const zoneIndex = getStore().zoneResizing.zoneIndex;
+    const nextZone = { ...getStore().tagZones[zoneIndex] };
     
     switch (getStore().zoneResizing.handle) {
         case 'nw':
-            zone.x = orig.x + dx;
-            zone.y = orig.y + dy;
-            zone.width = orig.width - dx;
-            zone.height = orig.height - dy;
+            nextZone.x = orig.x + dx;
+            nextZone.y = orig.y + dy;
+            nextZone.width = orig.width - dx;
+            nextZone.height = orig.height - dy;
             break;
         case 'ne':
-            zone.y = orig.y + dy;
-            zone.width = orig.width + dx;
-            zone.height = orig.height - dy;
+            nextZone.y = orig.y + dy;
+            nextZone.width = orig.width + dx;
+            nextZone.height = orig.height - dy;
             break;
         case 'sw':
-            zone.x = orig.x + dx;
-            zone.width = orig.width - dx;
-            zone.height = orig.height + dy;
+            nextZone.x = orig.x + dx;
+            nextZone.width = orig.width - dx;
+            nextZone.height = orig.height + dy;
             break;
         case 'se':
-            zone.width = orig.width + dx;
-            zone.height = orig.height + dy;
+            nextZone.width = orig.width + dx;
+            nextZone.height = orig.height + dy;
             break;
         case 'n':
-            zone.y = orig.y + dy;
-            zone.height = orig.height - dy;
+            nextZone.y = orig.y + dy;
+            nextZone.height = orig.height - dy;
             break;
         case 's':
-            zone.height = orig.height + dy;
+            nextZone.height = orig.height + dy;
             break;
         case 'e':
-            zone.width = orig.width + dx;
+            nextZone.width = orig.width + dx;
             break;
         case 'w':
-            zone.x = orig.x + dx;
-            zone.width = orig.width - dx;
+            nextZone.x = orig.x + dx;
+            nextZone.width = orig.width - dx;
             break;
     }
     
     // Enforce minimum size
     const minSize = 150;
-    if (zone.width < minSize) {
-        zone.width = minSize;
-        zone.x = orig.x;
+    if (nextZone.width < minSize) {
+        nextZone.width = minSize;
+        nextZone.x = orig.x;
     }
-    if (zone.height < minSize) {
-        zone.height = minSize;
-        zone.y = orig.y;
+    if (nextZone.height < minSize) {
+        nextZone.height = minSize;
+        nextZone.y = orig.y;
     }
+
+    getStore().replaceTagZone(zoneIndex, nextZone);
     
     getNetwork().redraw();
 }
 
 export function endZoneResize() {
     const resizingIdx = getStore().zoneResizing.zoneIndex;
-    resumeHistory();
-    if (resizingIdx >= 0) {
-        const z = getStore().tagZones[resizingIdx];
-        getStore().updateTagZone(resizingIdx, { x: z.x, y: z.y, width: z.width, height: z.height });
+    const originalZone = getStore().zoneResizing.originalZone;
+    const finalTagZones = cloneTagZones(getStore().tagZones);
+    const revertedTagZones = cloneTagZones(getStore().tagZones);
+
+    if (resizingIdx >= 0 && originalZone) {
+        revertedTagZones[resizingIdx] = { ...revertedTagZones[resizingIdx], ...originalZone };
     }
+
+    const currentPositions = getNetwork().getPositions(getStore().appData.articles.map((article) => article.id));
+    const { articles: finalArticles } = checkNodeZoneMembership({
+        positions: currentPositions,
+        tagZones: finalTagZones,
+        persistToStore: false,
+        saveChanges: false,
+        refreshFilters: false,
+    });
+
+    getStore().setTagZones(revertedTagZones);
+    resumeHistory();
+    getStore().commitTrackedGraphState({
+        articles: finalArticles,
+        tagZones: finalTagZones,
+    });
     getStore().updateZoneResizing({ active: false });
     getStore().updateZoneResizing({ zoneIndex: -1 });
     getStore().updateZoneResizing({ handle: null });
@@ -1302,5 +1646,7 @@ export function endZoneResize() {
         }
     });
     
-    checkNodeZoneMembership();
+    updateCategoryFilters();
+    save(true);
+    getNetwork().redraw();
 }

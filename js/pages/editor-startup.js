@@ -5,7 +5,6 @@ import { load } from '../data/persistence.js';
 import { scheduleBibliographyRebuild } from '../data/bibliography.js';
 import { initializeEventListeners } from '../core/init.js';
 import { updateCategoryFilters } from '../ui/filters.js';
-import { renderListView } from '../ui/list/sidebar.js';
 import { initializeGraph } from '../graph/init.js';
 import { initCloudStorage } from '../data/cloud-storage.js';
 import { includesReady } from '../utils/load-footer.js';
@@ -101,13 +100,6 @@ async function initApp() {
                         categories: Array.isArray(a.categories) ? a.categories : []
                     })));
                     getStore().setConnections(projectData.edges || projectData.connections || []);
-                    getStore().setProjectReview(projectData.projectReview || "");
-                    getStore().appData.projectReviewMeta = projectData.projectReviewMeta || {
-                        title: "Project Review",
-                        authorsData: [{name: "", affiliationNumbers: []}],
-                        affiliationsData: [{text: ""}],
-                        abstract: ""
-                    };
                     getStore().setNextArticleId(Math.max(0, ...(projectData.nodes || projectData.articles || []).map(n => n.id || 0)) + 1);
                     getStore().setNextConnectionId(Math.max(0, ...(projectData.edges || projectData.connections || []).map(e => e.id || 0)) + 1);
                     
@@ -189,7 +181,6 @@ Object.assign(getStore().appData, projectData);
             initializeEventListeners();
             initShortcuts();
             updateCategoryFilters();
-            renderListView();
             // Clear any history entries created during loading so undo starts clean
             clearHistory();
 
@@ -587,4 +578,3 @@ window.toggleAuthorsContent = function toggleAuthorsContent() {
         btn.textContent = "?";
     }
 };
-

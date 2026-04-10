@@ -95,10 +95,6 @@ async function loadProjectFromCloud() {
         })));
         getStore().setConnections(project.data.edges || []);
         
-        // Load project review data
-        getStore().setProjectReview(project.data.projectReview || "");
-        getStore().appData.projectReviewMeta = project.data.projectReviewMeta || { title: "Project Review", authors: "" };
-        
         // Update next IDs based on existing data
         if (getStore().appData.articles.length > 0) {
             const maxId = Math.max(...getStore().appData.articles.map(a => parseInt(a.id) || 0));
@@ -225,8 +221,6 @@ export async function saveToCloud(silent = false) {
             edges: getStore().appData?.connections || [],
             zones: getStore().tagZones || [],
             positions: positions,
-            projectReview: getStore().appData?.projectReview || "",
-            projectReviewMeta: getStore().appData?.projectReviewMeta || { title: "Project Review", authors: "" }
         };
         
         // Save to cloud with auto-save (throttled)
@@ -277,8 +271,6 @@ export async function saveToCloudWithPreview(silent = false) {
             edges: getStore().appData?.connections || [],
             zones: getStore().tagZones || [],
             positions: positions,
-            projectReview: getStore().appData?.projectReview || "",
-            projectReviewMeta: getStore().appData?.projectReviewMeta || { title: "Project Review", authors: "" },
             previewImage: previewImage
         };
         
@@ -336,8 +328,6 @@ export async function forceSaveToCloud() {
             edges: getStore().appData?.connections || [],
             zones: getStore().tagZones || [],
             positions: positions,
-            projectReview: getStore().appData?.projectReview || "",
-            projectReviewMeta: getStore().appData?.projectReviewMeta || { title: "Project Review", authors: "" }
         };
         
         await updateProject(currentProjectId, projectData);

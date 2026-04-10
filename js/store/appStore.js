@@ -11,23 +11,25 @@ let _network = null;
 export const getNetwork = () => _network;
 export const setNetwork = (net) => { _network = net; };
 
+function normalizeAppData(appData = {}) {
+    const articles = (appData.articles || []).map((article) => ({
+        ...article,
+        categories: Array.isArray(article.categories) ? article.categories : [],
+    }));
+    const connections = appData.connections || [];
+
+    return {
+        articles,
+        connections,
+        nextArticleId: appData.nextArticleId || Math.max(0, ...articles.map((a) => parseInt(a.id, 10) || 0)) + 1,
+        nextConnectionId: appData.nextConnectionId || Math.max(0, ...connections.map((c) => parseInt(c.id, 10) || 0)) + 1,
+    };
+}
+
 // ── Store Definition ───────────────────────────────────────────────────
 const storeDefinition = (set, get) => ({
     // ── Tracked Data — undo/redo applies to these ─────────────────────
-    appData: {
-        articles: [],
-        connections: [],
-        projectReview: '',
-        projectReviewMeta: {
-            title: 'Project Review',
-            authors: '',
-            authorsData: [],
-            affiliationsData: [],
-            abstract: ''
-        },
-        nextArticleId: 1,
-        nextConnectionId: 1,
-    },
+    appData: normalizeAppData(),
     tagZones: [],
     savedNodePositions: {},
     edgeControlPoints: {},
@@ -121,12 +123,10 @@ const storeDefinition = (set, get) => ({
     originalContent: '',
     inlineEditingSetup: false,
     currentPreviewArticleId: null,
-    noteViewMode: 'article',
-    activeNoteId: null,
 
     // ── appData Actions ───────────────────────────────────────────────
 
-    setAppData: (appData) => set({ appData }),
+    setAppData: (appData) => set({ appData: normalizeAppData(appData) }),
 
     setArticles: (articles) => set((s) => ({ appData: { ...s.appData, articles } })),
 
@@ -257,19 +257,6 @@ const storeDefinition = (set, get) => ({
     setNextArticleId: (id) => set((s) => ({ appData: { ...s.appData, nextArticleId: id } })),
     setNextConnectionId: (id) => set((s) => ({ appData: { ...s.appData, nextConnectionId: id } })),
 
-    setProjectReview: (text) => set((s) => ({ appData: { ...s.appData, projectReview: text } })),
-
-    setProjectReviewMeta: (meta) => set((s) => ({
-        appData: { ...s.appData, projectReviewMeta: { ...meta } },
-    })),
-
-    updateProjectReviewMeta: (updates) => set((s) => ({
-        appData: {
-            ...s.appData,
-            projectReviewMeta: { ...s.appData.projectReviewMeta, ...updates },
-        },
-    })),
-
     // ── tagZones Actions ──────────────────────────────────────────────
 
     setTagZones: (tagZones) => set({ tagZones }),
@@ -293,6 +280,18 @@ const storeDefinition = (set, get) => ({
     // ── savedNodePositions Actions ────────────────────────────────────
 
     setSavedNodePositions: (savedNodePositions) => set({ savedNodePositions }),
+
+    commitTrackedGraphState: ({ articles, tagZones, savedNodePositions }) => set((s) => ({
+        appData: articles ? {
+            ...s.appData,
+            articles: articles.map((article) => ({
+                ...article,
+                categories: Array.isArray(article.categories) ? article.categories : [],
+            })),
+        } : s.appData,
+        tagZones: tagZones ?? s.tagZones,
+        savedNodePositions: savedNodePositions ?? s.savedNodePositions,
+    })),
 
     mergeNodePositions: (positions) => set((s) => ({
         savedNodePositions: { ...s.savedNodePositions, ...positions },
@@ -375,8 +374,6 @@ const storeDefinition = (set, get) => ({
     setCurrentPreviewArticleId: (currentPreviewArticleId) => set({ currentPreviewArticleId }),
     setCurrentEditingElement: (currentEditingElement) => set({ currentEditingElement }),
     setOriginalContent: (originalContent) => set({ originalContent }),
-    setActiveNoteId: (activeNoteId) => set({ activeNoteId }),
-    setNoteViewMode: (noteViewMode) => set({ noteViewMode }),
 
     updateConnectionMode: (updates) => set((s) => ({
         connectionMode: { ...s.connectionMode, ...updates },

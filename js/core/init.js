@@ -1,13 +1,12 @@
 import { getStore, getNetwork } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
-import { exportProject, exportToBibtex, exportToPDF, exportToLatex, exportToImage, exportToSVG } from '../data/export.js';
+import { exportProject, exportToBibtex, exportToImage, exportToSVG } from '../data/export.js';
 import { importBibtexFile, setupImportZone, toggleManualForm } from '../data/import.js';
 import { importProjectFileAsNewProject } from '../data/project-import.js';
 import { openArticleModal, closeModal, saveArticle, deleteArticle, deleteArticleById, setPendingArticlePosition } from '../ui/modal.js';
 import { toggleCategoryDropdown, updateCategoryFilters, updateActiveFiltersDisplay } from '../ui/filters.js';
 import { toggleGrid, closeMultiTagDialog, deleteSelectedNodes } from '../ui/toolbar.js';
 import { searchInGraph } from '../graph/search.js';
-import { renderListView } from '../ui/list/sidebar.js';
 import { hideSelectionBox, applyNodeLabelFormat } from '../graph/selection.js';
 import { hideRadialMenu, hideSelectionRadialMenu } from '../ui/radial-menu.js';
 import { hideEdgeMenu, startConnectionMode, cancelConnectionMode, deleteConnection } from '../graph/connections.js';
@@ -36,13 +35,15 @@ if (urlParams.get('mode') === 'readonly') {
 export function initializeEventListeners() {
     // View toggle switch
     const viewToggle = document.getElementById('viewToggle');
-    viewToggle.addEventListener('change', (e) => {
-        const tagModal = document.getElementById('multiTagModal');
-        if (tagModal) {
-            closeMultiTagDialog();
-        }
-        switchView(e.target.checked ? 'list' : 'graph');
-    });
+    if (viewToggle) {
+        viewToggle.addEventListener('change', (e) => {
+            const tagModal = document.getElementById('multiTagModal');
+            if (tagModal) {
+                closeMultiTagDialog();
+            }
+            switchView(e.target.checked ? 'list' : 'graph');
+        });
+    }
     
     // Logo dropdown — shared setup (toggle, submenus, outside-click)
     // Editor uses logoMenuBtnExtended as the trigger (in the logo-menu-btn-extended bar)
@@ -135,18 +136,6 @@ export function initializeEventListeners() {
     
     document.getElementById('logoExportBibtexBtn').addEventListener('click', () => {
         exportToBibtex();
-        mainDropdown.classList.remove('active');
-        closeAllSubmenus();
-    });
-    
-    document.getElementById('logoExportPdfBtn').addEventListener('click', () => {
-        exportToPDF();
-        mainDropdown.classList.remove('active');
-        closeAllSubmenus();
-    });
-    
-    document.getElementById('logoExportLatexBtn').addEventListener('click', () => {
-        exportToLatex();
         mainDropdown.classList.remove('active');
         closeAllSubmenus();
     });
@@ -289,14 +278,9 @@ export function initializeEventListeners() {
         searchInput.value = '';
         if (resultCount) resultCount.textContent = '';
         
-        // Reset search in both views
         const graphView = document.getElementById('graphView');
-        const listView = document.getElementById('listView');
-        
         if (graphView.classList.contains('active')) {
             searchInGraph('');
-        } else if (listView.classList.contains('active')) {
-            renderListView('');
         }
     });
     
@@ -304,12 +288,9 @@ export function initializeEventListeners() {
     document.getElementById('searchBoxToolbar').addEventListener('input', (e) => {
         const searchTerm = e.target.value;
         const graphView = document.getElementById('graphView');
-        const listView = document.getElementById('listView');
         
         if (graphView.classList.contains('active')) {
             searchInGraph(searchTerm);
-        } else if (listView.classList.contains('active')) {
-            renderListView(searchTerm);
         }
     });
     
@@ -327,8 +308,6 @@ export function initializeEventListeners() {
         const graphView = document.getElementById('graphView');
         if (graphView.classList.contains('active')) {
             updateGraph();
-        } else {
-            renderListView(document.getElementById('searchBoxToolbar').value);
         }
         document.getElementById('categoryDropdown').classList.remove('active');
         
@@ -356,23 +335,17 @@ export function initializeEventListeners() {
             
             e.preventDefault();
             
-            if (getStore().multiSelection.selectedNodes.length > 1) {
+            if (getStore().multiSelection.selectedNodes.length > 1 || getStore().multiSelection.selectedZonesForDrag.length > 0) {
                 deleteSelectedNodes();
             } else if (getStore().selectedNodeId !== null) {
-                if (confirm('Delete this article?')) {
-                    deleteArticleById(getStore().selectedNodeId);
-                    getStore().setSelectedNodeId(null);
-                    hideRadialMenu();
-                }
+                deleteArticleById(getStore().selectedNodeId);
+                getStore().setSelectedNodeId(null);
+                hideRadialMenu();
             } else if (getStore().selectedEdgeId !== null) {
-                if (confirm('Delete this connection?')) {
-                    deleteConnection(getStore().selectedEdgeId);
-                    hideEdgeMenu();
-                }
+                deleteConnection(getStore().selectedEdgeId);
+                hideEdgeMenu();
             } else if (getStore().selectedZoneIndex !== -1) {
-                if (confirm('Delete this zone/tag?')) {
-                    deleteZone(getStore().selectedZoneIndex);
-                }
+                deleteZone(getStore().selectedZoneIndex);
             }
         }
     });
@@ -436,7 +409,6 @@ export function initializeEventListeners() {
 
 export function switchView(view) {
     const graphView = document.getElementById('graphView');
-    const listView = document.getElementById('listView');
     const viewToggle = document.getElementById('viewToggle');
     const graphOnlyElements = document.querySelectorAll('.graph-only');
     
@@ -452,37 +424,21 @@ export function switchView(view) {
         }
     }
     
-    if (view === 'graph') {
-        graphView.classList.add('active');
-        listView.classList.remove('active');
+    graphView.classList.add('active');
+    if (viewToggle) {
         viewToggle.checked = false;
-        
-        // Show graph-only elements with animation
-        graphOnlyElements.forEach(el => {
-            el.style.display = 'flex';
+    }
+
+    graphOnlyElements.forEach(el => {
+        el.style.display = 'flex';
+        requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    el.classList.add('visible');
-                });
+                el.classList.add('visible');
             });
         });
-        
-        if (getNetwork()) {
-            getNetwork().fit();
-        }
-    } else {
-        graphView.classList.remove('active');
-        listView.classList.add('active');
-        viewToggle.checked = true;
-        
-        // Hide graph-only elements with animation
-        graphOnlyElements.forEach(el => {
-            el.classList.remove('visible');
-            setTimeout(() => {
-                el.style.display = 'none';
-            }, 400);
-        });
-        
-        renderListView();
+    });
+
+    if (getNetwork()) {
+        getNetwork().fit();
     }
 }

@@ -4,6 +4,7 @@
 import { undo, redo, getStore } from '../store/appStore.js';
 import { updateGraph } from '../graph/render.js';
 import { getNetwork } from '../store/appStore.js';
+import { checkNodeZoneMembership } from '../graph/zones.js';
 
 /**
  * After undo/redo, restore vis.js node positions from the store snapshot
@@ -23,6 +24,12 @@ function applyUndoRedo() {
         });
         network.redraw();
     }
+    checkNodeZoneMembership({
+        positions,
+        persistToStore: false,
+        saveChanges: false,
+        refreshFilters: true,
+    });
 }
 
 /**

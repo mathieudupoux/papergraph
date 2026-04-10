@@ -1,5 +1,5 @@
 import { getStore, getNetwork, appStore } from '../store/appStore.js';
-import { darkenColor, getContrastColor } from '../utils/helpers.js';
+import { getArticleZones, getNodeAppearanceForZones } from '../utils/helpers.js';
 import { getNodeLabel } from './selection.js';
 import { rebuildEdgeWithControlPoints } from './connections.js';
 import { initializeGraph } from './init.js';
@@ -18,34 +18,15 @@ export function getGraphData() {
         : appData.articles;
 
     const nodes = new vis.DataSet(filteredArticles.map((article) => {
-        let nodeColor = { border: '#4a90e2', background: '#e3f2fd' };
-        let fontColor = '#333333';
-
-        const categories = article.categories || [];
-        if (categories.length > 0) {
-            const articleZones = [];
-            categories.forEach((tag) => {
-                const zone = tagZones.find((z) => z.tag === tag);
-                if (zone) articleZones.push({ zone, area: zone.width * zone.height });
-            });
-
-            if (articleZones.length > 0) {
-                articleZones.sort((a, b) => a.area - b.area);
-                const smallestZone = articleZones[0].zone;
-                nodeColor = {
-                    background: smallestZone.color,
-                    border: darkenColor(smallestZone.color, 20),
-                };
-                fontColor = getContrastColor(smallestZone.color);
-            }
-        }
+        const { color: nodeColor, font } = getNodeAppearanceForZones(getArticleZones(article, tagZones));
 
         const labelFormat = localStorage.getItem('nodeLabelFormat') || 'bibtexId';
         const nodeData = {
             id: article.id,
             label: getNodeLabel(article, labelFormat),
             color: nodeColor,
-            font: { color: fontColor },
+            font,
+            title: null,
         };
 
         const savedPos = savedNodePositions && savedNodePositions[article.id];
@@ -100,7 +81,7 @@ function _calcNodeDiffs(network, savedPositions, newNodesData) {
     const toUpdate = [];
     newNodesData.forEach((node) => {
         if (!network.body.data.nodes.get(node.id)) return;
-        const update = { id: node.id, label: node.label, color: node.color, font: node.font };
+        const update = { id: node.id, label: node.label, color: node.color, font: node.font, title: null };
         if (savedPositions[node.id] && isFinite(savedPositions[node.id].x) && isFinite(savedPositions[node.id].y)) {
             update.x = savedPositions[node.id].x;
             update.y = savedPositions[node.id].y;
