@@ -1,10 +1,11 @@
-import { state } from '../core/state.js';
-import { darkenColor, showNotification } from '../utils/helpers.js';
+import { getStore, getNetwork } from '../store/appStore.js';
+import { getUniqueName, showNotification } from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
 import { updateCategoryFilters } from './filters.js';
-import { renderListView } from './list/sidebar.js';
 import { updateGraph } from '../graph/render.js';
 import { hideSelectionRadialMenu, hideEmptyAreaMenu } from './radial-menu.js';
+import { icon } from './icons.js';
+import { getZoneNamesForConflicts } from '../graph/zones.js';
 
 // ===== TOOLBAR & MULTI-SELECTION =====
 // Toolbar actions, multi-tag dialog, and multi-selection operations
@@ -15,14 +16,14 @@ export function toggleCategoryDropdown() {
 }
 
 export function toggleGrid() {
-    if (!state.network) return;
+    if (!getNetwork()) return;
     
-    state.gridEnabled = !state.gridEnabled;
-    localStorage.setItem('gridEnabled', state.gridEnabled);
+    getStore().setGridEnabled(!getStore().gridEnabled);
+    localStorage.setItem('gridEnabled', getStore().gridEnabled);
     const btn = document.getElementById('toggleGridBtn');
     const label = btn.querySelector('.btn-label');
     
-    if (state.gridEnabled) {
+    if (getStore().gridEnabled) {
         btn.classList.add('active');
         btn.title = 'Hide grid';
         if (label) label.textContent = 'Grid';
@@ -32,19 +33,18 @@ export function toggleGrid() {
         if (label) label.textContent = 'Grid';
     }
     
-    state.network.redraw();
+    getNetwork().redraw();
 }
 
 export function openQuickTagModal(articleId) {
-    const article = state.appData.articles.find(a => a.id === articleId);
+    const article = getStore().appData.articles.find(a => a.id === articleId);
     if (!article) return;
     
     const newTag = prompt('Ajouter une catégorie:', '');
     if (newTag && newTag.trim()) {
         if (!article.categories.includes(newTag.trim())) {
-            article.categories.push(newTag.trim());
+            getStore().addArticleCategory(articleId, newTag.trim());
             updateGraph();
-            renderListView();
             updateCategoryFilters();
             save();
             showNotification('Catégorie ajoutée!', 'success');
@@ -53,11 +53,11 @@ export function openQuickTagModal(articleId) {
 }
 
 export function openMultiTagDialog(isEmptyAreaMode = false) {
-    const savedSelectedNodes = isEmptyAreaMode ? [] : [...state.multiSelection.selectedNodes];
+    const savedSelectedNodes = isEmptyAreaMode ? [] : [...getStore().multiSelection.selectedNodes];
     
     if (!isEmptyAreaMode) {
         hideSelectionRadialMenu();
-        state.multiSelection.selectedNodes = savedSelectedNodes;
+        getStore().updateMultiSelection({ selectedNodes: savedSelectedNodes });
     }
     
     const defaultColors = [
@@ -91,7 +91,7 @@ export function openMultiTagDialog(isEmptyAreaMode = false) {
             ${isEmptyAreaMode ? 'Create a tag zone' : 'Add a tag'}
         </div>
         ${!isEmptyAreaMode ? `<div style="color: #666; margin-bottom: 15px; font-size: 0.9rem;">
-            ${state.multiSelection.selectedNodes.length} node(s) selected
+            ${getStore().multiSelection.selectedNodes.length} node(s) selected
         </div>` : ''}
         <div style="position: relative; margin-bottom: 15px;">
             <input type="text" id="multiTagInput" placeholder="Tag name" 
@@ -106,10 +106,8 @@ export function openMultiTagDialog(isEmptyAreaMode = false) {
                 ${colorPaletteHTML}
                 <div class="color-option color-picker-option" id="customColorOption"
                      style="width: 28px; height: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 6px; cursor: pointer; 
-                            border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; display: flex; align-items: center; justify-content: center;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
-                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-                    </svg>
+                            border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; display: flex; align-items: center; justify-content: center; color: white;">
+                    ${icon('eyedropper', { size: 'sm' })}
                 </div>
             </div>
             <div id="customColorPicker" style="display: none; margin-top: 12px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
@@ -142,10 +140,10 @@ export function openMultiTagDialog(isEmptyAreaMode = false) {
     tagInput.addEventListener('input', (e) => {
         const tagName = e.target.value.trim();
         if (tagName) {
-            const existingTag = state.appData.articles.some(article => 
+            const existingTag = getStore().appData.articles.some(article => 
                 article.categories.some(cat => cat.toLowerCase() === tagName.toLowerCase())
             );
-            const existingZone = state.tagZones.some(zone => 
+            const existingZone = getStore().tagZones.some(zone => 
                 zone.tag.toLowerCase() === tagName.toLowerCase()
             );
             
@@ -262,44 +260,47 @@ export function closeMultiTagDialog() {
     const modal = document.getElementById('multiTagModal');
     if (modal) modal.remove();
     
-    if (state.multiSelection.selectionBox) {
-        state.multiSelection.selectionBox.style.display = 'none';
-        state.multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
+    if (getStore().multiSelection.selectionBox) {
+        getStore().multiSelection.selectionBox.style.display = 'none';
+        getStore().multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
     }
     
-    if (state.network) state.network.unselectAll();
-    state.multiSelection.selectedNodes = [];
+    if (getNetwork()) getNetwork().unselectAll();
+    getStore().updateMultiSelection({ selectedNodes: [] });
     
     // Clear empty area selection when dialog is closed/cancelled
-    if (state.multiSelection.emptyAreaSelection) {
-        state.multiSelection.emptyAreaSelection = null;
+    if (getStore().multiSelection.emptyAreaSelection) {
+        getStore().updateMultiSelection({ emptyAreaSelection: null });
         hideEmptyAreaMenu();
     }
 }
 
 export function applyMultiTagFromDialog(tagColor) {
-    const tagName = document.getElementById('multiTagInput').value.trim();
+    const requestedTagName = document.getElementById('multiTagInput').value.trim();
     
-    if (!tagName) {
+    if (!requestedTagName) {
         showNotification('Please enter a tag name', 'error');
         return;
     }
     
     if (!tagColor) tagColor = '#e74c3c';
+
+    const existingNames = getZoneNamesForConflicts();
+    const tagName = getUniqueName(requestedTagName, existingNames);
     
     const minZoneSize = 150; // Minimum zone size
     let zone;
     
     // Use selection box bounds if available (DON'T fit to nodes)
-    if (state.multiSelection.selectionBox && state.multiSelection.selectionBox.style.display !== 'none') {
-        const boxLeft = parseFloat(state.multiSelection.selectionBox.style.left);
-        const boxTop = parseFloat(state.multiSelection.selectionBox.style.top);
-        const boxWidth = parseFloat(state.multiSelection.selectionBox.style.width);
-        const boxHeight = parseFloat(state.multiSelection.selectionBox.style.height);
+    if (getStore().multiSelection.selectionBox && getStore().multiSelection.selectionBox.style.display !== 'none') {
+        const boxLeft = parseFloat(getStore().multiSelection.selectionBox.style.left);
+        const boxTop = parseFloat(getStore().multiSelection.selectionBox.style.top);
+        const boxWidth = parseFloat(getStore().multiSelection.selectionBox.style.width);
+        const boxHeight = parseFloat(getStore().multiSelection.selectionBox.style.height);
         
         // Convert DOM coordinates to canvas coordinates
-        const topLeft = state.network.DOMtoCanvas({ x: boxLeft, y: boxTop });
-        const bottomRight = state.network.DOMtoCanvas({ x: boxLeft + boxWidth, y: boxTop + boxHeight });
+        const topLeft = getNetwork().DOMtoCanvas({ x: boxLeft, y: boxTop });
+        const bottomRight = getNetwork().DOMtoCanvas({ x: boxLeft + boxWidth, y: boxTop + boxHeight });
         
         let zoneWidth = bottomRight.x - topLeft.x;
         let zoneHeight = bottomRight.y - topLeft.y;
@@ -319,8 +320,8 @@ export function applyMultiTagFromDialog(tagColor) {
     } else {
         // Fallback: calculate bounding box from nodes (shouldn't happen normally)
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        state.multiSelection.selectedNodes.forEach(nodeId => {
-            const pos = state.network.getPositions([nodeId])[nodeId];
+        getStore().multiSelection.selectedNodes.forEach(nodeId => {
+            const pos = getNetwork().getPositions([nodeId])[nodeId];
             if (pos) {
                 minX = Math.min(minX, pos.x);
                 minY = Math.min(minY, pos.y);
@@ -347,59 +348,60 @@ export function applyMultiTagFromDialog(tagColor) {
         };
     }
     
-    const existingIndex = state.tagZones.findIndex(z => z.tag === tagName);
-    if (existingIndex >= 0) {
-        state.tagZones[existingIndex] = zone;
-    } else {
-        state.tagZones.push(zone);
-    }
-    
-    // Apply tag to nodes
-    state.multiSelection.selectedNodes.forEach(nodeId => {
-        const article = state.appData.articles.find(a => a.id === nodeId);
-        if (article) {
-            if (!article.categories.includes(tagName)) {
-                article.categories.push(tagName);
-            }
-            state.network.body.data.nodes.update({
-                id: nodeId,
-                color: {
-                    background: tagColor,
-                    border: darkenColor(tagColor, 20)
-                }
-            });
+    const selectedNodeIds = new Set(getStore().multiSelection.selectedNodes);
+    const nextArticles = getStore().appData.articles.map((article) => {
+        if (!selectedNodeIds.has(article.id)) {
+            return article;
         }
+
+        const categories = Array.isArray(article.categories) ? article.categories : [];
+        if (categories.includes(tagName)) {
+            return article;
+        }
+
+        return {
+            ...article,
+            categories: [...categories, tagName],
+        };
+    });
+
+    getStore().commitTrackedGraphState({
+        articles: nextArticles,
+        tagZones: [...getStore().tagZones, zone],
     });
     
     save();
     updateCategoryFilters();
-    renderListView();
-    state.network.redraw();
+    updateGraph();
     
-    if (state.multiSelection.selectionBox) {
-        state.multiSelection.selectionBox.style.display = 'none';
-        state.multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
+    if (getStore().multiSelection.selectionBox) {
+        getStore().multiSelection.selectionBox.style.display = 'none';
+        getStore().multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
     }
     
-    const appliedCount = state.multiSelection.selectedNodes.length;
-    showNotification(`Tag "${tagName}" appliqué à ${appliedCount} nœud(s)`, 'success');
+    const appliedCount = getStore().multiSelection.selectedNodes.length;
+    if (tagName !== requestedTagName) {
+        showNotification(`Tag "${requestedTagName}" existe déjà, créé comme "${tagName}"`, 'info');
+    } else {
+        showNotification(`Tag "${tagName}" appliqué à ${appliedCount} nœud(s)`, 'success');
+    }
     closeMultiTagDialog();
 }
 
 export function applyEmptyAreaZoneFromDialog(zoneColor) {
-    const zoneName = document.getElementById('multiTagInput').value.trim();
+    const requestedZoneName = document.getElementById('multiTagInput').value.trim();
     
-    if (!zoneName) {
+    if (!requestedZoneName) {
         showNotification('Please enter a zone name', 'error');
         return;
     }
     
-    if (!state.multiSelection.emptyAreaSelection) {
+    if (!getStore().multiSelection.emptyAreaSelection) {
         showNotification('No zone selected', 'error');
         return;
     }
     
-    const area = state.multiSelection.emptyAreaSelection;
+    const area = getStore().multiSelection.emptyAreaSelection;
     const minZoneSize = 150; // Minimum zone size
     
     // Keep the selection area size as-is (don't fit to nodes)
@@ -409,6 +411,9 @@ export function applyEmptyAreaZoneFromDialog(zoneColor) {
     // Ensure minimum size
     if (zoneWidth < minZoneSize) zoneWidth = minZoneSize;
     if (zoneHeight < minZoneSize) zoneHeight = minZoneSize;
+
+    const existingNames = getZoneNamesForConflicts();
+    const zoneName = getUniqueName(requestedZoneName, existingNames);
     
     const zone = {
         tag: zoneName,
@@ -419,25 +424,20 @@ export function applyEmptyAreaZoneFromDialog(zoneColor) {
         height: zoneHeight
     };
     
-    // Check if zone with this tag already exists
-    const existingZoneIndex = state.tagZones.findIndex(z => z.tag === zoneName);
-    if (existingZoneIndex !== -1) {
-        showNotification('A zone with this tag already exists', 'error');
-        return;
-    }
-    
-    state.tagZones.push(zone);
+    getStore().commitTrackedGraphState({
+        tagZones: [...getStore().tagZones, zone],
+    });
     
     // Save current view position before updating graph
-    const currentView = state.network.getViewPosition();
-    const currentScale = state.network.getScale();
+    const currentView = getNetwork().getViewPosition();
+    const currentScale = getNetwork().getScale();
     
     save();
     updateCategoryFilters();
     updateGraph();
     
     // Restore view position to avoid camera movement
-    state.network.moveTo({
+    getNetwork().moveTo({
         position: currentView,
         scale: currentScale,
         animation: false
@@ -447,43 +447,46 @@ export function applyEmptyAreaZoneFromDialog(zoneColor) {
     hideEmptyAreaMenu();
     
     // Clear the empty area selection and hide selection box
-    state.multiSelection.emptyAreaSelection = null;
-    if (state.multiSelection.selectionBox) {
-        state.multiSelection.selectionBox.style.display = 'none';
+    getStore().updateMultiSelection({ emptyAreaSelection: null });
+    if (getStore().multiSelection.selectionBox) {
+        getStore().multiSelection.selectionBox.style.display = 'none';
     }
     
     showNotification(`Zone "${zoneName}" créée`, 'success');
 }
 
 export function deleteSelectedNodes() {
-    if (state.multiSelection.selectedNodes.length === 0) return;
-    
-    const count = state.multiSelection.selectedNodes.length;
-    const message = count === 1 
-        ? 'Do you really want to delete this node?' 
-        : `Do you really want to delete these ${count} nodes?`;
-    
-    if (!confirm(message)) {
-        hideSelectionRadialMenu();
-        return;
-    }
-    
-    state.multiSelection.selectedNodes.forEach(nodeId => {
-        const articleIndex = state.appData.articles.findIndex(a => a.id === nodeId);
-        if (articleIndex >= 0) {
-            state.appData.articles.splice(articleIndex, 1);
-        }
-        
-        state.appData.connections = state.appData.connections.filter(
-            conn => conn.from !== nodeId && conn.to !== nodeId
-        );
-    });
+    const selectedNodeIds = [...new Set(getStore().multiSelection.selectedNodes)];
+    const selectedZoneIndexes = [...new Set(getStore().multiSelection.selectedZonesForDrag)];
+    if (selectedNodeIds.length === 0 && selectedZoneIndexes.length === 0) return;
+
+    const zoneTagsToDelete = selectedZoneIndexes
+        .map((zoneIdx) => getStore().tagZones[zoneIdx]?.tag)
+        .filter(Boolean);
+
+    const articlesAfterZoneRemoval = getStore().appData.articles.map((article) => ({
+        ...article,
+        categories: (article.categories || []).filter((category) => !zoneTagsToDelete.includes(category)),
+    }));
+
+    const remainingArticles = articlesAfterZoneRemoval.filter((article) => !selectedNodeIds.includes(article.id));
+    const remainingConnections = getStore().appData.connections.filter(
+        (conn) => !selectedNodeIds.includes(conn.from) && !selectedNodeIds.includes(conn.to)
+    );
+    const remainingZones = getStore().tagZones.filter((_, idx) => !selectedZoneIndexes.includes(idx));
+
+    getStore().setArticles(remainingArticles);
+    getStore().setConnections(remainingConnections);
+    getStore().setTagZones(remainingZones);
+    getStore().setSelectedZoneIndex(-1);
     
     updateGraph();
-    renderListView();
     updateCategoryFilters();
     save();
     
-    showNotification(`${count} nœud(s) supprimé(s)`, 'info');
+    const summaryParts = [];
+    if (selectedNodeIds.length > 0) summaryParts.push(`${selectedNodeIds.length} nœud(s)`);
+    if (selectedZoneIndexes.length > 0) summaryParts.push(`${selectedZoneIndexes.length} zone(s)`);
+    showNotification(`${summaryParts.join(' et ')} supprimé(s)`, 'info');
     hideSelectionRadialMenu();
 }

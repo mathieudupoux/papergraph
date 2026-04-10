@@ -1,8 +1,9 @@
-import { state } from '../core/state.js';
-import { darkenColor, getContrastColor } from '../utils/helpers.js';
+import { getStore, getNetwork, appStore } from '../store/appStore.js';
+import { getArticleZones, getNodeAppearanceForZones } from '../utils/helpers.js';
 import { getNodeLabel } from './selection.js';
 import { rebuildEdgeWithControlPoints } from './connections.js';
 import { initializeGraph } from './init.js';
+import { icon } from '../ui/icons.js';
 
 // ===== GRAPH RENDERING & DATA =====
 // Graph data preparation, update logic, and permissions
@@ -10,279 +11,208 @@ import { initializeGraph } from './init.js';
 let searchHighlightedNodes = [];
 
 export function getGraphData() {
-    const filteredArticles = state.currentCategoryFilter 
-        ? state.appData.articles.filter(a => a.categories && a.categories.includes(state.currentCategoryFilter))
-        : state.appData.articles;
-    
-    console.log('📊 getGraphData called:');
-    console.log('  - Current filter:', state.currentCategoryFilter);
-    console.log('  - Total articles:', state.appData?.articles?.length || 0);
-    console.log('  - Filtered articles:', filteredArticles?.length || 0);
-    console.log('  - appData:', state.appData);
-    console.log('  - window.state.appData:', window.state.appData);
-    
-    const nodes = new vis.DataSet(filteredArticles.map(article => {
-        let nodeColor = { border: '#4a90e2', background: '#e3f2fd' };
-        let fontColor = '#333333'; // Default dark text
-        
-        const categories = article.categories || [];
-        if (categories.length > 0) {
-            // Find the SMALLEST zone for this article (in case of nested zones)
-            const articleZones = [];
-            categories.forEach(tag => {
-                const zone = state.tagZones.find(z => z.tag === tag);
-                if (zone) {
-                    articleZones.push({ zone, area: zone.width * zone.height });
-                }
-            });
-            
-            if (articleZones.length > 0) {
-                // Sort by area and use the smallest zone
-                articleZones.sort((a, b) => a.area - b.area);
-                const smallestZone = articleZones[0].zone;
-                
-                nodeColor = {
-                    background: smallestZone.color,
-                    border: darkenColor(smallestZone.color, 20)
-                };
-                // Calculate appropriate text color based on background
-                fontColor = getContrastColor(smallestZone.color);
-            }
-        }
-        
+    const { appData, tagZones, savedNodePositions, edgeControlPoints, currentCategoryFilter } = getStore();
+
+    const filteredArticles = currentCategoryFilter
+        ? appData.articles.filter((a) => a.categories && a.categories.includes(currentCategoryFilter))
+        : appData.articles;
+
+    const nodes = new vis.DataSet(filteredArticles.map((article) => {
+        const { color: nodeColor, font } = getNodeAppearanceForZones(getArticleZones(article, tagZones));
+
         const labelFormat = localStorage.getItem('nodeLabelFormat') || 'bibtexId';
-        
         const nodeData = {
             id: article.id,
             label: getNodeLabel(article, labelFormat),
             color: nodeColor,
-            font: { color: fontColor }
+            font,
+            title: null,
         };
-        
-        // Load saved position if available (validate coordinates are finite numbers)
-        const savedPos = state.savedNodePositions && state.savedNodePositions[article.id];
+
+        const savedPos = savedNodePositions && savedNodePositions[article.id];
         if (savedPos && isFinite(savedPos.x) && isFinite(savedPos.y)) {
             nodeData.x = savedPos.x;
             nodeData.y = savedPos.y;
             nodeData.fixed = { x: false, y: false };
-        }
-        // Check for initial position on article object (for newly imported articles)
-        else if (article.x !== undefined && article.y !== undefined && isFinite(article.x) && isFinite(article.y)) {
+        } else if (article.x !== undefined && article.y !== undefined && isFinite(article.x) && isFinite(article.y)) {
             nodeData.x = article.x;
             nodeData.y = article.y;
             nodeData.fixed = { x: false, y: false };
         }
-        
+
         return nodeData;
     }));
-    
-    const articleIds = new Set(filteredArticles.map(a => a.id));
-    
-    // Only create edges for connections WITHOUT control points
-    const edges = new vis.DataSet(state.appData.connections
-        .filter(conn => {
-            if (!articleIds.has(conn.from) || !articleIds.has(conn.to)) {
-                return false;
-            }
-            if (state.edgeControlPoints && state.edgeControlPoints[conn.id]) {
-                console.log('⏭️ Skipping edge', conn.id, 'in getGraphData (has control points)');
-                return false;
-            }
+
+    const articleIds = new Set(filteredArticles.map((a) => a.id));
+
+    const edges = new vis.DataSet(appData.connections
+        .filter((conn) => {
+            if (!articleIds.has(conn.from) || !articleIds.has(conn.to)) return false;
+            if (edgeControlPoints && edgeControlPoints[conn.id]) return false;
             return true;
         })
-        .map(conn => ({
+        .map((conn) => ({
             id: conn.id,
             from: conn.from,
             to: conn.to,
             label: conn.label || '',
-            smooth: {
-                enabled: true,
-                type: 'continuous',
-                roundness: 0.15
-            }
+            smooth: { enabled: true, type: 'continuous', roundness: 0.15 },
         })));
-    
-    console.log('Nodes:', nodes.get());
-    console.log('Edges:', edges.get());
-    
+
     return { nodes, edges };
 }
 
+// ── updateGraph helpers ────────────────────────────────────────────────
+
+/**
+ * Calculates which article nodes need to be added, removed, or updated
+ * in the vis.js network relative to the new graph data.
+ */
+function _calcNodeDiffs(network, savedPositions, newNodesData) {
+    const currentPositions = network.getPositions();
+    const existingNodes = network.body.data.nodes.get();
+    const existingArticleNodeIds = existingNodes.filter((n) => n.id > 0).map((n) => n.id);
+    const newNodeIds = new Set(newNodesData.map((n) => n.id));
+
+    const toRemove = existingArticleNodeIds.filter((id) => !newNodeIds.has(id));
+
+    const toAdd = newNodesData.filter((node) => !network.body.data.nodes.get(node.id));
+
+    const toUpdate = [];
+    newNodesData.forEach((node) => {
+        if (!network.body.data.nodes.get(node.id)) return;
+        const update = { id: node.id, label: node.label, color: node.color, font: node.font, title: null };
+        if (savedPositions[node.id] && isFinite(savedPositions[node.id].x) && isFinite(savedPositions[node.id].y)) {
+            update.x = savedPositions[node.id].x;
+            update.y = savedPositions[node.id].y;
+            update.fixed = { x: false, y: false };
+        } else if (currentPositions[node.id] && isFinite(currentPositions[node.id].x) && isFinite(currentPositions[node.id].y)) {
+            update.x = currentPositions[node.id].x;
+            update.y = currentPositions[node.id].y;
+            update.fixed = { x: false, y: false };
+        }
+        toUpdate.push(update);
+    });
+
+    return { toAdd, toRemove, toUpdate };
+}
+
+/**
+ * Calculates which edges need to be added, removed, or updated in
+ * the vis.js network relative to the new graph data.
+ */
+function _calcEdgeDiffs(network, newEdgesData, edgeControlPoints) {
+    const existingEdges = network.body.data.edges.get();
+    const existingEdgeIds = new Set(existingEdges.map((e) => e.id));
+    const newEdgeIds = new Set(newEdgesData.map((e) => e.id));
+
+    const toRemove = existingEdges
+        .filter((e) => !e.id.toString().includes('_seg_') && !newEdgeIds.has(e.id))
+        .map((e) => e.id);
+
+    const toAdd = [];
+    const toUpdate = [];
+    newEdgesData.forEach((edge) => {
+        if (edgeControlPoints[edge.id]) return; // managed separately
+        if (existingEdgeIds.has(edge.id)) {
+            toUpdate.push(edge);
+        } else {
+            toAdd.push(edge);
+        }
+    });
+
+    return { toAdd, toRemove, toUpdate };
+}
+
+/**
+ * Removes orphaned control-point data and rebuilds vis.js segment edges
+ * for every edge that still has control points in the store.
+ */
+function _manageControlPoints(network, connections, edgeControlPoints) {
+    Object.keys(edgeControlPoints).forEach((edgeId) => {
+        const edgeIdNum = parseInt(edgeId);
+        const connectionExists = connections.find((c) => c.id === edgeIdNum);
+
+        if (!connectionExists) {
+            const cpsToDelete = edgeControlPoints[edgeIdNum];
+            if (cpsToDelete) {
+                cpsToDelete.forEach((cpId) => {
+                    try { network.body.data.nodes.remove(cpId); } catch (_) {}
+                });
+            }
+            getStore().deleteEdgeControlPoints(edgeIdNum);
+            return;
+        }
+
+        if (network.body.data.edges.get(edgeIdNum)) {
+            network.body.data.edges.remove(edgeIdNum);
+        }
+        rebuildEdgeWithControlPoints(edgeIdNum);
+    });
+}
+
 export function updateGraph() {
-    if (!state.network) {
-        console.log('Network not initialized, initializing now...');
+    const network = getNetwork();
+    if (!network) {
         initializeGraph();
         return;
     }
-    
+
     try {
         searchHighlightedNodes = [];
-        
-        const viewPosition = state.network.getViewPosition();
-        const scale = state.network.getScale();
-        
-        console.log('=== UPDATE GRAPH - Preserving view ===');
-        console.log('View position:', viewPosition, 'Scale:', scale);
-        
-        const currentPositions = state.network.getPositions();
-        const savedPositions = state.savedNodePositions || {};
-        
-        const existingNodes = state.network.body.data.nodes.get();
-        const controlPointNodes = existingNodes.filter(node => node.id < 0);
-        const existingControlPointIds = new Set(controlPointNodes.map(n => n.id));
-        
-        console.log('📊 Found', controlPointNodes.length, 'existing control point nodes');
-        
+
+        const { appData, savedNodePositions, edgeControlPoints } = getStore();
+        const viewPosition = network.getViewPosition();
+        const scale = network.getScale();
+
         const graphData = getGraphData();
         const newNodesData = graphData.nodes.get();
         const newEdgesData = graphData.edges.get();
-        
-        const newNodeIds = new Set(newNodesData.map(n => n.id));
-        const existingArticleNodeIds = existingNodes.filter(n => n.id > 0).map(n => n.id);
-        
-        const nodesToRemove = existingArticleNodeIds.filter(id => !newNodeIds.has(id));
-        
-        const nodesToAdd = newNodesData.filter(node => {
-            const existing = state.network.body.data.nodes.get(node.id);
-            return !existing;
-        });
-        
-        const nodesToUpdate = [];
-        
-        newNodesData.forEach(node => {
-            const existing = state.network.body.data.nodes.get(node.id);
-            if (!existing) return; // Will be handled by nodesToAdd
-            
-            // Build update with full visual properties (label, color, font)
-            const update = {
-                id: node.id,
-                label: node.label,
-                color: node.color,
-                font: node.font
-            };
-            
-            // Apply valid position: prefer saved, then current, then existing
-            if (savedPositions[node.id] && isFinite(savedPositions[node.id].x) && isFinite(savedPositions[node.id].y)) {
-                update.x = savedPositions[node.id].x;
-                update.y = savedPositions[node.id].y;
-                update.fixed = { x: false, y: false };
-            } else if (currentPositions[node.id] && isFinite(currentPositions[node.id].x) && isFinite(currentPositions[node.id].y)) {
-                update.x = currentPositions[node.id].x;
-                update.y = currentPositions[node.id].y;
-                update.fixed = { x: false, y: false };
-            }
-            
-            nodesToUpdate.push(update);
-        });
-        
-        if (nodesToRemove.length > 0) {
-            console.log('🗑️ Removing', nodesToRemove.length, 'nodes');
-            state.network.body.data.nodes.remove(nodesToRemove);
-        }
-        
-        if (nodesToAdd.length > 0) {
-            console.log('➕ Adding', nodesToAdd.length, 'new nodes');
-            state.network.body.data.nodes.add(nodesToAdd);
-        }
-        
-        if (nodesToUpdate.length > 0) {
-            console.log('🔄 Updating', nodesToUpdate.length, 'node positions');
-            state.network.body.data.nodes.update(nodesToUpdate);
-        }
-        
-        const existingEdges = state.network.body.data.edges.get();
-        const existingEdgeIds = new Set(existingEdges.map(e => e.id));
-        const newEdgeIds = new Set(newEdgesData.map(e => e.id));
-        
-        const edgesToRemove = existingEdges
-            .filter(e => !e.id.toString().includes('_seg_') && !newEdgeIds.has(e.id))
-            .map(e => e.id);
-        
+
+        // ── Node diffs ──
+        const { toAdd: nodesToAdd, toRemove: nodesToRemove, toUpdate: nodesToUpdate } =
+            _calcNodeDiffs(network, savedNodePositions, newNodesData);
+
+        if (nodesToRemove.length > 0) network.body.data.nodes.remove(nodesToRemove);
+        if (nodesToAdd.length > 0)    network.body.data.nodes.add(nodesToAdd);
+        if (nodesToUpdate.length > 0) network.body.data.nodes.update(nodesToUpdate);
+
+        // ── Edge diffs ──
+        const { toAdd: edgesToAdd, toRemove: edgesToRemove, toUpdate: edgesToUpdate } =
+            _calcEdgeDiffs(network, newEdgesData, edgeControlPoints);
+
         if (edgesToRemove.length > 0) {
-            console.log('🗑️ Removing', edgesToRemove.length, 'edges');
-            state.network.body.data.edges.remove(edgesToRemove);
-            
-            edgesToRemove.forEach(edgeId => {
-                if (state.edgeControlPoints[edgeId]) {
-                    const controlPointsToDelete = state.edgeControlPoints[edgeId];
-                    console.log('🗑️ Cleaning up control points for removed edge', edgeId, ':', controlPointsToDelete);
-                    
-                    controlPointsToDelete.forEach(cpId => {
-                        try {
-                            state.network.body.data.nodes.remove(cpId);
-                        } catch (error) {
-                            console.error('Error removing control point node:', cpId, error);
-                        }
+            network.body.data.edges.remove(edgesToRemove);
+
+            // Clean up control points belonging to removed edges
+            edgesToRemove.forEach((edgeId) => {
+                if (edgeControlPoints[edgeId]) {
+                    edgeControlPoints[edgeId].forEach((cpId) => {
+                        try { network.body.data.nodes.remove(cpId); } catch (_) {}
                     });
-                    
-                    const segmentEdges = state.network.body.data.edges.get({
-                        filter: (edge) => {
-                            const edgeIdStr = edge.id.toString();
-                            if (!edgeIdStr.includes('_seg_')) return false;
-                            const parts = edgeIdStr.split('_seg_');
-                            const edgeNum = parseInt(parts[0]);
-                            return edgeNum === edgeId;
-                        }
+                    const segmentEdges = network.body.data.edges.get({
+                        filter: (e) => {
+                            const s = e.id.toString();
+                            if (!s.includes('_seg_')) return false;
+                            return parseInt(s.split('_seg_')[0]) === edgeId;
+                        },
                     });
                     if (segmentEdges.length > 0) {
-                        state.network.body.data.edges.remove(segmentEdges.map(e => e.id));
-                        console.log('🗑️ Removed', segmentEdges.length, 'segment edges for edge', edgeId);
+                        network.body.data.edges.remove(segmentEdges.map((e) => e.id));
                     }
-                    
-                    delete state.edgeControlPoints[edgeId];
+                    getStore().deleteEdgeControlPoints(edgeId);
                 }
             });
         }
-        
-        newEdgesData.forEach(edge => {
-            if (state.edgeControlPoints[edge.id]) {
-                console.log('⏭️ Skipping edge', edge.id, 'in updateGraph (has control points)');
-                return;
-            }
-            
-            if (existingEdgeIds.has(edge.id)) {
-                state.network.body.data.edges.update(edge);
-            } else {
-                state.network.body.data.edges.add(edge);
-            }
-        });
-        
-        state.network.moveTo({
-            position: viewPosition,
-            scale: scale,
-            animation: false
-        });
-        
-        Object.keys(state.edgeControlPoints).forEach(edgeId => {
-            const edgeIdNum = parseInt(edgeId);
-            
-            const connectionExists = state.appData.connections.find(c => c.id === edgeIdNum);
-            if (!connectionExists) {
-                console.warn('⚠️ Edge', edgeIdNum, 'has control points but no connection in appData - cleaning up');
-                const controlPointsToDelete = state.edgeControlPoints[edgeIdNum];
-                if (controlPointsToDelete) {
-                    controlPointsToDelete.forEach(cpId => {
-                        try {
-                            state.network.body.data.nodes.remove(cpId);
-                        } catch (error) {
-                            console.error('Error removing orphaned control point:', cpId, error);
-                        }
-                    });
-                }
-                delete state.edgeControlPoints[edgeIdNum];
-                return;
-            }
-            
-            if (state.network.body.data.edges.get(edgeIdNum)) {
-                console.log('Removing simple edge', edgeIdNum, 'before rebuilding with control points');
-                state.network.body.data.edges.remove(edgeIdNum);
-            }
-            
-            console.log('🔄 Rebuilding edge', edgeIdNum, 'with control points');
-            rebuildEdgeWithControlPoints(edgeIdNum);
-        });
-        
-        console.log('✓ Graph updated, view preserved');
+
+        edgesToUpdate.forEach((edge) => network.body.data.edges.update(edge));
+        edgesToAdd.forEach((edge) => network.body.data.edges.add(edge));
+
+        network.moveTo({ position: viewPosition, scale, animation: false });
+
+        // ── Control-point management ──
+        _manageControlPoints(network, appData.connections, getStore().edgeControlPoints);
+
     } catch (error) {
         console.error('Error updating graph:', error);
     }
@@ -290,15 +220,31 @@ export function updateGraph() {
 
 // ===== PERMISSIONS & READ-ONLY MODE =====
 
-export function setGraphInteractionMode(readOnly = false) {
-    if (!state.network) {
-        console.warn('Cannot set interaction mode: network not initialized');
-        return;
+/**
+ * Applies the DOM-side read-only UI state (toolbar buttons + indicator).
+ * Separated from graph interaction options so it can be driven by store subscription.
+ */
+export function applyReadOnlyUI(readOnly) {
+    const editButtons = ['addArticleBtn', 'deleteArticleBtn', 'toggleGridBtn'];
+    editButtons.forEach((btnId) => {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        btn.disabled = readOnly;
+        btn.classList.toggle('disabled', readOnly);
+        btn.title = readOnly ? 'View-only access - you cannot edit this project' : '';
+    });
+    if (readOnly) {
+        showReadOnlyIndicator();
+    } else {
+        hideReadOnlyIndicator();
     }
-    
-    console.log(`🔒 Setting graph interaction mode: ${readOnly ? 'READ-ONLY' : 'EDIT'}`);
-    
-    state.network.setOptions({
+}
+
+export function setGraphInteractionMode(readOnly = false) {
+    const network = getNetwork();
+    if (!network) return;
+
+    network.setOptions({
         interaction: {
             hover: true,
             hoverConnectedEdges: true,
@@ -307,65 +253,43 @@ export function setGraphInteractionMode(readOnly = false) {
             dragView: false,
             multiselect: !readOnly,
             selectable: true,
-            dragNodes: !readOnly
+            dragNodes: !readOnly,
         },
-        manipulation: {
-            enabled: false
-        }
+        manipulation: { enabled: false },
     });
-    
-    if (readOnly) {
-        const editButtons = ['addArticleBtn', 'deleteArticleBtn', 'toggleGridBtn'];
-        editButtons.forEach(btnId => {
-            const btn = document.getElementById(btnId);
-            if (btn) {
-                btn.disabled = true;
-                btn.classList.add('disabled');
-                btn.title = 'View-only access - you cannot edit this project';
-            }
-        });
-        showReadOnlyIndicator();
-    } else {
-        const editButtons = ['addArticleBtn', 'deleteArticleBtn', 'toggleGridBtn'];
-        editButtons.forEach(btnId => {
-            const btn = document.getElementById(btnId);
-            if (btn) {
-                btn.disabled = false;
-                btn.classList.remove('disabled');
-                btn.title = '';
-            }
-        });
-        hideReadOnlyIndicator();
-    }
+
+    applyReadOnlyUI(readOnly);
 }
 
+// Subscribe to store so the read-only UI updates whenever isReadOnlyMode changes.
+appStore.subscribe((state, prevState) => {
+    if (getStore().isReadOnlyMode !== prevState.isReadOnlyMode) {
+        applyReadOnlyUI(getStore().isReadOnlyMode);
+    }
+});
+
 export function showReadOnlyIndicator() {
+    if (getStore().isGalleryViewer) {
+        hideReadOnlyIndicator();
+        return;
+    }
+
     let indicator = document.getElementById('readOnlyIndicator');
     if (!indicator) {
         indicator = document.createElement('div');
         indicator.id = 'readOnlyIndicator';
         indicator.className = 'read-only-indicator';
         indicator.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
+            ${icon('lock', { size: 'sm' })}
             <span>View Only</span>
         `;
         const toolbar = document.querySelector('.toolbar');
-        if (toolbar) {
-            toolbar.parentNode.insertBefore(indicator, toolbar.nextSibling);
-        }
+        if (toolbar) toolbar.parentNode.insertBefore(indicator, toolbar.nextSibling);
     }
     indicator.style.display = 'flex';
 }
 
 export function hideReadOnlyIndicator() {
     const indicator = document.getElementById('readOnlyIndicator');
-    if (indicator) {
-        indicator.style.display = 'none';
-    }
+    if (indicator) indicator.style.display = 'none';
 }
-
-// Legacy bridge
-window.setGraphInteractionMode = setGraphInteractionMode;

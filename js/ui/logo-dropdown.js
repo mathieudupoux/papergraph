@@ -84,4 +84,6 @@ export function setupLogoDropdown(options = {}) {
             closeAllSubmenus();
         }
     });
+
+    return { closeAllSubmenus };
 }

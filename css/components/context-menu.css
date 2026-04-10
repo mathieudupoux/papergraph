@@ -1,0 +1,49 @@
+.graph-context-menu {
+    z-index: 10020;
+}
+
+.graph-context-submenu {
+    z-index: 10021;
+}
+
+.graph-context-menu .logo-dropdown-item:disabled,
+.graph-context-submenu .logo-dropdown-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.graph-context-menu .logo-dropdown-item:disabled svg,
+.graph-context-submenu .logo-dropdown-item:disabled svg {
+    opacity: 0.4;
+}
+
+.graph-context-menu .graph-context-menu__icon-slot,
+.graph-context-submenu .graph-context-menu__icon-slot {
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 18px;
+}
+
+.graph-context-menu .graph-context-menu__label,
+.graph-context-submenu .graph-context-menu__label {
+    flex: 1 1 auto;
+}
+
+.graph-context-menu .graph-context-menu__submenu-caret {
+    flex: 0 0 auto;
+    color: var(--dropdown-icon-color);
+    font-size: 16px;
+    line-height: 1;
+}
+
+.graph-context-submenu.graph-context-submenu--measuring {
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+    transform: none;
+    transition: none;
+}

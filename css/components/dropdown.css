@@ -124,7 +124,7 @@
 /* Dropdown Submenu */
 .dropdown-submenu {
     position: fixed;
-    z-index: 1051;
+    z-index: 1301;
     background: var(--color-glass);
     backdrop-filter: blur(10px);
     border-radius: var(--dropdown-menu-radius);
@@ -421,6 +421,16 @@
 
 .logo-dropdown-item span {
     flex: 1;
+}
+
+.logo-dropdown-item .logo-dropdown-icon-slot {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    flex: 0 0 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Submenu arrow for items with submenu */

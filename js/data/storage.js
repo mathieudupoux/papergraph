@@ -1,4 +1,4 @@
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { generateColorFromString, showNotification } from '../utils/helpers.js';
 import { save } from './persistence.js';
 
@@ -7,25 +7,25 @@ export { save as saveToLocalStorage, load as loadFromLocalStorage } from './pers
 
 // Initialize tag zones from existing article tags
 export function initializeZonesFromTags() {
-    if (!state.network || state.appData.articles.length === 0) return;
+    if (!getNetwork() || getStore().appData.articles.length === 0) return;
     
     // Get all unique tags
     const allTags = new Set();
-    state.appData.articles.forEach(article => {
+    getStore().appData.articles.forEach(article => {
         article.categories.forEach(tag => allTags.add(tag));
     });
     
     // Create a zone for each tag
     allTags.forEach(tag => {
         // Find all nodes with this tag
-        const nodesWithTag = state.appData.articles.filter(a => a.categories.includes(tag));
+        const nodesWithTag = getStore().appData.articles.filter(a => a.categories.includes(tag));
         
         if (nodesWithTag.length === 0) return;
         
         // Calculate bounding box
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         nodesWithTag.forEach(article => {
-            const pos = state.network.getPositions([article.id])[article.id];
+            const pos = getNetwork().getPositions([article.id])[article.id];
             if (pos) {
                 minX = Math.min(minX, pos.x);
                 minY = Math.min(minY, pos.y);
@@ -48,7 +48,7 @@ export function initializeZonesFromTags() {
             height: maxY - minY + padding * 2
         };
         
-        state.tagZones.push(zone);
+        getStore().addTagZone(zone);
     });
     
     // Save zones
@@ -57,11 +57,11 @@ export function initializeZonesFromTags() {
 
 // Position nodes inside their zones after loading project
 export function positionNodesInZones() {
-    if (!state.network) return;
+    if (!getNetwork()) return;
     
     // Get current positions of ALL nodes to avoid overlap
-    const currentPositions = state.network.getPositions();
-    const savedPositions = state.savedNodePositions || {};
+    const currentPositions = getNetwork().getPositions();
+    const savedPositions = getStore().savedNodePositions || {};
     const occupiedPositions = [];
     
     // Record all existing node positions (from saved or current)
@@ -92,10 +92,10 @@ export function positionNodesInZones() {
     const nodesToUpdate = [];
     
     // Handle nodes WITH tags (position in zones)
-    if (state.tagZones.length > 0) {
-        state.tagZones.forEach(zone => {
+    if (getStore().tagZones.length > 0) {
+        getStore().tagZones.forEach(zone => {
             // Find all articles with this tag
-            const articlesWithTag = state.appData.articles.filter(a => a.categories.includes(zone.tag));
+            const articlesWithTag = getStore().appData.articles.filter(a => a.categories.includes(zone.tag));
             
             if (articlesWithTag.length === 0) return;
             
@@ -161,7 +161,7 @@ export function positionNodesInZones() {
     }
     
     // Handle nodes WITHOUT tags (position in grid)
-    const untaggedArticles = state.appData.articles.filter(a => !a.categories || a.categories.length === 0);
+    const untaggedArticles = getStore().appData.articles.filter(a => !a.categories || a.categories.length === 0);
     
     if (untaggedArticles.length > 0) {
         // Create a grid layout for untagged nodes
@@ -222,7 +222,7 @@ export function positionNodesInZones() {
     
     // Apply all position updates at once
     if (nodesToUpdate.length > 0) {
-        state.network.body.data.nodes.update(nodesToUpdate);
+        getNetwork().body.data.nodes.update(nodesToUpdate);
         save(true);
     }
 }

@@ -1,12 +1,11 @@
 // ===== IMPORT FUNCTIONS =====
 // DOI, arXiv, and PDF import functionality
 
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
 import { isBibTeXFormat, parseBibTeXEntry, parseMultipleBibTeXEntries } from './bibtex-parser.js';
 import { save } from './persistence.js';
 import { updateGraph } from '../graph/render.js';
-import { renderListView } from '../ui/list/sidebar.js';
 import { updateCategoryFilters } from '../ui/filters.js';
 import { closeModal } from '../ui/modal.js';
 import { checkNodeZoneMembership } from '../graph/zones.js';
@@ -272,7 +271,7 @@ export async function processBibTeXImport() {
             const article = articles[0];
             
             // Store the imported article data globally so it can be used when saving
-            state.pendingImportArticle = article;
+            getStore().setPendingImportArticle(article);
             
             fillFormWithArticleData(article);
             showImportStatus(`✓ BibTeX entry imported: ${article.title}`, 'success');
@@ -287,12 +286,16 @@ export async function processBibTeXImport() {
             const numColumns = Math.ceil(articles.length / maxPerColumn);
             
             // Get viewport center so nodes appear on screen, not at project origin
-            const viewCenter = (typeof state.network !== 'undefined' && state.network)
-                ? state.network.getViewPosition()
+            const viewCenter = (typeof getNetwork() !== 'undefined' && getNetwork())
+                ? getNetwork().getViewPosition()
                 : { x: 0, y: 0 };
             
             articles.forEach((article, index) => {
-                article.id = state.appData.nextArticleId++;
+                const _nextId = getStore().appData.nextArticleId;
+
+                getStore().setNextArticleId(_nextId + 1);
+
+                article.id = _nextId;
                 
                 // Calculate column and row position
                 const columnIndex = Math.floor(index / maxPerColumn);
@@ -303,18 +306,17 @@ export async function processBibTeXImport() {
                 article.x = viewCenter.x + (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
                 article.y = viewCenter.y + (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
                 
-                state.appData.articles.push(article);
+                getStore().addArticle(article);
             });
             
             save();
             updateGraph();
-            renderListView();
             
             // Save initial positions to ensure they persist
             setTimeout(() => {
-                if (state.network && state.savedNodePositions) {
-                    const positions = state.network.getPositions();
-                    state.savedNodePositions = { ...state.savedNodePositions, ...positions };
+                if (getNetwork() && getStore().savedNodePositions) {
+                    const positions = getNetwork().getPositions();
+                    getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
                     console.log('Saved positions for newly imported articles');
                     
                     // Check node zone membership to update colors after positions are set
@@ -324,11 +326,11 @@ export async function processBibTeXImport() {
                         console.log('Applied zone colors to imported nodes');
                         
                         // Force graph update to reflect new colors
-                        const currentView = state.network.getViewPosition();
-                        const currentScale = state.network.getScale();
+                        const currentView = getNetwork().getViewPosition();
+                        const currentScale = getNetwork().getScale();
                         updateGraph();
                         // Restore view position
-                        state.network.moveTo({
+                        getNetwork().moveTo({
                             position: currentView,
                             scale: currentScale,
                             animation: false
@@ -489,7 +491,7 @@ export async function importFromDoi(doi) {
     }
     
     // Check if DOI already exists
-    const existingArticle = state.appData.articles.find(a => a.doi && a.doi.toLowerCase() === doi.toLowerCase());
+    const existingArticle = getStore().appData.articles.find(a => a.doi && a.doi.toLowerCase() === doi.toLowerCase());
     if (existingArticle) {
         const confirmImport = confirm(
             `⚠️ Warning: An article with this DOI already exists:\n\n` +
@@ -641,7 +643,7 @@ export async function importFromArxiv(arxivId) {
     console.log('Processing arXiv ID:', arxivId);
     
     // Check if arXiv ID already exists (in link or pdf fields)
-    const existingArticle = state.appData.articles.find(a => {
+    const existingArticle = getStore().appData.articles.find(a => {
         const linkHasArxiv = a.link && a.link.includes(arxivId);
         const pdfHasArxiv = a.pdf && a.pdf.includes(arxivId);
         return linkHasArxiv || pdfHasArxiv;
@@ -973,12 +975,16 @@ export async function importBibtexFile(event) {
         const numColumns = Math.ceil(articles.length / maxPerColumn);
         
         // Get viewport center so nodes appear on screen, not at project origin
-        const viewCenter = (typeof state.network !== 'undefined' && state.network)
-            ? state.network.getViewPosition()
+        const viewCenter = (typeof getNetwork() !== 'undefined' && getNetwork())
+            ? getNetwork().getViewPosition()
             : { x: 0, y: 0 };
         
         articles.forEach((article, index) => {
-            article.id = state.appData.nextArticleId++;
+            const _nextId = getStore().appData.nextArticleId;
+
+            getStore().setNextArticleId(_nextId + 1);
+
+            article.id = _nextId;
             
             // Calculate column and row position
             const columnIndex = Math.floor(index / maxPerColumn);
@@ -989,18 +995,17 @@ export async function importBibtexFile(event) {
             article.x = viewCenter.x + (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
             article.y = viewCenter.y + (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
             
-            state.appData.articles.push(article);
+            getStore().addArticle(article);
         });
         
         save();
         updateGraph();
-        renderListView();
         
         // Save initial positions to ensure they persist
         setTimeout(() => {
-            if (state.network && state.savedNodePositions) {
-                const positions = state.network.getPositions();
-                state.savedNodePositions = { ...state.savedNodePositions, ...positions };
+            if (getNetwork() && getStore().savedNodePositions) {
+                const positions = getNetwork().getPositions();
+                getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
                 console.log('Saved positions for newly imported articles from .bib file');
                 
                 // Check node zone membership to update colors after positions are set
@@ -1010,11 +1015,11 @@ export async function importBibtexFile(event) {
                     console.log('Applied zone colors to imported nodes from .bib file');
                     
                     // Force graph update to reflect new colors
-                    const currentView = state.network.getViewPosition();
-                    const currentScale = state.network.getScale();
+                    const currentView = getNetwork().getViewPosition();
+                    const currentScale = getNetwork().getScale();
                     updateGraph();
                     // Restore view position
-                    state.network.moveTo({
+                    getNetwork().moveTo({
                         position: currentView,
                         scale: currentScale,
                         animation: false
@@ -1027,8 +1032,8 @@ export async function importBibtexFile(event) {
         }, 200);
         
         // Center view on imported nodes
-        if (typeof state.network !== 'undefined' && state.network) {
-            state.network.fit({
+        if (typeof getNetwork() !== 'undefined' && getNetwork()) {
+            getNetwork().fit({
                 animation: {
                     duration: 500,
                     easingFunction: 'easeInOutQuad'
@@ -1046,6 +1051,5 @@ export async function importBibtexFile(event) {
         event.target.value = '';
     }
 }
-
 
 

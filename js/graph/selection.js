@@ -1,25 +1,197 @@
-import { state } from '../core/state.js';
+import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
-import { checkNodeZoneMembership } from './zones.js';
+import { checkNodeZoneMembership, hideZoneDeleteButton } from './zones.js';
 import { save } from '../data/persistence.js';
 import { showSelectionRadialMenu, showEmptyAreaMenu } from '../ui/radial-menu.js';
+import { updateCategoryFilters } from '../ui/filters.js';
 
 // ===== MULTI-SELECTION BOX =====
 
+const SELECTION_PADDING = 50;
+const FLOATING_MENU_OFFSET_Y = 44;
+
+function ensureSelectionBoxElement() {
+    if (getStore().multiSelection.selectionBox) {
+        return getStore().multiSelection.selectionBox;
+    }
+
+    const canvas = getNetwork().canvas.frame.canvas;
+    getStore().updateMultiSelection({ selectionBox: document.createElement('div') });
+    getStore().multiSelection.selectionBox.id = 'selectionBox';
+    getStore().multiSelection.selectionBox.style.position = 'absolute';
+    getStore().multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
+    getStore().multiSelection.selectionBox.style.backgroundColor = 'rgba(74, 144, 226, 0.1)';
+    getStore().multiSelection.selectionBox.style.pointerEvents = 'none';
+    getStore().multiSelection.selectionBox.style.zIndex = '1000';
+    canvas.parentElement.appendChild(getStore().multiSelection.selectionBox);
+
+    return getStore().multiSelection.selectionBox;
+}
+
+function updateSelectedZonesForDragFromNodes(nodeIds) {
+    const zonesSet = new Set();
+
+    nodeIds.forEach((nodeId) => {
+        const article = getStore().appData.articles.find((a) => a.id === nodeId);
+        if (!article || !(article.categories || []).length) return;
+
+        const nodeZones = [];
+        article.categories.forEach((tag) => {
+            const zoneIdx = getStore().tagZones.findIndex((z) => z.tag === tag);
+            if (zoneIdx !== -1) {
+                const zone = getStore().tagZones[zoneIdx];
+                nodeZones.push({ idx: zoneIdx, area: zone.width * zone.height });
+            }
+        });
+
+        if (nodeZones.length > 0) {
+            nodeZones.sort((a, b) => a.area - b.area);
+            zonesSet.add(nodeZones[0].idx);
+        }
+    });
+
+    getStore().updateMultiSelection({ selectedZonesForDrag: Array.from(zonesSet) });
+}
+
+function showSelectionMenuAtTopLeft(left, top, rect) {
+    const menuX = rect.left + left;
+    const menuY = rect.top + top - FLOATING_MENU_OFFSET_Y;
+    showSelectionRadialMenu(menuX, menuY);
+}
+
+function showEmptyAreaMenuAtTopLeft(left, top, rect) {
+    const menuX = rect.left + left;
+    const menuY = rect.top + top - FLOATING_MENU_OFFSET_Y;
+    showEmptyAreaMenu(menuX, menuY);
+}
+
+function setSelectionBoundsCanvas(bounds) {
+    getStore().updateMultiSelection({
+        selectionBoundsCanvas: bounds ? { ...bounds } : null
+    });
+}
+
+function applySelectionBoxFromCanvasBounds(bounds) {
+    if (!bounds) return null;
+
+    const selectionBox = ensureSelectionBoxElement();
+    const topLeft = getNetwork().canvasToDOM({ x: bounds.x, y: bounds.y });
+    const bottomRight = getNetwork().canvasToDOM({
+        x: bounds.x + bounds.width,
+        y: bounds.y + bounds.height
+    });
+    const graphContainer = document.getElementById('graphContainer');
+    const containerRect = graphContainer.getBoundingClientRect();
+
+    selectionBox.style.left = `${topLeft.x}px`;
+    selectionBox.style.top = `${topLeft.y}px`;
+    selectionBox.style.width = `${bottomRight.x - topLeft.x}px`;
+    selectionBox.style.height = `${bottomRight.y - topLeft.y}px`;
+    selectionBox.style.display = 'block';
+
+    return {
+        left: topLeft.x,
+        top: topLeft.y,
+        rect: containerRect
+    };
+}
+
+export function refreshSelectionOverlayPosition() {
+    const selectionBox = getStore().multiSelection.selectionBox;
+    if (!selectionBox || selectionBox.style.display === 'none') return;
+    if (getStore().multiSelection.active || getStore().multiSelection.boxDragging) return;
+
+    const bounds = getStore().multiSelection.selectionBoundsCanvas;
+    if (!bounds) return;
+
+    const layout = applySelectionBoxFromCanvasBounds(bounds);
+    if (!layout) return;
+
+    if (getStore().multiSelection.selectedNodes.length > 0) {
+        showSelectionMenuAtTopLeft(layout.left, layout.top, layout.rect);
+    } else if (getStore().multiSelection.emptyAreaSelection) {
+        showEmptyAreaMenuAtTopLeft(layout.left, layout.top, layout.rect);
+    }
+}
+
+export function syncSelectionBoxToNodes(nodeIds) {
+    const selectedNodes = [...new Set(nodeIds)];
+
+    if (selectedNodes.length === 0) {
+        hideSelectionBox();
+        getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+        return;
+    }
+
+    getStore().setSelectedZoneIndex(-1);
+    hideZoneDeleteButton();
+
+    const positions = getNetwork().getPositions(selectedNodes);
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    Object.values(positions).forEach((pos) => {
+        if (!pos) return;
+        minX = Math.min(minX, pos.x);
+        minY = Math.min(minY, pos.y);
+        maxX = Math.max(maxX, pos.x);
+        maxY = Math.max(maxY, pos.y);
+    });
+
+    if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
+        hideSelectionBox();
+        getStore().updateMultiSelection({ selectedNodes: [] });
+        getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+        return;
+    }
+
+    minX -= SELECTION_PADDING;
+    minY -= SELECTION_PADDING;
+    maxX += SELECTION_PADDING;
+    maxY += SELECTION_PADDING;
+
+    const topLeft = getNetwork().canvasToDOM({ x: minX, y: minY });
+    const bottomRight = getNetwork().canvasToDOM({ x: maxX, y: maxY });
+    const graphContainer = document.getElementById('graphContainer');
+    const containerRect = graphContainer.getBoundingClientRect();
+    const selectionBox = ensureSelectionBoxElement();
+
+    selectionBox.style.border = '2px dashed #4a90e2';
+    selectionBox.style.backgroundColor = 'rgba(74, 144, 226, 0.1)';
+    selectionBox.style.left = topLeft.x + 'px';
+    selectionBox.style.top = topLeft.y + 'px';
+    selectionBox.style.width = (bottomRight.x - topLeft.x) + 'px';
+    selectionBox.style.height = (bottomRight.y - topLeft.y) + 'px';
+    selectionBox.style.display = 'block';
+
+    getStore().updateMultiSelection({ selectedNodes });
+    setSelectionBoundsCanvas({
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY
+    });
+    updateSelectedZonesForDragFromNodes(selectedNodes);
+    getNetwork().selectNodes(selectedNodes);
+    showSelectionMenuAtTopLeft(topLeft.x, topLeft.y, containerRect);
+}
+
 export function hideSelectionBox() {
-    if (state.multiSelection.selectionBox) {
-        state.multiSelection.selectionBox.style.display = 'none';
+    if (getStore().multiSelection.selectionBox) {
+        getStore().multiSelection.selectionBox.style.display = 'none';
     }
     // NOTE: Don't reset selectedNodes here - it's managed elsewhere
-    state.multiSelection.active = false;
+    getStore().updateMultiSelection({ active: false });
 }
 
 export function startSelectionBox(event) {
-    if (state.connectionMode.active) return;
+    if (getStore().connectionMode.active) return;
     
-    state.multiSelection.active = true;
+    getStore().updateMultiSelection({ active: true });
     
-    state.network.setOptions({
+    getNetwork().setOptions({
         interaction: {
             dragNodes: false,
             dragView: false,
@@ -28,64 +200,56 @@ export function startSelectionBox(event) {
         }
     });
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     
-    state.multiSelection.startX = event.clientX - rect.left;
-    state.multiSelection.startY = event.clientY - rect.top;
+    getStore().updateMultiSelection({ startX: event.clientX - rect.left });
+    getStore().updateMultiSelection({ startY: event.clientY - rect.top });
     
-    if (!state.multiSelection.selectionBox) {
-        state.multiSelection.selectionBox = document.createElement('div');
-        state.multiSelection.selectionBox.id = 'selectionBox';
-        state.multiSelection.selectionBox.style.position = 'absolute';
-        state.multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
-        state.multiSelection.selectionBox.style.backgroundColor = 'rgba(74, 144, 226, 0.1)';
-        state.multiSelection.selectionBox.style.pointerEvents = 'none';
-        state.multiSelection.selectionBox.style.zIndex = '1000';
-        canvas.parentElement.appendChild(state.multiSelection.selectionBox);
-    }
+    ensureSelectionBoxElement();
     
-    state.multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
-    state.multiSelection.selectionBox.style.left = state.multiSelection.startX + 'px';
-    state.multiSelection.selectionBox.style.top = state.multiSelection.startY + 'px';
-    state.multiSelection.selectionBox.style.width = '0px';
-    state.multiSelection.selectionBox.style.height = '0px';
-    state.multiSelection.selectionBox.style.display = 'block';
+    getStore().multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
+    getStore().multiSelection.selectionBox.style.left = getStore().multiSelection.startX + 'px';
+    getStore().multiSelection.selectionBox.style.top = getStore().multiSelection.startY + 'px';
+    getStore().multiSelection.selectionBox.style.width = '0px';
+    getStore().multiSelection.selectionBox.style.height = '0px';
+    getStore().multiSelection.selectionBox.style.display = 'block';
 }
 
 export function startSelectionBoxDrag(event, mouseX, mouseY, boxLeft, boxTop) {
-    state.multiSelection.boxDragging = true;
-    state.multiSelection.boxDragStart = { x: mouseX, y: mouseY };
-    state.multiSelection.originalBoxPosition = { left: boxLeft, top: boxTop };
+    pauseHistory();
+    getStore().updateMultiSelection({ boxDragging: true });
+    getStore().updateMultiSelection({ boxDragStart: { x: mouseX, y: mouseY } });
+    getStore().updateMultiSelection({ originalBoxPosition: { left: boxLeft, top: boxTop } });
     
     // Store initial positions of nodes and zones for dragging
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
-    const boxWidth = parseFloat(state.multiSelection.selectionBox.style.width);
-    const boxHeight = parseFloat(state.multiSelection.selectionBox.style.height);
+    const boxWidth = parseFloat(getStore().multiSelection.selectionBox.style.width);
+    const boxHeight = parseFloat(getStore().multiSelection.selectionBox.style.height);
     
-    const topLeft = state.network.DOMtoCanvas({ x: boxLeft, y: boxTop });
-    const bottomRight = state.network.DOMtoCanvas({ x: boxLeft + boxWidth, y: boxTop + boxHeight });
+    const topLeft = getNetwork().DOMtoCanvas({ x: boxLeft, y: boxTop });
+    const bottomRight = getNetwork().DOMtoCanvas({ x: boxLeft + boxWidth, y: boxTop + boxHeight });
     
     // Store initial node positions
-    state.multiSelection.nodeDragStart = {};
-    state.multiSelection.selectedNodes.forEach(nodeId => {
-        const pos = state.network.getPositions([nodeId])[nodeId];
+    getStore().updateMultiSelection({ nodeDragStart: {} });
+    getStore().multiSelection.selectedNodes.forEach(nodeId => {
+        const pos = getNetwork().getPositions([nodeId])[nodeId];
         if (pos) {
-            state.multiSelection.nodeDragStart[nodeId] = { x: pos.x, y: pos.y };
+            getStore().multiSelection.nodeDragStart[nodeId] = { x: pos.x, y: pos.y };
         }
     });
     
     // Store initial zone positions for zones fully inside the selection
-    state.multiSelection.zonesDragStart = {};
-    console.log(`📦 Storing start positions for ${state.multiSelection.selectedZonesForDrag.length} zones...`);
-    state.multiSelection.selectedZonesForDrag.forEach(zoneIdx => {
-        const zone = state.tagZones[zoneIdx];
-        state.multiSelection.zonesDragStart[zoneIdx] = { x: zone.x, y: zone.y };
+    getStore().updateMultiSelection({ zonesDragStart: {} });
+    console.log(`📦 Storing start positions for ${getStore().multiSelection.selectedZonesForDrag.length} zones...`);
+    getStore().multiSelection.selectedZonesForDrag.forEach(zoneIdx => {
+        const zone = getStore().tagZones[zoneIdx];
+        getStore().multiSelection.zonesDragStart[zoneIdx] = { x: zone.x, y: zone.y };
         console.log(`  Zone ${zoneIdx} (${zone.tag}): start at x=${zone.x.toFixed(1)}, y=${zone.y.toFixed(1)}`);
     });
     
-    state.network.setOptions({
+    getNetwork().setOptions({
         interaction: {
             dragNodes: false,
             dragView: false,
@@ -96,44 +260,46 @@ export function startSelectionBoxDrag(event, mouseX, mouseY, boxLeft, boxTop) {
 }
 
 export function updateSelectionBoxDrag(event) {
-    if (!state.multiSelection.boxDragging) return;
+    if (!getStore().multiSelection.boxDragging) return;
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
     
-    const dx = mouseX - state.multiSelection.boxDragStart.x;
-    const dy = mouseY - state.multiSelection.boxDragStart.y;
+    const dx = mouseX - getStore().multiSelection.boxDragStart.x;
+    const dy = mouseY - getStore().multiSelection.boxDragStart.y;
     
     // Move the selection box
-    const newLeft = state.multiSelection.originalBoxPosition.left + dx;
-    const newTop = state.multiSelection.originalBoxPosition.top + dy;
+    const newLeft = getStore().multiSelection.originalBoxPosition.left + dx;
+    const newTop = getStore().multiSelection.originalBoxPosition.top + dy;
     
-    state.multiSelection.selectionBox.style.left = newLeft + 'px';
-    state.multiSelection.selectionBox.style.top = newTop + 'px';
+    getStore().multiSelection.selectionBox.style.left = newLeft + 'px';
+    getStore().multiSelection.selectionBox.style.top = newTop + 'px';
     
     // Calculate canvas coordinate delta
-    const canvasDxStart = state.network.DOMtoCanvas({ x: state.multiSelection.boxDragStart.x, y: state.multiSelection.boxDragStart.y });
-    const canvasDxCurrent = state.network.DOMtoCanvas({ x: mouseX, y: mouseY });
+    const canvasDxStart = getNetwork().DOMtoCanvas({ x: getStore().multiSelection.boxDragStart.x, y: getStore().multiSelection.boxDragStart.y });
+    const canvasDxCurrent = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
     const canvasDx = canvasDxCurrent.x - canvasDxStart.x;
     const canvasDy = canvasDxCurrent.y - canvasDxStart.y;
     
     // Move all selected nodes
-    Object.keys(state.multiSelection.nodeDragStart).forEach(nodeId => {
-        const startPos = state.multiSelection.nodeDragStart[nodeId];
-        state.network.moveNode(nodeId, startPos.x + canvasDx, startPos.y + canvasDy);
+    Object.keys(getStore().multiSelection.nodeDragStart).forEach(nodeId => {
+        const startPos = getStore().multiSelection.nodeDragStart[nodeId];
+        getNetwork().moveNode(nodeId, startPos.x + canvasDx, startPos.y + canvasDy);
     });
     
     // Move all selected zones
-    if (state.multiSelection.selectedZonesForDrag && state.multiSelection.selectedZonesForDrag.length > 0) {
-        console.log(`📦 Moving ${state.multiSelection.selectedZonesForDrag.length} zones with selection box...`);
-        state.multiSelection.selectedZonesForDrag.forEach(zoneIdx => {
-            const zone = state.tagZones[zoneIdx];
-            const startPos = state.multiSelection.zonesDragStart[zoneIdx];
+    if (getStore().multiSelection.selectedZonesForDrag && getStore().multiSelection.selectedZonesForDrag.length > 0) {
+        console.log(`📦 Moving ${getStore().multiSelection.selectedZonesForDrag.length} zones with selection box...`);
+        getStore().multiSelection.selectedZonesForDrag.forEach(zoneIdx => {
+            const zone = getStore().tagZones[zoneIdx];
+            const startPos = getStore().multiSelection.zonesDragStart[zoneIdx];
             if (startPos) {
-                zone.x = startPos.x + canvasDx;
-                zone.y = startPos.y + canvasDy;
+                getStore().updateTagZone(zoneIdx, {
+                    x: startPos.x + canvasDx,
+                    y: startPos.y + canvasDy,
+                });
                 console.log(`  Moved zone ${zoneIdx} (${zone.tag}) by dx=${canvasDx.toFixed(1)}, dy=${canvasDy.toFixed(1)}`);
             } else {
                 console.warn(`  ⚠️ No start position for zone ${zoneIdx}`);
@@ -143,27 +309,65 @@ export function updateSelectionBoxDrag(event) {
         console.log('No zones to move (selectedZonesForDrag empty)');
     }
     
-    state.network.redraw();
+    getNetwork().redraw();
 }
 
 export function endSelectionBoxDrag() {
-    if (!state.multiSelection.boxDragging) return;
+    if (!getStore().multiSelection.boxDragging) return;
     
-    state.multiSelection.boxDragging = false;
-    
-    // Update zone membership for moved nodes
-    checkNodeZoneMembership();
-    
-    // Save positions
-    const positions = state.network.getPositions();
-    state.savedNodePositions = positions;
+    getStore().updateMultiSelection({ boxDragging: false });
+
+    const draggedZoneIndexes = getStore().multiSelection.selectedZonesForDrag || [];
+    const currentTagZones = getStore().tagZones;
+    const finalTagZones = draggedZoneIndexes.length > 0
+        ? currentTagZones.map((zone) => ({ ...zone }))
+        : null;
+
+    if (finalTagZones) {
+        const revertedTagZones = currentTagZones.map((zone, index) => {
+            const startPos = getStore().multiSelection.zonesDragStart[index];
+            return startPos
+                ? { ...zone, x: startPos.x, y: startPos.y }
+                : { ...zone };
+        });
+        getStore().setTagZones(revertedTagZones);
+    }
+
+    const positions = getNetwork().getPositions(getStore().appData.articles.map((article) => article.id));
+    const { articles: finalArticles } = checkNodeZoneMembership({
+        positions,
+        tagZones: finalTagZones || getStore().tagZones,
+        persistToStore: false,
+        saveChanges: false,
+        refreshFilters: false,
+    });
+
+    const boxLeft = parseFloat(getStore().multiSelection.selectionBox.style.left);
+    const boxTop = parseFloat(getStore().multiSelection.selectionBox.style.top);
+    const boxWidth = parseFloat(getStore().multiSelection.selectionBox.style.width);
+    const boxHeight = parseFloat(getStore().multiSelection.selectionBox.style.height);
+    const topLeft = getNetwork().DOMtoCanvas({ x: boxLeft, y: boxTop });
+    const bottomRight = getNetwork().DOMtoCanvas({ x: boxLeft + boxWidth, y: boxTop + boxHeight });
+    setSelectionBoundsCanvas({
+        x: topLeft.x,
+        y: topLeft.y,
+        width: bottomRight.x - topLeft.x,
+        height: bottomRight.y - topLeft.y
+    });
+    resumeHistory();
+    getStore().commitTrackedGraphState({
+        articles: finalArticles,
+        savedNodePositions: positions,
+        ...(finalTagZones ? { tagZones: finalTagZones } : {}),
+    });
+    updateCategoryFilters();
     save(true);
     
-    state.network.setOptions({
+    getNetwork().setOptions({
         interaction: {
             dragNodes: true,
             dragView: false,
-            zoomView: true,
+            zoomView: false,
             hover: true,
             hoverConnectedEdges: true,
             selectConnectedEdges: true,
@@ -174,45 +378,45 @@ export function endSelectionBoxDrag() {
 }
 
 export function updateSelectionBox(event) {
-    if (!state.multiSelection.active || !state.multiSelection.selectionBox) return;
+    if (!getStore().multiSelection.active || !getStore().multiSelection.selectionBox) return;
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     const currentX = event.clientX - rect.left;
     const currentY = event.clientY - rect.top;
     
-    const left = Math.min(state.multiSelection.startX, currentX);
-    const top = Math.min(state.multiSelection.startY, currentY);
-    const width = Math.abs(currentX - state.multiSelection.startX);
-    const height = Math.abs(currentY - state.multiSelection.startY);
+    const left = Math.min(getStore().multiSelection.startX, currentX);
+    const top = Math.min(getStore().multiSelection.startY, currentY);
+    const width = Math.abs(currentX - getStore().multiSelection.startX);
+    const height = Math.abs(currentY - getStore().multiSelection.startY);
     
-    state.multiSelection.selectionBox.style.left = left + 'px';
-    state.multiSelection.selectionBox.style.top = top + 'px';
-    state.multiSelection.selectionBox.style.width = width + 'px';
-    state.multiSelection.selectionBox.style.height = height + 'px';
+    getStore().multiSelection.selectionBox.style.left = left + 'px';
+    getStore().multiSelection.selectionBox.style.top = top + 'px';
+    getStore().multiSelection.selectionBox.style.width = width + 'px';
+    getStore().multiSelection.selectionBox.style.height = height + 'px';
 }
 
 export function endSelectionBox() {
-    if (!state.multiSelection.active) return;
+    if (!getStore().multiSelection.active) return;
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     
-    const boxLeft = parseFloat(state.multiSelection.selectionBox.style.left);
-    const boxTop = parseFloat(state.multiSelection.selectionBox.style.top);
-    const boxWidth = parseFloat(state.multiSelection.selectionBox.style.width);
-    const boxHeight = parseFloat(state.multiSelection.selectionBox.style.height);
+    const boxLeft = parseFloat(getStore().multiSelection.selectionBox.style.left);
+    const boxTop = parseFloat(getStore().multiSelection.selectionBox.style.top);
+    const boxWidth = parseFloat(getStore().multiSelection.selectionBox.style.width);
+    const boxHeight = parseFloat(getStore().multiSelection.selectionBox.style.height);
     
     // If box is too small (just a click), hide it and cancel
     if (boxWidth < 10 && boxHeight < 10) {
-        state.multiSelection.selectionBox.style.display = 'none';
-        state.multiSelection.active = false;
+        getStore().multiSelection.selectionBox.style.display = 'none';
+        getStore().updateMultiSelection({ active: false });
         
-        state.network.setOptions({
+        getNetwork().setOptions({
             interaction: {
                 dragNodes: true,
                 dragView: false,
-                zoomView: true,
+                zoomView: false,
                 hover: true,
                 hoverConnectedEdges: true,
                 selectConnectedEdges: true,
@@ -223,21 +427,21 @@ export function endSelectionBox() {
         return;
     }
     
-    const topLeft = state.network.DOMtoCanvas({ 
+    const topLeft = getNetwork().DOMtoCanvas({ 
         x: boxLeft, 
         y: boxTop 
     });
-    const bottomRight = state.network.DOMtoCanvas({ 
+    const bottomRight = getNetwork().DOMtoCanvas({ 
         x: boxLeft + boxWidth, 
         y: boxTop + boxHeight 
     });
     
-    state.multiSelection.selectedNodes = [];
+    getStore().updateMultiSelection({ selectedNodes: [] });
     
     // Check if any tag zones are completely within the selection
     const fullySelectedZones = [];
     console.log('🔍 Checking for zones in selection box...');
-    state.tagZones.forEach((zone, idx) => {
+    getStore().tagZones.forEach((zone, idx) => {
         const zoneFullyInSelection = zone.x >= topLeft.x && 
                                      zone.y >= topLeft.y &&
                                      zone.x + zone.width <= bottomRight.x &&
@@ -248,9 +452,9 @@ export function endSelectionBox() {
             fullySelectedZones.push({ zone, idx });
             
             // Add all nodes with this zone's tag to selection
-            state.appData.articles.forEach(article => {
-                if (article.categories.includes(zone.tag) && !state.multiSelection.selectedNodes.includes(article.id)) {
-                    state.multiSelection.selectedNodes.push(article.id);
+            getStore().appData.articles.forEach(article => {
+                if (article.categories.includes(zone.tag) && !getStore().multiSelection.selectedNodes.includes(article.id)) {
+                    getStore().multiSelection.selectedNodes.push(article.id);
                     console.log(`  Added node ${article.id} (has tag "${zone.tag}")`);
                 }
             });
@@ -260,22 +464,22 @@ export function endSelectionBox() {
     console.log(`📦 Found ${fullySelectedZones.length} fully selected zones`);
     
     // Add nodes that are directly in the selection box
-    state.appData.articles.forEach(article => {
-        const pos = state.network.getPositions([article.id])[article.id];
+    getStore().appData.articles.forEach(article => {
+        const pos = getNetwork().getPositions([article.id])[article.id];
         if (pos) {
             if (pos.x >= topLeft.x && pos.x <= bottomRight.x &&
                 pos.y >= topLeft.y && pos.y <= bottomRight.y) {
-                if (!state.multiSelection.selectedNodes.includes(article.id)) {
-                    state.multiSelection.selectedNodes.push(article.id);
+                if (!getStore().multiSelection.selectedNodes.includes(article.id)) {
+                    getStore().multiSelection.selectedNodes.push(article.id);
                 }
             }
         }
     });
     
-    if (state.multiSelection.selectionBox) {
-        state.multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
+    if (getStore().multiSelection.selectionBox) {
+        getStore().multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
     }
-    state.multiSelection.active = false;
+    getStore().updateMultiSelection({ active: false });
     
     // Store fully selected zones for dragging, sorted by size (smallest first)
     fullySelectedZones.sort((a, b) => {
@@ -283,15 +487,21 @@ export function endSelectionBox() {
         const areaB = b.zone.width * b.zone.height;
         return areaA - areaB;
     });
-    state.multiSelection.selectedZonesForDrag = fullySelectedZones.map(fz => fz.idx);
-    console.log(`📦 Zones to drag:`, state.multiSelection.selectedZonesForDrag);
-    console.log(`📦 Selected ${state.multiSelection.selectedNodes.length} nodes total`);
+    getStore().updateMultiSelection({ selectedZonesForDrag: fullySelectedZones.map(fz => fz.idx) });
+    setSelectionBoundsCanvas({
+        x: topLeft.x,
+        y: topLeft.y,
+        width: bottomRight.x - topLeft.x,
+        height: bottomRight.y - topLeft.y
+    });
+    console.log(`📦 Zones to drag:`, getStore().multiSelection.selectedZonesForDrag);
+    console.log(`📦 Selected ${getStore().multiSelection.selectedNodes.length} nodes total`);
     
-    state.network.setOptions({
+    getNetwork().setOptions({
         interaction: {
             dragNodes: true,
             dragView: false,
-            zoomView: true,
+            zoomView: false,
             hover: true,
             hoverConnectedEdges: true,
             selectConnectedEdges: true,
@@ -300,37 +510,30 @@ export function endSelectionBox() {
         }
     });
     
-    if (state.multiSelection.selectedNodes.length > 0) {
-        state.network.selectNodes(state.multiSelection.selectedNodes);
+    if (getStore().multiSelection.selectedNodes.length > 0) {
+        getNetwork().selectNodes(getStore().multiSelection.selectedNodes);
         
-        const menuX = rect.left + boxLeft + boxWidth / 2;
-        const menuY = rect.top + boxTop - 30;
-        
-        showSelectionRadialMenu(menuX, menuY);
+        showSelectionMenuAtTopLeft(boxLeft, boxTop, rect);
     } else {
-        // No nodes selected, but allow creating a zone on the selected area
-        const menuX = rect.left + boxLeft + boxWidth / 2;
-        const menuY = rect.top + boxTop - 30;
-        
         // Store the area for zone creation
-        state.multiSelection.emptyAreaSelection = {
+        getStore().updateMultiSelection({ emptyAreaSelection: {
             x: topLeft.x,
             y: topLeft.y,
             width: bottomRight.x - topLeft.x,
             height: bottomRight.y - topLeft.y
-        };
+        } });
         
-        console.log('Empty area selection:', state.multiSelection.emptyAreaSelection);
-        showEmptyAreaMenu(menuX, menuY);
+        console.log('Empty area selection:', getStore().multiSelection.emptyAreaSelection);
+        showEmptyAreaMenuAtTopLeft(boxLeft, boxTop, rect);
     }
 }
 
 // ===== SNAP TO GRID =====
 export function snapNodesToGrid(nodeIds, realtime = false) {
-    if (!state.network) return;
+    if (!getNetwork()) return;
     
     const gridSpacing = 60; // Match the grid display spacing
-    const positions = state.network.getPositions(nodeIds);
+    const positions = getNetwork().getPositions(nodeIds);
     const nodesToUpdate = [];
     
     nodeIds.forEach(nodeId => {
@@ -349,7 +552,7 @@ export function snapNodesToGrid(nodeIds, realtime = false) {
     });
     
     if (nodesToUpdate.length > 0) {
-        state.network.body.data.nodes.update(nodesToUpdate);
+        getNetwork().body.data.nodes.update(nodesToUpdate);
     }
 }
 
@@ -377,13 +580,13 @@ export function getNodeLabel(article, format) {
 export function applyNodeLabelFormat(format) {
     localStorage.setItem('nodeLabelFormat', format);
     
-    if (!state.network) return;
+    if (!getNetwork()) return;
     
-    const nodesToUpdate = state.appData.articles.map(article => ({
+    const nodesToUpdate = getStore().appData.articles.map(article => ({
         id: article.id,
         label: getNodeLabel(article, format)
     }));
     
-    state.network.body.data.nodes.update(nodesToUpdate);
+    getNetwork().body.data.nodes.update(nodesToUpdate);
     showNotification(`Node labels updated to: ${format}`, 'success');
 }

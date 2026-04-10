@@ -2,7 +2,7 @@
 // Centralised bibliography generation, caching, and LaTeX/BibTeX escaping.
 // Replaces scattered code previously in sidebar.js, pdf-preview.js, and export.js.
 
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { articleToBibTeX } from './bibtex-parser.js';
 import { onSave } from './persistence.js';
 
@@ -21,8 +21,8 @@ export function getBibliography() {
     if (_cachedBibContent !== null) return _cachedBibContent;
 
     let bib = '';
-    if (state.appData.articles && state.appData.articles.length > 0) {
-        state.appData.articles.forEach(article => {
+    if (getStore().appData.articles && getStore().appData.articles.length > 0) {
+        getStore().appData.articles.forEach(article => {
             if (article.bibtexId) {
                 bib += articleToBibTeX(article) + '\n';
             }
@@ -41,7 +41,7 @@ export function getBibliography() {
 export function scheduleBibliographyRebuild() {
     clearTimeout(_bibRebuildTimer);
     _bibRebuildTimer = setTimeout(() => {
-        if (!state.appData || !state.appData.articles) return;
+        if (!getStore().appData || !getStore().appData.articles) return;
         _cachedBibContent = null;
         _cachedBibContent = getBibliography();
     }, 300);

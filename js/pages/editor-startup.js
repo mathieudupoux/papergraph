@@ -1,13 +1,23 @@
-import { state } from '../core/state.js';
+import { getStore, getNetwork, pauseHistory, resumeHistory, clearHistory } from '../store/appStore.js';
+import { initShortcuts } from '../core/shortcuts.js';
 import { showNotification } from '../utils/helpers.js';
 import { load } from '../data/persistence.js';
 import { scheduleBibliographyRebuild } from '../data/bibliography.js';
 import { initializeEventListeners } from '../core/init.js';
 import { updateCategoryFilters } from '../ui/filters.js';
-import { renderListView } from '../ui/list/sidebar.js';
 import { initializeGraph } from '../graph/init.js';
 import { initCloudStorage } from '../data/cloud-storage.js';
 import { includesReady } from '../utils/load-footer.js';
+import { getSession } from '../auth/auth.js';
+import { config } from '../auth/config.js';
+
+function redirectToLanding() {
+    window.location.replace('index.html');
+}
+
+function redirectToProjects() {
+    window.location.replace('projects.html');
+}
 
 async function initApp() {
             // Check if importing from gallery
@@ -34,6 +44,25 @@ async function initApp() {
                     }
                 } catch { galleryProject = null; }
             }
+
+            const isGalleryAccess = Boolean(gallerySlug || galleryProject);
+            const hasExplicitProjectContext = Boolean(projectId || shareToken || importFromGallery);
+            const session = await getSession();
+
+            // Signed-in users should only reach the editor when opening a real
+            // project context. Gallery access stays allowed separately.
+            if (!isGalleryAccess && session && !hasExplicitProjectContext) {
+                redirectToProjects();
+                return;
+            }
+
+            // On the hosted app, unauthenticated users should not access the
+            // editor directly unless they are viewing a gallery project.
+            if (!config.isDevelopment && !isGalleryAccess && !session) {
+                redirectToLanding();
+                return;
+            }
+
             if (gallerySlug && !galleryProject) {
                 try {
                     const [metaResp, dataResp] = await Promise.all([
@@ -64,8 +93,8 @@ async function initApp() {
 
             if (galleryProject) {
                 // Set global flags for read-only viewer mode
-                state.isGalleryViewer = true;
-                state.isReadOnlyMode = true;
+                getStore().setIsGalleryViewer(true);
+                getStore().setIsReadOnlyMode(true);
                 
                 // Ensure URL reflects the gallery slug for shareability
                 const { data: _checkData, metadata: _checkMeta } = JSON.parse(galleryProject);
@@ -81,45 +110,32 @@ async function initApp() {
                     const { data: projectData, metadata } = JSON.parse(galleryProject);
                     
                     console.log('?? Loading gallery project:', metadata.title);
-
-                    
+                    pauseHistory();
                     // Load tag zones
                     const zones = projectData.zones || projectData.tagZones || [];
-                    if (zones.length > 0) {
-                        state.tagZones.length = 0;
-                        state.tagZones.push(...zones);
-                    } else {
-                        state.tagZones.length = 0;
-                    }
+                    getStore().setTagZones(zones);
                     
                     // Load positions (check both 'positions' and 'nodePositions' for compatibility)
                     const positions = projectData.positions || projectData.nodePositions || {};
                     if (Object.keys(positions).length > 0) {
-                        state.savedNodePositions = positions;
+                        getStore().setSavedNodePositions(positions);
                     } else {
-                        state.savedNodePositions = {};
+                        getStore().setSavedNodePositions({});
                     }
                     
-                    // Update state.appData properties (don't replace the whole object)
-                    state.appData.articles = (projectData.nodes || projectData.articles || []).map(a => ({
+                    // Update getStore().appData properties (don't replace the whole object)
+                    getStore().setArticles((projectData.nodes || projectData.articles || []).map(a => ({
                         ...a,
                         categories: Array.isArray(a.categories) ? a.categories : []
-                    }));
-                    state.appData.connections = projectData.edges || projectData.connections || [];
-                    state.appData.projectReview = projectData.projectReview || "";
-                    state.appData.projectReviewMeta = projectData.projectReviewMeta || {
-                        title: "Project Review",
-                        authorsData: [{name: "", affiliationNumbers: []}],
-                        affiliationsData: [{text: ""}],
-                        abstract: ""
-                    };
-                    state.appData.nextArticleId = Math.max(0, ...(projectData.nodes || projectData.articles || []).map(n => n.id || 0)) + 1;
-                    state.appData.nextConnectionId = Math.max(0, ...(projectData.edges || projectData.connections || []).map(e => e.id || 0)) + 1;
+                    })));
+                    getStore().setConnections(projectData.edges || projectData.connections || []);
+                    getStore().setNextArticleId(Math.max(0, ...(projectData.nodes || projectData.articles || []).map(n => n.id || 0)) + 1);
+                    getStore().setNextConnectionId(Math.max(0, ...(projectData.edges || projectData.connections || []).map(e => e.id || 0)) + 1);
                     
                     // Store metadata for display
-                    state.galleryProjectMetadata = metadata;
-                    state.galleryProjectData = { data: projectData, metadata: metadata };
-                    state.currentProjectId = metadata.id;
+                    getStore().setGalleryProjectMetadata(metadata);
+                    getStore().galleryProjectData = { data: projectData, metadata: metadata };
+                    getStore().setCurrentProjectId(metadata.id);
                     
                     // Set project title and make it readonly
                     const titleInput = document.getElementById('projectTitle');
@@ -133,6 +149,8 @@ async function initApp() {
                 } catch (error) {
                     console.error('? Error loading gallery project:', error);
                     showNotification('Failed to load gallery project', 'error');
+                } finally {
+                    resumeHistory();
                 }
             } else {
                 // Try to initialize cloud storage first (if project ID or share token is present)
@@ -154,20 +172,19 @@ async function initApp() {
                     if (galleryProjectLocal) {
                         try {
                             const projectData = JSON.parse(galleryProjectLocal);
-                            
+                            pauseHistory();
                             // Import the project data
                             if (projectData.tagZones) {
-                                state.tagZones.length = 0;
-                                state.tagZones.push(...projectData.tagZones);
+                                getStore().setTagZones(projectData.tagZones);
                                 delete projectData.tagZones;
                             }
                             if (projectData.nodePositions) {
-                                state.savedNodePositions = projectData.nodePositions;
+                                getStore().setSavedNodePositions(projectData.nodePositions);
                                 delete projectData.nodePositions;
                             }
                             
                             
-Object.assign(state.appData, projectData);
+Object.assign(getStore().appData, projectData);
 
                             
                             // Clean up
@@ -177,9 +194,32 @@ Object.assign(state.appData, projectData);
                         } catch (err) {
                             console.error('Error loading gallery project:', err);
                             showNotification('Failed to load gallery project', 'error');
+                        } finally {
+                            resumeHistory();
                         }
+                    } else if (session || !config.isDevelopment) {
+                        redirectToProjects();
+                        return;
                     }
                 } else if (!cloudLoaded) {
+                    // If a signed-in user tried to open a cloud/shared project but it
+                    // couldn't be resolved, do not fall back to cached local data.
+                    if (session && hasExplicitProjectContext) {
+                        redirectToProjects();
+                        return;
+                    }
+
+                    // On the hosted app, unauthenticated users also shouldn't
+                    // fall back to cached local data for broken project links.
+                    if (!config.isDevelopment && hasExplicitProjectContext) {
+                        if (session) {
+                            redirectToProjects();
+                        } else {
+                            redirectToLanding();
+                        }
+                        return;
+                    }
+
                     // Normal load from localStorage (only if not loaded from cloud)
                     load();
                 }
@@ -189,14 +229,16 @@ Object.assign(state.appData, projectData);
             await includesReady;
             
             initializeEventListeners();
+            initShortcuts();
             updateCategoryFilters();
-            renderListView();
+            // Clear any history entries created during loading so undo starts clean
+            clearHistory();
 
             // Pre-build bibliography cache after initial load
             scheduleBibliographyRebuild();
             
             // Hide "Add Node" button if in gallery viewer mode
-            if (state.isGalleryViewer) {
+            if (getStore().isGalleryViewer) {
                 const addBtn = document.getElementById('addArticleBtn');
                 if (addBtn) {
                     addBtn.style.display = 'none';
@@ -220,7 +262,7 @@ Object.assign(state.appData, projectData);
                         restoreControlPointNodes();
                         
                         // Rebuild edges with control points
-                        Object.keys(state.edgeControlPoints || {}).forEach(edgeId => {
+                        Object.keys(getStore().edgeControlPoints || {}).forEach(edgeId => {
                             if (typeof rebuildEdgeWithControlPoints === 'function') {
                                 rebuildEdgeWithControlPoints(parseInt(edgeId));
                             }
@@ -243,7 +285,7 @@ Object.assign(state.appData, projectData);
                         
                         if (session) {
                             // Save with preview for dashboard
-                            if (!state.isReadOnlyMode) {
+                            if (!getStore().isReadOnlyMode) {
                                 try {
                                     const { saveToCloudWithPreview } = await import('../data/cloud-storage.js');
                                     await saveToCloudWithPreview();
@@ -272,7 +314,7 @@ Object.assign(state.appData, projectData);
             });
             
             // Set initial title from localStorage or default
-            if (projectTitleInput && !state.isGalleryViewer) {
+            if (projectTitleInput && !getStore().isGalleryViewer) {
                 // Helper function to resize input based on content
                 const resizeInput = (input) => {
                     const span = document.createElement('span');
@@ -370,8 +412,8 @@ Object.assign(state.appData, projectData);
         // Save positions before page unload (refresh, close, etc.)
         window.addEventListener('beforeunload', () => {
             console.log('=== BEFORE UNLOAD - Saving positions ===');
-            if (state.network) {
-                const positions = state.network.getPositions();
+            if (getNetwork()) {
+                const positions = getNetwork().getPositions();
                 console.log('Positions to save:', Object.keys(positions).length, 'nodes');
                 console.log('Sample positions:', Object.entries(positions).slice(0, 3));
                 localStorage.setItem('papermap_positions', JSON.stringify(positions));
@@ -512,16 +554,16 @@ Object.assign(state.appData, projectData);
         // Auto-start tour on first visit
         window.addEventListener('load', () => {
             const isHidden = localStorage.getItem('papergraph_hide_tutorial');
-            console.log('Page loaded. Tour hidden:', isHidden, 'Read-only mode:', state.isReadOnlyMode);
+            console.log('Page loaded. Tour hidden:', isHidden, 'Read-only mode:', getStore().isReadOnlyMode);
             
-            if (!isHidden && !state.isReadOnlyMode) {
+            if (!isHidden && !getStore().isReadOnlyMode) {
                 console.log('Auto-starting tour in 1.5 seconds...');
                 setTimeout(() => startInteractiveTour(), 1500);
             }
         });
         
         // ===== READ-ONLY MODE SETUP =====
-        if (state.isReadOnlyMode) {
+        if (getStore().isReadOnlyMode) {
             console.log('?? Configuring read-only mode...');
             
             // Show read-only bar (contains both label and copy button)
@@ -540,8 +582,8 @@ Object.assign(state.appData, projectData);
             }
             
             // Set project title from gallery data
-            if (state.galleryProjectData && state.galleryProjectData.metadata) {
-                const title = state.galleryProjectData.metadata.title;
+            if (getStore().galleryProjectData && getStore().galleryProjectData.metadata) {
+                const title = getStore().galleryProjectData.metadata.title;
                 document.getElementById('projectTitle').value = title;
                 document.getElementById('projectTitle').disabled = true;
                 document.title = `${title} - Papergraph Gallery`;
@@ -560,8 +602,8 @@ Object.assign(state.appData, projectData);
                 try {
                     const { copyProjectToWorkspace } = await import('../data/gallery.js');
                     await copyProjectToWorkspace(
-                        state.galleryProjectData.data,
-                        state.galleryProjectData.metadata
+                        getStore().galleryProjectData.data,
+                        getStore().galleryProjectData.metadata
                     );
                 } catch (error) {
                     console.error('Error copying project:', error);
@@ -586,5 +628,3 @@ window.toggleAuthorsContent = function toggleAuthorsContent() {
         btn.textContent = "?";
     }
 };
-
-

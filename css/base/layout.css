@@ -24,8 +24,3 @@
     opacity: 1;
     pointer-events: auto;
 }
-
-/* List View specific - add top margin */
-#listView {
-    padding-top: 120px;
-}

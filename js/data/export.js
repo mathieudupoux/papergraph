@@ -1,13 +1,11 @@
 // ===== EXPORT / IMPORT FUNCTIONS =====
-// Project export, import, and PDF generation
+// Project export and import
 
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { darkenColor, showNotification, getContrastColor } from '../utils/helpers.js';
 import { save } from './persistence.js';
 import { articleToBibTeX } from './bibtex-parser.js';
-import { getBibliography, escapeLatex } from './bibliography.js';
 import { updateCategoryFilters } from '../ui/filters.js';
-import { renderListView } from '../ui/list/sidebar.js';
 import { updateGraph } from '../graph/render.js';
 import { closeArticlePreview } from '../ui/preview.js';
 
@@ -17,9 +15,9 @@ export function getExportFilename(extension = 'papergraph') {
     let authorName = '';
     
     // Check if we're in gallery viewer mode with metadata
-    if (state.galleryProjectMetadata) {
-        projectTitle = state.galleryProjectMetadata.title || projectTitle;
-        authorName = state.galleryProjectMetadata.author || '';
+    if (getStore().galleryProjectMetadata) {
+        projectTitle = getStore().galleryProjectMetadata.title || projectTitle;
+        authorName = getStore().galleryProjectMetadata.author || '';
     } else {
         // Normal editor mode - get title from input or localStorage
         const titleInput = document.getElementById('projectTitleInput') || document.getElementById('projectTitle');
@@ -45,34 +43,34 @@ export function getExportFilename(extension = 'papergraph') {
 
 export function newProject() {
     if (confirm('Créer un nouveau projet vide ? Les données non exportées seront perdues.')) {
-        state.appData = {
+        getStore().setAppData({
             articles: [],
             connections: [],
             nextArticleId: 1,
             nextConnectionId: 1
-        };
-        state.tagZones = [];
-        state.currentCategoryFilter = '';
-        state.selectedNodeId = null;
+        });
+        getStore().setTagZones([]);
+        getStore().currentCategoryFilter = '';
+        getStore().setSelectedNodeId(null);
         selectedEdgeIndex = -1;
         
         // Clear edge control points
-        state.edgeControlPoints = {};
-        state.nextControlPointId = -1;
+        getStore().setEdgeControlPoints({});
+        getStore().setNextControlPointId(-1);
         
         // Remove all control point nodes (negative IDs) from the network
-        if (state.network) {
-            const allNodes = state.network.body.data.nodes.get();
+        if (getNetwork()) {
+            const allNodes = getNetwork().body.data.nodes.get();
             const controlPointNodes = allNodes.filter(node => node.id < 0);
             if (controlPointNodes.length > 0) {
-                state.network.body.data.nodes.remove(controlPointNodes.map(n => n.id));
+                getNetwork().body.data.nodes.remove(controlPointNodes.map(n => n.id));
             }
             
             // Remove all segment edges (IDs containing _seg_)
-            const allEdges = state.network.body.data.edges.get();
+            const allEdges = getNetwork().body.data.edges.get();
             const segmentEdges = allEdges.filter(edge => edge.id.toString().includes('_seg_'));
             if (segmentEdges.length > 0) {
-                state.network.body.data.edges.remove(segmentEdges.map(e => e.id));
+                getNetwork().body.data.edges.remove(segmentEdges.map(e => e.id));
             }
         }
         
@@ -82,11 +80,10 @@ export function newProject() {
         localStorage.removeItem('papermap_positions');
         localStorage.removeItem('papermap_edge_control_points');
         localStorage.removeItem('papermap_next_control_point_id');
-        state.savedNodePositions = {};
+        getStore().setSavedNodePositions({});
         
         save();
         updateCategoryFilters();
-        renderListView();
         updateGraph();
         closeArticlePreview();
         
@@ -97,9 +94,9 @@ export function newProject() {
 export function exportProject() {
     // Include tagZones and node positions in the export
     const exportData = {
-        ...state.appData,
-        tagZones: state.tagZones,
-        nodePositions: state.savedNodePositions || {}
+        ...getStore().appData,
+        tagZones: getStore().tagZones,
+        nodePositions: getStore().savedNodePositions || {}
     };
     const dataStr = JSON.stringify(exportData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
@@ -115,12 +112,12 @@ export function exportProject() {
 }
 
 export function exportToImage() {
-    if (!state.network) {
+    if (!getNetwork()) {
         showNotification('Le graphe n\'est pas encore initialisé', 'error');
         return;
     }
     
-    const canvas = state.network.canvas.frame.canvas;
+    const canvas = getNetwork().canvas.frame.canvas;
     const url = canvas.toDataURL('image/png');
     
     const a = document.createElement('a');
@@ -132,39 +129,39 @@ export function exportToImage() {
 }
 
 export function exportToSVG() {
-    if (!state.network) {
+    if (!getNetwork()) {
         showNotification('Le graphe n\'est pas encore initialisé', 'error');
         return;
     }
     
     try {
-        const canvas = state.network.canvas.frame.canvas;
+        const canvas = getNetwork().canvas.frame.canvas;
         
         // Use the actual canvas dimensions (what's visible)
         const width = canvas.width;
         const height = canvas.height;
         
         // Get all positions in canvas coordinates
-        const positions = state.network.getPositions();
-        const scale = state.network.getScale();
-        const viewPosition = state.network.getViewPosition();
+        const positions = getNetwork().getPositions();
+        const scale = getNetwork().getScale();
+        const viewPosition = getNetwork().getViewPosition();
         
         let svgElements = [];
         
         // Get nodes data first (needed for edge arrow positioning)
-        const nodes = state.network.body.data.nodes.get();
+        const nodes = getNetwork().body.data.nodes.get();
         
         // Draw zones first (background)
-        if (state.tagZones && state.tagZones.length > 0) {
-            const sortedZones = [...state.tagZones].sort((a, b) => {
+        if (getStore().tagZones && getStore().tagZones.length > 0) {
+            const sortedZones = [...getStore().tagZones].sort((a, b) => {
                 const areaA = a.width * a.height;
                 const areaB = b.width * b.height;
                 return areaB - areaA;
             });
             
             sortedZones.forEach(zone => {
-                const topLeft = state.network.canvasToDOM({ x: zone.x, y: zone.y });
-                const bottomRight = state.network.canvasToDOM({ x: zone.x + zone.width, y: zone.y + zone.height });
+                const topLeft = getNetwork().canvasToDOM({ x: zone.x, y: zone.y });
+                const bottomRight = getNetwork().canvasToDOM({ x: zone.x + zone.width, y: zone.y + zone.height });
                 
                 const x = topLeft.x;
                 const y = topLeft.y;
@@ -189,7 +186,7 @@ export function exportToSVG() {
                 if (zone.tag && zone.tag.trim() !== '') {
                     const titleCanvasX = zone.x + 10;
                     const titleCanvasY = zone.y + 10;
-                    const titlePos = state.network.canvasToDOM({ x: titleCanvasX, y: titleCanvasY });
+                    const titlePos = getNetwork().canvasToDOM({ x: titleCanvasX, y: titleCanvasY });
                     const titleX = titlePos.x;
                     const titleY = titlePos.y;
                     const textPadding = 10 * scale;
@@ -199,7 +196,7 @@ export function exportToSVG() {
                     const fontSize = 24 * scale;
                     
                     // Measure text width accurately using canvas
-                    const ctx = state.network.canvas.frame.canvas.getContext('2d');
+                    const ctx = getNetwork().canvas.frame.canvas.getContext('2d');
                     ctx.save();
                     ctx.font = `bold ${fontSize}px Arial`;
                     const textWidth = ctx.measureText(zone.tag).width;
@@ -223,14 +220,14 @@ export function exportToSVG() {
         }
         
         // Draw edges
-        const edges = state.network.body.data.edges.get();
+        const edges = getNetwork().body.data.edges.get();
         edges.forEach(edge => {
             const fromPos = positions[edge.from];
             const toPos = positions[edge.to];
             
             if (fromPos && toPos) {
-                const from = state.network.canvasToDOM(fromPos);
-                const to = state.network.canvasToDOM(toPos);
+                const from = getNetwork().canvasToDOM(fromPos);
+                const to = getNetwork().canvasToDOM(toPos);
                 
                 let x1 = from.x;
                 let y1 = from.y;
@@ -253,14 +250,14 @@ export function exportToSVG() {
                 
                 // Check if edge has control points (smooth curve)
                 const edgeId = `${edge.from}_${edge.to}`;
-                const controlPointIds = state.edgeControlPoints?.[edgeId];
+                const controlPointIds = getStore().edgeControlPoints?.[edgeId];
                 
                 if (controlPointIds && controlPointIds.length > 0) {
                     // Draw smooth curve using quadratic/cubic bezier
                     const controlPoints = controlPointIds.map(cpId => {
                         const cpPos = positions[cpId];
                         if (cpPos) {
-                            const cpDom = state.network.canvasToDOM(cpPos);
+                            const cpDom = getNetwork().canvasToDOM(cpPos);
                             return { x: cpDom.x, y: cpDom.y };
                         }
                         return null;
@@ -343,7 +340,7 @@ export function exportToSVG() {
                 
                 // Draw arrow only if target is not a control point (subnode)
                 if (edge.to >= 0) {
-                    const visToNode = state.network.body.nodes[edge.to];
+                    const visToNode = getNetwork().body.nodes[edge.to];
                     if (!visToNode || !visToNode.shape) {
                         return;
                     }
@@ -369,8 +366,8 @@ export function exportToSVG() {
                     // Transform node dimensions to DOM space using scale
                     // The scale factor is already embedded in the network transformation
                     // We need to convert a size difference in canvas to DOM
-                    const topLeft = state.network.canvasToDOM({ x: toPos.x - nodeCanvasW/2, y: toPos.y - nodeCanvasH/2 });
-                    const bottomRight = state.network.canvasToDOM({ x: toPos.x + nodeCanvasW/2, y: toPos.y + nodeCanvasH/2 });
+                    const topLeft = getNetwork().canvasToDOM({ x: toPos.x - nodeCanvasW/2, y: toPos.y - nodeCanvasH/2 });
+                    const bottomRight = getNetwork().canvasToDOM({ x: toPos.x + nodeCanvasW/2, y: toPos.y + nodeCanvasH/2 });
                     const nodeW = bottomRight.x - topLeft.x;
                     const nodeH = bottomRight.y - topLeft.y;
                     
@@ -440,7 +437,7 @@ export function exportToSVG() {
             const pos = positions[node.id];
             if (!pos) return;
             
-            const domPos = state.network.canvasToDOM(pos);
+            const domPos = getNetwork().canvasToDOM(pos);
             const x = domPos.x;
             const y = domPos.y;
             
@@ -454,7 +451,7 @@ export function exportToSVG() {
             }
             
             // Get the actual rendered node from vis-network
-            const visNode = state.network.body.nodes[node.id];
+            const visNode = getNetwork().body.nodes[node.id];
             if (!visNode) return;
             
             // Get node visual properties
@@ -544,8 +541,8 @@ export function escapeXml(text) {
  * Returns the SVG string - uses the full export SVG logic
  */
 export function generateSVGContent() {
-    // network is available from state.js
-    const networkInstance = state.network;
+    // network is available via getNetwork() from appStore.js
+    const networkInstance = getNetwork();
     
     if (!networkInstance) {
         console.warn('generateSVGContent: No network instance available');
@@ -564,8 +561,8 @@ export function generateSVGContent() {
         const edges = networkInstance.body.data.edges.get();
         
         // Draw zones first (background)
-        if (state.tagZones && state.tagZones.length > 0) {
-            const sortedZones = [...state.tagZones].sort((a, b) => {
+        if (getStore().tagZones && getStore().tagZones.length > 0) {
+            const sortedZones = [...getStore().tagZones].sort((a, b) => {
                 const areaA = a.width * a.height;
                 const areaB = b.width * b.height;
                 return areaB - areaA;
@@ -737,41 +734,28 @@ export function importProject(e) {
             if (confirm('This will replace the current project. Continue?')) {
                 // Extract tagZones if present
                 if (imported.tagZones) {
-                    state.tagZones = imported.tagZones;
+                    getStore().setTagZones(imported.tagZones);
                     delete imported.tagZones;  // Remove from appData
                 } else {
                     // If no zones in file, they will be created from tags
-                    state.tagZones = [];
+                    getStore().setTagZones([]);
                 }
                 
                 // Extract node positions if present
                 if (imported.nodePositions) {
-                    state.savedNodePositions = imported.nodePositions;
+                    getStore().setSavedNodePositions(imported.nodePositions);
                     delete imported.nodePositions;  // Remove from appData
                 } else {
-                    state.savedNodePositions = {};
+                    getStore().setSavedNodePositions({});
                 }
                 
-                state.appData = imported;
-                
-                // Ensure new fields exist for backward compatibility
-                if (!state.appData.projectReview) {
-                    state.appData.projectReview = "";
-                }
-                if (!state.appData.reviewMetadata) {
-                    state.appData.reviewMetadata = {
-                        title: '',
-                        author: '',
-                        date: ''
-                    };
-                }
+                getStore().setAppData(imported);
                 
                 updateGraph();
-                renderListView();
                 updateCategoryFilters();
                 
                 // Initialize zones if none were imported
-                if (state.tagZones.length === 0) {
+                if (getStore().tagZones.length === 0) {
                     initializeZonesFromTags();
                 }
                 
@@ -800,15 +784,18 @@ export function importProject(e) {
 // ===== BIBTEX EXPORT =====
 
 export function exportToBibtex() {
-    if (state.appData.articles.length === 0) {
+    if (getStore().appData.articles.length === 0) {
         showNotification('Aucun article à exporter', 'warning');
         return;
     }
     
     let bibtexContent = '';
     
-    state.appData.articles.forEach(article => {
-        bibtexContent += articleToBibTeX(article) + '\n';
+    getStore().appData.articles.forEach(article => {
+        bibtexContent += articleToBibTeX(article, {
+            includeNote: false,
+            preferOriginal: false
+        }) + '\n';
     });
     
     const blob = new Blob([bibtexContent], { type: 'text/plain;charset=utf-8' });
@@ -821,106 +808,8 @@ export function exportToBibtex() {
     a.click();
     
     URL.revokeObjectURL(url);
-    showNotification(`${state.appData.articles.length} article(s) exporté(s) en BibTeX!`, 'success');
+    showNotification(`${getStore().appData.articles.length} article(s) exporté(s) en BibTeX!`, 'success');
 }
-
-
-// ===== PDF EXPORT VIA LATEX =====
-/**
- * PDF Export via LaTeX Compilation
- * 
- * This module provides functionality to export the entire project as a PDF document.
- * It generates a complete LaTeX document including:
- * - Project review/overview (main document text)
- * - All article summaries with abstracts and notes
- * - Full bibliography in LaTeX format
- * - "Generated by PaperGraph" footer
- * 
- * The LaTeX document is compiled online using the YtoTech LaTeX API (https://latex.ytotech.com/)
- * Users can customize the document style (preamble, packages, formatting) via the style editor.
- * 
- * Features:
- * - Preserves LaTeX math equations ($...$ and $$...$$)
- * - Handles citation links (\cite{key})
- * - Escapes special LaTeX characters in regular text
- * - Customizable document style saved to localStorage
- */
-
-/**
- * Get custom LaTeX style from localStorage (or use default)
- */
-export function getLatexStyle() {
-    const savedStyle = localStorage.getItem('papergraph_latex_style');
-    if (savedStyle) {
-        return savedStyle;
-    }
-    
-    // Default LaTeX style - Minimal Academic format
-    return `\\documentclass[11pt,a4paper]{article}
-\\usepackage[utf8]{inputenc}
-\\usepackage[margin=1in]{geometry}
-\\usepackage{hyperref}
-\\usepackage{orcidlink}
-\\usepackage{amsmath}
-\\usepackage{amssymb}
-\\usepackage{parskip}
-\\usepackage[numbers]{natbib}
-
-% Typography
-\\setlength{\\parindent}{0pt}
-\\setlength{\\parskip}{0.8em}
-\\linespread{1.1}
-
-% Multi-author support
-\\makeatletter
-\\renewcommand{\\@maketitle}{%
-  \\newpage
-  \\null
-  \\vskip 2em%
-  \\begin{center}%
-  \\let \\footnote \\thanks
-    {\\LARGE \\@title \\par}%
-    \\vskip 1.5em%
-    {\\large
-      \\lineskip .5em%
-      \\begin{tabular}[t]{c}%
-        \\@author
-      \\end{tabular}\\par}%
-    \\vskip 1em%
-    {\\large \\@date}%
-  \\end{center}%
-  \\par
-  \\vskip 1.5em}
-\\makeatother
-
-% Hyperlinks
-\\hypersetup{
-    colorlinks=true,
-    linkcolor=blue,
-    urlcolor=cyan,
-    citecolor=blue,
-    pdfborder={0 0 0}
-}`;
-}
-
-/**
- * Save custom LaTeX style to localStorage
- */
-export function saveLatexStyle(styleContent) {
-    localStorage.setItem('papergraph_latex_style', styleContent);
-    showNotification('LaTeX style saved!', 'success');
-}
-
-/**
- * Reset LaTeX style to default
- */
-export function resetLatexStyle() {
-    localStorage.removeItem('papergraph_latex_style');
-    showNotification('LaTeX style reset to default!', 'success');
-}
-
-// escapeLatex is now imported from bibliography.js and re-exported
-export { escapeLatex };
 
 /**
  * Sanitize citation keys - remove or replace characters that are problematic in BibTeX keys
@@ -935,397 +824,5 @@ export function sanitizeCitationKey(key) {
         .substring(0, 50); // Limit length
 }
 
-/**
- * Generate complete LaTeX document
- */
-export function generateLatexDocument() {
-    // Use extended preamble with maketitle support
-    const style = `\\documentclass[11pt,a4paper]{article}
-\\usepackage{filecontents}
-\\usepackage[utf8]{inputenc}
-\\usepackage[margin=1in]{geometry}
-\\usepackage{amsmath}
-\\usepackage{amssymb}
-\\usepackage{hyperref}
-\\usepackage{orcidlink}
-\\usepackage{parskip}
-\\usepackage[numbers]{natbib}
-
-% Typography
-\\setlength{\\parindent}{0pt}
-\\setlength{\\parskip}{0.8em}
-\\linespread{1.1}
-
-% Multi-author support
-\\makeatletter
-\\renewcommand{\\@maketitle}{%
-  \\newpage
-  \\null
-  \\vskip 2em%
-  \\begin{center}%
-  \\let \\footnote \\thanks
-    {\\LARGE \\@title \\par}%
-    \\vskip 1.5em%
-    {\\large
-      \\lineskip .5em%
-      \\begin{tabular}[t]{c}%
-        \\@author
-      \\end{tabular}\\par}%
-    \\vskip 1em%
-    {\\large \\@date}%
-  \\end{center}%
-  \\par
-  \\vskip 1.5em}
-\\makeatother
-
-% Hyperlinks
-\\hypersetup{
-    colorlinks=true,
-    linkcolor=blue,
-    urlcolor=cyan,
-    citecolor=blue,
-    pdfborder={0 0 0}
-}`;
-    
-    // Get project metadata
-    const projectTitle = (state.appData.projectReviewMeta?.title) || 'Project Review';
-    const authorsData = state.appData.projectReviewMeta?.authorsData || [];
-    const affiliationsData = state.appData.projectReviewMeta?.affiliationsData || [];
-    const projectAbstract = (state.appData.projectReviewMeta?.abstract) || '';
-    const projectContent = state.appData.projectReview || '';
-    
-    // Start LaTeX document
-    let latex = style + '\n\n';
-    
-    latex += `\\title{${escapeLatex(projectTitle)}}\n`;
-    
-    // Handle authors with superscript affiliation numbers and ORCID
-    latex += '\\author{';
-    if (authorsData && authorsData.length > 0) {
-        let authorsCount = 0; // Compteur interne pour les auteurs valides
-        
-        authorsData.forEach((author, idx) => {
-            if (!author.name || !author.name.trim()) return;
-            
-            authorsCount++; // On incrémente pour chaque auteur réellement ajouté
-            let authorLine = escapeLatex(author.name);
-            
-            // Add superscript affiliation numbers (use affiliationNumbers property, not affiliations)
-            const affiliationNums = author.affiliationNumbers || author.affiliations || [];
-            if (affiliationNums && affiliationNums.length > 0) {
-                const affNums = affiliationNums.map(num => typeof num === 'number' ? num : (num + 1)).join(',');
-                authorLine += `$^{${affNums}}$`;
-            }
-            
-            // Add ORCID if present
-            if (author.orcid && author.orcid.trim()) {
-                const orcidId = author.orcid.replace('https://orcid.org/', '');
-                authorLine += ` \\orcidlink{${orcidId}}`;
-            }
-            
-            latex += authorLine;
-
-            // Logique de séparation
-            if (idx < authorsData.length - 1) {
-                // Si on a atteint 3 auteurs sur la ligne actuelle, on passe à la ligne
-                // Sinon, on met une virgule.
-                if (authorsCount % 3 === 0) {
-                    latex += ' \\\\\n';
-                } else {
-                    latex += ', ';
-                }
-            }
-        });
-    }
-    latex += '}\n';
-        
-   // Output affiliations below authors
-    if (affiliationsData && affiliationsData.length > 0) {
-        latex += '\n';
-        latex += '\\date{';
-        latex += '{\\small\\itshape\n';
-        latex += '\\begin{tabular}{@{}c@{}}';
-        
-        // Filter out empty affiliations and add line breaks only between non-empty ones
-        const nonEmptyAffils = affiliationsData
-            .map((affil, idx) => ({ text: affil.text, originalIdx: idx }))
-            .filter(affil => affil.text && affil.text.trim());
-        
-        if (nonEmptyAffils.length > 0) {
-            latex += '\n';
-            nonEmptyAffils.forEach((affil, idx) => {
-                latex += `\\textsuperscript{${affil.originalIdx + 1}}${escapeLatex(affil.text)}`;
-                if (idx < nonEmptyAffils.length - 1) {
-                    latex += ' \\\\\n';
-                }
-            });
-            latex += '\n';
-        }
-        
-        latex += '\\end{tabular}}';
-        latex += '\\\\[1.5em]\n';
-        latex += '\\today}\n';
-    } else {
-        latex += `\\date{\\today}\n`;
-    }
-    
-    // Add embedded bibliography using filecontents
-    const articlesWithBibtex = state.appData.articles ? state.appData.articles.filter(a => a.bibtexId && a.bibtexId.trim()) : [];
-    if (articlesWithBibtex.length > 0) {
-        const bibContent = generateBibtexContent();
-        if (bibContent && bibContent.trim()) {
-            latex += '\n\n';
-            latex += '\\begin{filecontents}{references.bib}\n';
-            latex += bibContent;
-            latex += '\\end{filecontents}\n';
-        }
-    }
-    
-    latex += '\n\n';
-    latex += `\\begin{document}\n\n`;
-    latex += `\\maketitle\n\n`;
-    
-    // Add abstract if exists
-    if (projectAbstract && projectAbstract.trim()) {
-        latex += `\\begin{abstract}\n`;
-        latex += processLatexContent(projectAbstract);
-        latex += `\n\\end{abstract}\n\n`;
-    }
-    
-    // Add main review content
-    if (projectContent && projectContent.trim()) {
-        latex += processLatexContent(projectContent) + '\n\n';
-    }
-    
-    // Concatenate each article's LaTeX content
-    if (state.appData.articles && state.appData.articles.length > 0) {
-        state.appData.articles.forEach((article, index) => {
-            // Reset section numbering for each article
-            latex += `\\setcounter{section}{0}\n`;
-            latex += `\\setcounter{subsection}{0}\n`;
-            latex += `\\setcounter{subsubsection}{0}\n\n`;
-            
-            // Each article section with citation in title (matching article preview)
-            latex += `\\section*{${escapeLatex(article.title || 'Untitled')}`;
-            if (article.bibtexId && article.bibtexId.trim()) {
-                const citationKey = sanitizeCitationKey(article.bibtexId);
-                latex += ` \\cite{${citationKey}}`;
-            }
-            latex += `}\n\n`;
-            
-            // Add authors and metadata below title (minimal styling)
-            const metadataParts = [];
-            
-            if (article.authors && article.authors.trim()) {
-                metadataParts.push(escapeLatex(article.authors));
-            }
-            
-            if (article.year && article.year.trim()) {
-                metadataParts.push(`(${escapeLatex(article.year)})`);
-            }
-            
-            if (article.journal && article.journal.trim()) {
-                let journalText = escapeLatex(article.journal);
-                if (article.volume && article.volume.trim()) {
-                    journalText += ` ${escapeLatex(article.volume)}`;
-                    if (article.number && article.number.trim()) {
-                        journalText += `(${escapeLatex(article.number)})`;
-                    }
-                }
-                metadataParts.push(`\\textit{${journalText}}`);
-            }
-            
-            if (metadataParts.length > 0) {
-                latex += `{\\small ${metadataParts.join(', ')}}\n\n`;
-            }
-            
-            // Add user content directly
-            if (article.text && article.text.trim()) {
-                const articleText = processLatexContent(article.text);
-                latex += articleText + '\n\n';
-            }
-        });
-    }
-    
-    // Add bibliography section using natbib
-    if (articlesWithBibtex.length > 0) {
-        latex += '\n\n\\bibliographystyle{plainnat}\n';
-        latex += '\\bibliography{references}\n\n';
-    }
-    
-    latex += `\\end{document}\n`;
-    
-    return latex;
-}
-
-/**
- * Generate BibTeX file content from articles.
- * Delegates to the centralised bibliography module.
- */
-export function generateBibtexContent() {
-    return getBibliography();
-}
-
-/**
- * Process content to preserve LaTeX commands and math
- * Users can write LaTeX directly in their content (sections, formatting, citations, etc.)
- */
-export function processLatexContent(text) {
-    if (!text) return '';
-    
-    // Process citations: \cite{key1,key2}, \citep{key}, \citet{key}
-    // These should be preserved as-is for LaTeX compilation
-    let processedText = text;
-    
-    // // Ensure citations are properly formatted for LaTeX
-    // // Replace any malformed citations
-    // processedText = processedText.replace(/\\cite\s*\{([^}]+)\}/g, (match, keys) => {
-    //     // Clean up the keys (remove extra spaces)
-    //     const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
-    //     return `\\cite{${cleanKeys}}`;
-    // });
-    
-    // processedText = processedText.replace(/\\citep\s*\{([^}]+)\}/g, (match, keys) => {
-    //     const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
-    //     return `\\cite{${cleanKeys}}`; // citep becomes cite in basic LaTeX
-    // });
-    
-    // processedText = processedText.replace(/\\citet\s*\{([^}]+)\}/g, (match, keys) => {
-    //     const cleanKeys = keys.split(',').map(k => k.trim()).join(',');
-    //     return `\\cite{${cleanKeys}}`; // citet becomes cite in basic LaTeX
-    // });
-    
-    return processedText;
-}
-
-/**
- * Export project to PDF using SwiftLaTeX WebAssembly compiler
- */
-export async function exportToPDF() {
-    try {
-        showNotification('Generating LaTeX document...', 'info');
-
-        const latexContent = generateLatexDocument();
-
-        // Debug: log LaTeX document structure
-
-        // Extract and log all citations
-        const citations = latexContent.match(/\\cite\{([^}]+)\}/g);
-
-        // Extract and log all bibliography items
-        const biblioSection = latexContent.match(/\\begin{thebibliography}[\s\S]*?\\end{thebibliography}/);
-        if (biblioSection) {
-            const bibItems = biblioSection[0].match(/\\bibitem\{([^}]+)\}/g);
-        } else {
-        }
-
-        // Show notification
-        showNotification('Compiling to PDF with SwiftLaTeX... This may take a few seconds.', 'info');
-
-        // Initialize and use SwiftLaTeX WebAssembly compiler
-        if (!window.swiftLatexCompiler) {
-            throw new Error('SwiftLaTeX compiler not loaded. Please refresh the page.');
-        }
-
-        await window.swiftLatexCompiler.initialize();
-
-        // Generate bibliography content
-        const bibContent = generateBibtexContent();
-
-        // Compile using SwiftLaTeX with bibliography file
-        const pdfBlob = await window.swiftLatexCompiler.compileToPDF(latexContent, {
-            bibContent: bibContent
-        });
-
-
-        // Download PDF
-        const url = URL.createObjectURL(pdfBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = getExportFilename('pdf');
-        a.click();
-        URL.revokeObjectURL(url);
-
-        showNotification('PDF exported successfully!', 'success');
-    } catch (error) {
-        console.error('PDF export error:', error);
-        showNotification('Error exporting to PDF: ' + error.message, 'error');
-    }
-}
-
-/**
- * Download LaTeX source as ZIP (with .tex and .bib files)
- */
-export async function exportToLatex() {
-    try {
-        const latexContent = generateLatexDocument();
-        const bibContent = generateBibtexContent();
-        
-        // Create ZIP file with main.tex and references.bib
-        const zip = new JSZip();
-        zip.file('main.tex', latexContent);
-        
-        if (bibContent && bibContent.trim()) {
-            zip.file('references.bib', bibContent);
-        }
-        
-        const zipBlob = await zip.generateAsync({ type: 'blob' });
-        const url = URL.createObjectURL(zipBlob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = getExportFilename('zip');
-        a.click();
-        
-        URL.revokeObjectURL(url);
-        showNotification('LaTeX source package exported!', 'success');
-    } catch (error) {
-        console.error('LaTeX export error:', error);
-        showNotification('Error exporting LaTeX: ' + error.message, 'error');
-    }
-}
-
-/**
- * Show LaTeX style editor modal
- */
-export function showLatexStyleEditor() {
-    const modal = document.createElement('div');
-    modal.className = 'modal active';
-    modal.innerHTML = `
-        <div class="modal-content" style="max-width: 800px;">
-            <div class="modal-header">
-                <h2>LaTeX Document Style</h2>
-                <button class="modal-close" onclick="this.closest('.modal').remove()">×</button>
-            </div>
-            <div class="modal-body">
-                <p>Customize the LaTeX preamble and document class. This affects the PDF export.</p>
-                <textarea id="latexStyleEditor" style="width: 100%; height: 400px; font-family: monospace; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">${getLatexStyle()}</textarea>
-                <div style="margin-top: 10px; color: #666; font-size: 0.9em;">
-                    <strong>Tip:</strong> You can use any LaTeX packages. Math delimiters ($ and $$) in your content will be preserved.
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" onclick="resetLatexStyle(); document.getElementById('latexStyleEditor').value = getLatexStyle();">Reset to Default</button>
-                <button class="btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
-                <button class="btn-primary" onclick="saveLatexStyle(document.getElementById('latexStyleEditor').value); this.closest('.modal').remove();">Save Style</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-// Make functions globally available
-window.exportToPDF = exportToPDF;
-window.exportToLatex = exportToLatex;
-window.showLatexStyleEditor = showLatexStyleEditor;
-window.saveLatexStyle = saveLatexStyle;
-window.resetLatexStyle = resetLatexStyle;
-window.getLatexStyle = getLatexStyle;
-// Legacy bridge
+// Legacy bridge for callers that still sanitize BibTeX keys via the window object.
 window.sanitizeCitationKey = sanitizeCitationKey;
-// Legacy bridge
-window.generateLatexDocument = generateLatexDocument;
-// Legacy bridge
-window.generateBibtexContent = generateBibtexContent;
-window.escapeLatex = escapeLatex;
-window.processLatexContent = processLatexContent;

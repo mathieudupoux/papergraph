@@ -2,7 +2,7 @@
 // Unified save/load abstraction for project data.
 // All modules call save() instead of touching localStorage directly.
 
-import { state } from '../core/state.js';
+import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
 
 const _onSaveCallbacks = [];
@@ -12,6 +12,8 @@ const _onSaveCallbacks = [];
  * Notifies all onSave subscribers after writing.
  */
 export function save(silent = false) {
+    // Saving must never create undo history entries
+    pauseHistory();
     try {
         // Gallery projects are read-only
         const urlParams = new URLSearchParams(window.location.search);
@@ -23,17 +25,17 @@ export function save(silent = false) {
         }
 
         // Persist vis.js positions
-        if (state.network) {
-            const positions = state.network.getPositions();
+        if (getNetwork()) {
+            const positions = getNetwork().getPositions();
             localStorage.setItem('papermap_positions', JSON.stringify(positions));
-            state.savedNodePositions = positions;
+            getStore().setSavedNodePositions(positions);
         }
 
         // Persist project data
-        localStorage.setItem('papermap_data', JSON.stringify(state.appData));
-        localStorage.setItem('papermap_zones', JSON.stringify(state.tagZones));
-        localStorage.setItem('papermap_edge_control_points', JSON.stringify(state.edgeControlPoints));
-        localStorage.setItem('papermap_next_control_point_id', state.nextControlPointId.toString());
+        localStorage.setItem('papermap_data', JSON.stringify(getStore().appData));
+        localStorage.setItem('papermap_zones', JSON.stringify(getStore().tagZones));
+        localStorage.setItem('papermap_edge_control_points', JSON.stringify(getStore().edgeControlPoints));
+        localStorage.setItem('papermap_next_control_point_id', getStore().nextControlPointId.toString());
 
         // Cloud sync (async, non-blocking)
         _syncToCloud();
@@ -44,6 +46,8 @@ export function save(silent = false) {
         }
     } catch (e) {
         showNotification('Erreur lors de la sauvegarde: ' + e.message, 'error');
+    } finally {
+        resumeHistory();
     }
 }
 
@@ -52,32 +56,23 @@ export function save(silent = false) {
  * Handles gallery read-only mode and backward-compatible formats.
  */
 export function load() {
+    pauseHistory();
     try {
         // Gallery read-only projects are loaded from session state, not localStorage
-        if (state.isReadOnlyMode && state.galleryProjectData) {
+        if (getStore().isReadOnlyMode && getStore().galleryProjectData) {
             _loadGalleryProject();
             return;
         }
 
         const saved = localStorage.getItem('papermap_data');
         if (saved) {
-            state.appData = JSON.parse(saved);
-
-            if (!state.appData.projectReview) {
-                state.appData.projectReview = "";
-            }
-            if (!state.appData.projectReviewMeta) {
-                state.appData.projectReviewMeta = {
-                    title: "Project Review",
-                    authors: ""
-                };
-            }
+            getStore().setAppData(JSON.parse(saved));
         }
 
         // Tag zones
         const savedZones = localStorage.getItem('papermap_zones');
         if (savedZones) {
-            state.tagZones = JSON.parse(savedZones);
+            getStore().setTagZones(JSON.parse(savedZones));
         } else {
             // Lazy import to avoid circular dep — zone init needs network
             import('./storage.js').then(m => m.initializeZonesFromTags());
@@ -86,28 +81,30 @@ export function load() {
         // Edge control points
         const savedControlPoints = localStorage.getItem('papermap_edge_control_points');
         if (savedControlPoints) {
-            state.edgeControlPoints = JSON.parse(savedControlPoints);
+            getStore().setEdgeControlPoints(JSON.parse(savedControlPoints));
         } else {
-            state.edgeControlPoints = {};
+            getStore().setEdgeControlPoints({});
         }
 
         const savedNextId = localStorage.getItem('papermap_next_control_point_id');
         if (savedNextId) {
-            state.nextControlPointId = parseInt(savedNextId);
+            getStore().setNextControlPointId(parseInt(savedNextId));
         } else {
-            state.nextControlPointId = -1;
+            getStore().setNextControlPointId(-1);
         }
 
         // Node positions
         const savedPositions = localStorage.getItem('papermap_positions');
         if (savedPositions) {
-            state.savedNodePositions = JSON.parse(savedPositions);
+            getStore().setSavedNodePositions(JSON.parse(savedPositions));
         } else {
-            state.savedNodePositions = {};
+            getStore().setSavedNodePositions({});
         }
     } catch (e) {
         console.error('Error loading from localStorage:', e);
         showNotification('Erreur lors du chargement: ' + e.message, 'error');
+    } finally {
+        resumeHistory();
     }
 }
 
@@ -140,45 +137,36 @@ async function _syncToCloud() {
 }
 
 function _loadGalleryProject() {
-    const galleryData = state.galleryProjectData.data;
+    pauseHistory();
+    try {
+    const galleryData = getStore().galleryProjectData.data;
 
     if (galleryData.nodes && galleryData.edges) {
         // Cloud format (nodes/edges)
-        state.appData = {
+        getStore().setAppData({
             articles: (galleryData.nodes || []).map(a => ({ ...a, categories: Array.isArray(a.categories) ? a.categories : [] })),
             connections: galleryData.edges || [],
-            projectReview: galleryData.projectReview || "",
-            projectReviewMeta: galleryData.projectReviewMeta || {
-                title: "Project Review",
-                authorsData: [{ name: "", affiliationNumbers: [] }],
-                affiliationsData: [{ text: "" }],
-                abstract: ""
-            },
             nextArticleId: Math.max(0, ...(galleryData.nodes || []).map(n => n.id || 0)) + 1,
-            nextConnectionId: Math.max(0, ...(galleryData.edges || []).map(e => e.id || 0)) + 1
-        };
-        state.tagZones = galleryData.zones || [];
-        state.savedNodePositions = galleryData.positions || {};
+            nextConnectionId: Math.max(0, ...(galleryData.edges || []).map(e => e.id || 0)) + 1,
+        });
+        getStore().setTagZones(galleryData.zones || []);
+        getStore().setSavedNodePositions(galleryData.positions || {});
     } else if (galleryData.articles && galleryData.connections) {
         // Editor format (articles/connections)
-        state.appData = {
+        getStore().setAppData({
             articles: (galleryData.articles || []).map(a => ({ ...a, categories: Array.isArray(a.categories) ? a.categories : [] })),
             connections: galleryData.connections || [],
-            projectReview: galleryData.projectReview || "",
-            projectReviewMeta: galleryData.projectReviewMeta || {
-                title: "Project Review",
-                authorsData: [{ name: "", affiliationNumbers: [] }],
-                affiliationsData: [{ text: "" }],
-                abstract: ""
-            },
             nextArticleId: galleryData.nextArticleId || Math.max(0, ...(galleryData.articles || []).map(n => n.id || 0)) + 1,
-            nextConnectionId: galleryData.nextConnectionId || Math.max(0, ...(galleryData.connections || []).map(e => e.id || 0)) + 1
-        };
-        state.tagZones = galleryData.tagZones || galleryData.zones || [];
-        state.savedNodePositions = galleryData.nodePositions || galleryData.positions || {};
+            nextConnectionId: galleryData.nextConnectionId || Math.max(0, ...(galleryData.connections || []).map(e => e.id || 0)) + 1,
+        });
+        getStore().setTagZones(galleryData.tagZones || galleryData.zones || []);
+        getStore().setSavedNodePositions(galleryData.nodePositions || galleryData.positions || {});
     }
 
     // Initialize control points
-    state.edgeControlPoints = {};
-    state.nextControlPointId = -1;
+    getStore().setEdgeControlPoints({});
+    getStore().setNextControlPointId(-1);
+    } finally {
+        resumeHistory();
+    }
 }

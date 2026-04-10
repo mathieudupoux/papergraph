@@ -15,19 +15,18 @@
     
     <!-- Modular CSS - Components -->
     <link rel="stylesheet" href="css/components/buttons.css">
+    <link rel="stylesheet" href="css/components/icons.css">
     <link rel="stylesheet" href="css/components/dropdown.css">
     <link rel="stylesheet" href="css/components/modals.css">
     <link rel="stylesheet" href="css/components/toolbar.css">
     <link rel="stylesheet" href="css/components/filters.css">
     <link rel="stylesheet" href="css/components/radial-menu.css">
     <link rel="stylesheet" href="css/components/footer.css">
-    <link rel="stylesheet" href="css/components/pdf-viewer.css">
     <link rel="stylesheet" href="css/components/user-dropdown.css">
-    <link rel="stylesheet" href="css/components/notifications.css">
+    <link rel="stylesheet" href="css/components/context-menu.css">
     
     <!-- Modular CSS - Views -->
     <link rel="stylesheet" href="css/views/graph-view.css">
-    <link rel="stylesheet" href="css/views/list-view.css">
     <link rel="stylesheet" href="css/views/article-preview.css">
     <link rel="stylesheet" href="css/views/gallery.css">
     
@@ -37,23 +36,10 @@
     <!-- Driver.js for Interactive Tutorial -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
     
-    <!-- LaTeX.js for true LaTeX compilation -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/css/base.css">
-    <script src="https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/latex.js"></script>
-
     <!-- PDF.js for PDF preview rendering -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script type="module" src="js/utils/pdfjs-config.js"></script>
-
-    <!-- MathJax for LaTeX math rendering -->
-    <script type="module" src="js/utils/mathjax-config.js"></script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     
-    <!-- html2canvas for PDF export with LaTeX -->
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    
-    <!-- Cursors - MUST BE LAST to override everything -->
-    <link rel="stylesheet" href="css/base/cursors.css">
     <link rel="icon" type="image/svg+xml" href="assets/logo-papergraph.svg">
 </head>
 <body>
@@ -61,10 +47,7 @@
         <!-- Read-Only Mode Bar (hidden by default) - positioned next to logo menu -->
         <div id="readonlyIndicator" class="readonly-bar" style="display: none;">
             <button id="copyToDashboardBtn" class="readonly-btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
+                <svg class="ui-icon ui-icon--sm" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#lock"></use></svg>
                 <span>Read-only <br> Import to dashboard to edit</span>
             </button>
         </div>
@@ -111,8 +94,7 @@
                         <div id="previewCategoryBadge" class="category-badge-container"></div>
                         
                         <div class="article-section">
-                            <h4>Abstract / Notes</h4>
-                            <p id="previewText" class="article-description"></p>
+                            <div id="previewText" class="article-description"></div>
                         </div>
                         
                         <div class="article-links">
@@ -142,39 +124,23 @@
             <!-- Edge menu for connection actions -->
             <div id="edgeMenu" class="edge-menu">
                 <button class="edge-btn edge-add-control-point" title="Add control point" data-action="add-control">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"/>
-                        <line x1="12" y1="2" x2="12" y2="9"/>
-                        <line x1="12" y1="15" x2="12" y2="22"/>
-                    </svg>
+                    <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#control-point"></use></svg>
                 </button>
                 <button class="edge-btn edge-edit-label" title="Edit label" data-action="edit-label">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                    </svg>
+                    <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#edit"></use></svg>
                 </button>
                 <button class="edge-btn edge-delete" title="Delete connection" data-action="delete">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
+                    <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#delete"></use></svg>
                 </button>
             </div>
             
             <!-- Radial menu for node actions -->
             <div id="radialMenu" class="radial-menu">
                 <button class="radial-btn radial-connect" title="Create connection">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                    </svg>
+                    <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#connect"></use></svg>
                 </button>
                 <button class="radial-btn radial-delete" title="Delete">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
+                    <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#delete"></use></svg>
                 </button>
             </div>
             
@@ -185,72 +151,6 @@
             </div>
         </div>
 
-        <!-- List View -->
-        <div id="listView" class="view">
-            <div class="notebook-container">
-                <div class="notebook-sidebar">
-                    <div class="sidebar-search">
-                        <input type="text" id="sidebarSearch" placeholder="Search articles...">
-                    </div>
-
-                    <div id="sidebarContent" class="sidebar-content">
-                        <!-- Sidebar items will be added here dynamically -->
-                    </div>
-                </div>
-
-                <div class="notebook-editor">
-                    <div id="editorEmptyState" class="editor-state" style="display:none;">
-                        <div class="empty-message">Select an article to start editing</div>
-                    </div>
-                    
-                    <div id="articleEditorState" class="editor-state">
-                        <div class="editor-metadata-section">
-                            <div class="editor-header-row">
-                                <div class="citation-badge" id="noteCitationKey" contenteditable="true"></div>
-                                <div id="noteYear" class="year-badge" contenteditable="true"></div>
-                            </div>
-                            
-                            <h1 id="noteTitle" class="editable-title" contenteditable="true" placeholder="Article Title"></h1>
-                            
-                            <div class="authors-section" id="authorsSection" style="display: none;">
-                                <div class="authors-header" style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="toggleAuthorsContent()">
-                                    <label style="margin: 0;">Authors & Affiliations</label>
-                                    <button type="button" class="btn-collapse" id="authorsCollapseBtn" style="background: none; border: none; cursor: pointer; font-size: 18px; padding: 0 5px;">▼</button>
-                                </div>
-                                <div id="authorsContent" class="authors-content">
-                                    <label style="margin-top: 10px;">Authors:</label>
-                                    <div id="authorsList" class="authors-list"></div>
-                                    <button type="button" id="addAuthorBtn" class="btn-add-author">+ Add Author</button>
-                                    
-                                    <label style="margin-top: 15px;">Affiliations:</label>
-                                    <div id="affiliationsList" class="affiliations-list"></div>
-                                    <button type="button" id="addAffiliationBtn" class="btn-add-author">+ Add Affiliation</button>
-                                </div>
-                            </div>
-
-                            <div class="abstract-row" id="abstractRow" style="display: none;">
-                                <label>Abstract:</label>
-                                <div id="noteAbstract" class="editable-field editable-multiline" contenteditable="true" placeholder="Project abstract..."></div>
-                            </div>
-
-                            <div class="tags-row" id="noteTags"></div>
-                        </div>
-
-                        <div class="editor-split-container">
-                            <div class="split-pane source-pane">
-                                <div class="pane-label">Source (LaTeX supported)</div>
-                                <div id="noteContent" class="rich-textarea" contenteditable="true"></div>
-                            </div>
-                            <div class="split-pane preview-pane">
-                                <div class="pane-label">Preview</div>
-                                <div id="latexPreview" class="latex-content"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
         <!-- Category filter dropdown (shared between both views, above toolbar) -->
         <div id="categoryDropdown" class="dropdown-panel">
             <h3>Filters</h3>
@@ -266,37 +166,25 @@
         <!-- Main Action Toolbar - Bottom horizontal (outside views to be always visible) -->
         <div class="main-toolbar">
             <button id="addArticleBtn" class="main-tool-btn" title="Add an article">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="16"/>
-                    <line x1="8" y1="12" x2="16" y2="12"/>
-                </svg>
+                <svg class="ui-icon ui-icon--xl" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#add"></use></svg>
                 <span class="btn-label">Add</span>
             </button>
             
             <!-- Category filter icon (both modes) -->
             <button id="categoryFilterBtn" class="main-tool-btn">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
-                </svg>
+                <svg class="ui-icon ui-icon--xl" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#filter"></use></svg>
                 <span class="btn-label">Filter</span>
             </button>
             
             <!-- Search icon/box -->
             <button id="searchToggleBtn" class="main-tool-btn search-toggle-btn">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/>
-                    <path d="m21 21-4.35-4.35"/>
-                </svg>
+                <svg class="ui-icon ui-icon--xl" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#search"></use></svg>
                 <span class="btn-label">Search</span>
             </button>
             
             <!-- Expandable search box -->
             <div class="toolbar-search collapsed">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/>
-                    <path d="m21 21-4.35-4.35"/>
-                </svg>
+                <svg class="ui-icon ui-icon--sm" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#search"></use></svg>
                 <input type="text" id="searchBoxToolbar" placeholder="Search..." class="toolbar-search-input">
                 <span id="searchResultCount" class="search-result-count"></span>
                 <button id="searchCloseBtn" class="search-close-btn">✕</button>
@@ -305,50 +193,14 @@
             <!-- Graph-only buttons -->
             <div class="main-tool-divider graph-only"></div>
             <button id="fitGraphBtn" class="main-tool-btn graph-only">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
-                    <path d="M12 3 L12 8" stroke-linecap="round"/>
-                    <path d="M10 5 L12 3 L14 5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M12 21 L12 16" stroke-linecap="round"/>
-                    <path d="M10 19 L12 21 L14 19" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M3 12 L8 12" stroke-linecap="round"/>
-                    <path d="M5 10 L3 12 L5 14" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M21 12 L16 12" stroke-linecap="round"/>
-                    <path d="M19 10 L21 12 L19 14" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+                <svg class="ui-icon ui-icon--xl" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#fit-view"></use></svg>
                 <span class="btn-label">Recentrer</span>
             </button>
             <button id="toggleGridBtn" class="main-tool-btn graph-only">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="6" cy="6" r="1" fill="currentColor"/>
-                    <circle cx="12" cy="6" r="1" fill="currentColor"/>
-                    <circle cx="18" cy="6" r="1" fill="currentColor"/>
-                    <circle cx="6" cy="12" r="1" fill="currentColor"/>
-                    <circle cx="12" cy="12" r="1" fill="currentColor"/>
-                    <circle cx="18" cy="12" r="1" fill="currentColor"/>
-                    <circle cx="6" cy="18" r="1" fill="currentColor"/>
-                    <circle cx="12" cy="18" r="1" fill="currentColor"/>
-                    <circle cx="18" cy="18" r="1" fill="currentColor"/>
-                </svg>
+                <svg class="ui-icon ui-icon--xl" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#grid"></use></svg>
                 <span class="btn-label">Grid</span>
             </button>
             
-            <div class="main-tool-divider"></div>
-            
-            <!-- Toggle switch for view mode (at the right, fixed position) -->
-            <div class="toolbar-view-toggle">
-                <input type="checkbox" id="viewToggle" class="toggle-input">
-                <label for="viewToggle" class="toggle-label">
-                    <span class="toggle-option toggle-graph" title="Vue Graphe">
-                        <img src="assets/graph-icon-blue.svg" alt="Graph" class="toggle-icon toggle-icon-active">
-                        <img src="assets/graph-icon-gray.svg" alt="Graph" class="toggle-icon toggle-icon-inactive">
-                    </span>
-                    <span class="toggle-option toggle-list" title="Vue Liste">
-                        <img src="assets/list-icon-blue.svg" alt="List" class="toggle-icon toggle-icon-active">
-                        <img src="assets/list-icon-gray.svg" alt="List" class="toggle-icon toggle-icon-inactive">
-                    </span>
-                </label>
-            </div>
         </div>
 
         <!-- Article Edit Modal -->
@@ -515,11 +367,7 @@
 
     <!-- External Libraries (CDN) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/10.0.2/dist/vis-network.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/codemirror@6.0.1/dist/index.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@6.0.1/dist/codemirror.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <!-- Application (single module entry point — Vite resolves all imports) -->

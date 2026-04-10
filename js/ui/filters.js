@@ -1,13 +1,12 @@
-import { state } from '../core/state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { updateGraph } from '../graph/render.js';
-import { renderListView } from './list/sidebar.js';
 
 // ===== CATEGORY FILTERS =====
 // Filter management and UI
 
 export function updateCategoryFilters() {
     const allCategories = new Set();
-    state.appData.articles.forEach(article => {
+    getStore().appData.articles.forEach(article => {
         (article.categories || []).forEach(cat => allCategories.add(cat));
     });
     
@@ -39,8 +38,8 @@ export function updateActiveFiltersDisplay() {
     container.innerHTML = '';
     
     // Category filter
-    if (state.activeFilters.category) {
-        const chip = createFilterChip('Catégorie', state.activeFilters.category, () => {
+    if (getStore().activeFilters.category) {
+        const chip = createFilterChip('Catégorie', getStore().activeFilters.category, () => {
             removeFilter('category');
         });
         container.appendChild(chip);
@@ -74,8 +73,8 @@ export function createFilterChip(label, value, onRemove) {
 
 export function removeFilter(filterType) {
     if (filterType === 'category') {
-        state.activeFilters.category = null;
-        state.currentCategoryFilter = '';
+        getStore().activeFilters.category = null;
+        getStore().currentCategoryFilter = '';
         document.getElementById('categoryFilter').value = '';
     }
     
@@ -85,8 +84,5 @@ export function removeFilter(filterType) {
     const graphView = document.getElementById('graphView');
     if (graphView.classList.contains('active')) {
         updateGraph();
-    } else {
-        const searchInput = document.getElementById('searchBoxToolbar');
-        renderListView(searchInput ? searchInput.value : '');
     }
 }

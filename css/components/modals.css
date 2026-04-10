@@ -55,6 +55,11 @@
     justify-content: center;
 }
 
+.modal.modal-transparent-overlay {
+    background-color: transparent;
+    backdrop-filter: none;
+}
+
 .modal-content {
     background: var(--color-glass);
     backdrop-filter: blur(10px);

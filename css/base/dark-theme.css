@@ -500,9 +500,9 @@ body.dark-theme .article-description:hover {
 body.dark-theme .article-description.editing,
 body.dark-theme .article-description:focus {
     background: #343d52 !important;
-    border-color: #4a90e2 !important;
-    outline: 2px solid #4a90e2 !important;
-    outline-offset: -2px;
+    border-color: transparent !important;
+    outline: none !important;
+    box-shadow: inset 0 0 0 2px #4a90e2 !important;
 }
 
 body.dark-theme .category-badge-container {

@@ -57,6 +57,12 @@
     max-height: 100%;
 }
 
+.vis-tooltip {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
 /* View Toggle Overlay - Fixed top right */
 .view-toggle-overlay {
     position: fixed;

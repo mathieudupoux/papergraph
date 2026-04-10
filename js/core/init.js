@@ -1,18 +1,20 @@
-import { state } from './state.js';
+import { getStore, getNetwork } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
-import { exportProject, exportToBibtex, exportToPDF, exportToLatex, exportToImage, exportToSVG, newProject, importProject } from '../data/export.js';
+import { exportProject, exportToBibtex, exportToImage, exportToSVG } from '../data/export.js';
 import { importBibtexFile, setupImportZone, toggleManualForm } from '../data/import.js';
-import { openArticleModal, closeModal, saveArticle, deleteArticle, deleteArticleById } from '../ui/modal.js';
+import { importProjectFileAsNewProject } from '../data/project-import.js';
+import { openArticleModal, closeModal, saveArticle, deleteArticle, deleteArticleById, setPendingArticlePosition } from '../ui/modal.js';
 import { toggleCategoryDropdown, updateCategoryFilters, updateActiveFiltersDisplay } from '../ui/filters.js';
-import { toggleGrid, closeMultiTagDialog } from '../ui/toolbar.js';
+import { toggleGrid, closeMultiTagDialog, deleteSelectedNodes } from '../ui/toolbar.js';
 import { searchInGraph } from '../graph/search.js';
-import { renderListView } from '../ui/list/sidebar.js';
 import { hideSelectionBox, applyNodeLabelFormat } from '../graph/selection.js';
 import { hideRadialMenu, hideSelectionRadialMenu } from '../ui/radial-menu.js';
 import { hideEdgeMenu, startConnectionMode, cancelConnectionMode, deleteConnection } from '../graph/connections.js';
 import { hideZoneDeleteButton, deleteZone } from '../graph/zones.js';
 import { updateGraph } from '../graph/render.js';
+import { fitGraphView } from '../graph/view.js';
 import { setupLogoDropdown } from '../ui/logo-dropdown.js';
+import { hideContextMenu } from '../ui/context-menu.js';
 
 // ===== INITIALIZATION & EVENT LISTENERS =====
 // Application initialization and all event bindings
@@ -20,12 +22,12 @@ import { setupLogoDropdown } from '../ui/logo-dropdown.js';
 // Check if we're in read-only mode (gallery project via ?mode=readonly)
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('mode') === 'readonly') {
-    state.isReadOnlyMode = true;
+    getStore().setIsReadOnlyMode(true);
 
     // Load gallery project from sessionStorage
     const galleryData = sessionStorage.getItem('galleryProject');
     if (galleryData) {
-        state.galleryProjectData = JSON.parse(galleryData);
+        getStore().setGalleryProjectData(JSON.parse(galleryData));
         console.log('📖 Read-only mode active - Gallery project loaded');
     }
 }
@@ -33,17 +35,19 @@ if (urlParams.get('mode') === 'readonly') {
 export function initializeEventListeners() {
     // View toggle switch
     const viewToggle = document.getElementById('viewToggle');
-    viewToggle.addEventListener('change', (e) => {
-        const tagModal = document.getElementById('multiTagModal');
-        if (tagModal) {
-            closeMultiTagDialog();
-        }
-        switchView(e.target.checked ? 'list' : 'graph');
-    });
+    if (viewToggle) {
+        viewToggle.addEventListener('change', (e) => {
+            const tagModal = document.getElementById('multiTagModal');
+            if (tagModal) {
+                closeMultiTagDialog();
+            }
+            switchView(e.target.checked ? 'list' : 'graph');
+        });
+    }
     
     // Logo dropdown — shared setup (toggle, submenus, outside-click)
     // Editor uses logoMenuBtnExtended as the trigger (in the logo-menu-btn-extended bar)
-    setupLogoDropdown({ triggerButtonId: 'logoMenuBtnExtended' });
+    const { closeAllSubmenus = () => {} } = setupLogoDropdown({ triggerButtonId: 'logoMenuBtnExtended' }) || {};
     
     const mainDropdown = document.getElementById('logoDropdown');
     
@@ -136,18 +140,6 @@ export function initializeEventListeners() {
         closeAllSubmenus();
     });
     
-    document.getElementById('logoExportPdfBtn').addEventListener('click', () => {
-        exportToPDF();
-        mainDropdown.classList.remove('active');
-        closeAllSubmenus();
-    });
-    
-    document.getElementById('logoExportLatexBtn').addEventListener('click', () => {
-        exportToLatex();
-        mainDropdown.classList.remove('active');
-        closeAllSubmenus();
-    });
-    
     document.getElementById('logoExportImageBtn').addEventListener('click', () => {
         exportToImage();
         mainDropdown.classList.remove('active');
@@ -215,7 +207,21 @@ export function initializeEventListeners() {
     
     const fileInput = document.getElementById('fileInput');
     if (fileInput) {
-        fileInput.addEventListener('change', importProject);
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                const newProject = await importProjectFileAsNewProject(file);
+                showNotification('Project imported successfully!', 'success');
+                window.location.href = `editor.html?id=${newProject.id}`;
+            } catch (error) {
+                console.error('Import error:', error);
+                alert('Failed to import project: ' + error.message);
+            } finally {
+                e.target.value = '';
+            }
+        });
     }
     
     const bibtexFileInput = document.getElementById('bibtexFileInput');
@@ -225,68 +231,22 @@ export function initializeEventListeners() {
     
     // Toolbar actions
     document.getElementById('addArticleBtn').addEventListener('click', () => {
+        setPendingArticlePosition(null);
         openArticleModal();
     });
     document.getElementById('categoryFilterBtn').addEventListener('click', toggleCategoryDropdown);
-    // Function to recenter/fit the graph view
-    function fitGraphView() {
-        if (!state.network) return;
-        
-        // Calculate bounding box including both nodes and tagzones
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        let hasContent = false;
-        
-        // Include nodes
-        const positions = state.network.getPositions();
-        Object.values(positions).forEach(pos => {
-            minX = Math.min(minX, pos.x);
-            minY = Math.min(minY, pos.y);
-            maxX = Math.max(maxX, pos.x);
-            maxY = Math.max(maxY, pos.y);
-            hasContent = true;
-        });
-        
-        // Include tagzones
-        if (state.tagZones && state.tagZones.length > 0) {
-            state.tagZones.forEach(zone => {
-                minX = Math.min(minX, zone.x);
-                minY = Math.min(minY, zone.y);
-                maxX = Math.max(maxX, zone.x + zone.width);
-                maxY = Math.max(maxY, zone.y + zone.height);
-                hasContent = true;
-            });
-        }
-        
-        if (hasContent) {
-            // Add padding (20% of the bounding box size to avoid menu bar)
-            const paddingX = (maxX - minX) * 0.2;
-            const paddingY = (maxY - minY) * 0.2;
-            
-            // Adjust view to include tagzones with padding
-            state.network.moveTo({
-                position: {
-                    x: (minX + maxX) / 2,
-                    y: (minY + maxY) / 2
-                },
-                scale: Math.min(
-                    state.network.canvas.frame.canvas.width / (maxX - minX + 2 * paddingX),
-                    state.network.canvas.frame.canvas.height / (maxY - minY + 2 * paddingY)
-                ) * 0.85
-            });
-        }
-    }
-    
+
     // Expose globally for use in import/export
     window.fitGraphView = fitGraphView;
     
-    document.getElementById('fitGraphBtn').addEventListener('click', fitGraphView);
+    document.getElementById('fitGraphBtn').addEventListener('click', () => fitGraphView());
     
     document.getElementById('toggleGridBtn').addEventListener('click', toggleGrid);
     
     // Load grid state from localStorage
     const savedGridState = localStorage.getItem('gridEnabled');
     if (savedGridState === 'true') {
-        state.gridEnabled = true;
+        getStore().setGridEnabled(true);
         const btn = document.getElementById('toggleGridBtn');
         btn.classList.add('active');
     }
@@ -318,14 +278,9 @@ export function initializeEventListeners() {
         searchInput.value = '';
         if (resultCount) resultCount.textContent = '';
         
-        // Reset search in both views
         const graphView = document.getElementById('graphView');
-        const listView = document.getElementById('listView');
-        
         if (graphView.classList.contains('active')) {
             searchInGraph('');
-        } else if (listView.classList.contains('active')) {
-            renderListView('');
         }
     });
     
@@ -333,12 +288,9 @@ export function initializeEventListeners() {
     document.getElementById('searchBoxToolbar').addEventListener('input', (e) => {
         const searchTerm = e.target.value;
         const graphView = document.getElementById('graphView');
-        const listView = document.getElementById('listView');
         
         if (graphView.classList.contains('active')) {
             searchInGraph(searchTerm);
-        } else if (listView.classList.contains('active')) {
-            renderListView(searchTerm);
         }
     });
     
@@ -351,14 +303,11 @@ export function initializeEventListeners() {
     
     // Category filter
     document.getElementById('categoryFilter').addEventListener('change', (e) => {
-        state.currentCategoryFilter = e.target.value;
-        state.activeFilters.category = e.target.value || null;
+        getStore().setCategoryFilter(e.target.value);
         
         const graphView = document.getElementById('graphView');
         if (graphView.classList.contains('active')) {
             updateGraph();
-        } else {
-            renderListView(document.getElementById('searchBoxToolbar').value);
         }
         document.getElementById('categoryDropdown').classList.remove('active');
         
@@ -374,6 +323,7 @@ export function initializeEventListeners() {
             hideEdgeMenu();
             hideSelectionRadialMenu();
             hideZoneDeleteButton();
+            hideContextMenu();
             return;
         }
         
@@ -385,36 +335,32 @@ export function initializeEventListeners() {
             
             e.preventDefault();
             
-            if (state.selectedNodeId !== null) {
-                if (confirm('Delete this article?')) {
-                    deleteArticleById(state.selectedNodeId);
-                    state.selectedNodeId = null;
-                    hideRadialMenu();
-                }
-            } else if (state.selectedEdgeId !== null) {
-                if (confirm('Delete this connection?')) {
-                    deleteConnection(state.selectedEdgeId);
-                    hideEdgeMenu();
-                }
-            } else if (state.selectedZoneIndex !== -1) {
-                if (confirm('Delete this zone/tag?')) {
-                    deleteZone(state.selectedZoneIndex);
-                }
+            if (getStore().multiSelection.selectedNodes.length > 1 || getStore().multiSelection.selectedZonesForDrag.length > 0) {
+                deleteSelectedNodes();
+            } else if (getStore().selectedNodeId !== null) {
+                deleteArticleById(getStore().selectedNodeId);
+                getStore().setSelectedNodeId(null);
+                hideRadialMenu();
+            } else if (getStore().selectedEdgeId !== null) {
+                deleteConnection(getStore().selectedEdgeId);
+                hideEdgeMenu();
+            } else if (getStore().selectedZoneIndex !== -1) {
+                deleteZone(getStore().selectedZoneIndex);
             }
         }
     });
     
     // Radial menu actions
     document.querySelector('.radial-connect').addEventListener('click', () => {
-        if (state.selectedNodeId) {
-            startConnectionMode(state.selectedNodeId);
+        if (getStore().selectedNodeId) {
+            startConnectionMode(getStore().selectedNodeId);
             hideRadialMenu();
         }
     });
     
     document.querySelector('.radial-delete').addEventListener('click', () => {
-        if (state.selectedNodeId) {
-            deleteArticleById(state.selectedNodeId);
+        if (getStore().selectedNodeId) {
+            deleteArticleById(getStore().selectedNodeId);
             hideRadialMenu();
         }
     });
@@ -463,7 +409,6 @@ export function initializeEventListeners() {
 
 export function switchView(view) {
     const graphView = document.getElementById('graphView');
-    const listView = document.getElementById('listView');
     const viewToggle = document.getElementById('viewToggle');
     const graphOnlyElements = document.querySelectorAll('.graph-only');
     
@@ -479,37 +424,21 @@ export function switchView(view) {
         }
     }
     
-    if (view === 'graph') {
-        graphView.classList.add('active');
-        listView.classList.remove('active');
+    graphView.classList.add('active');
+    if (viewToggle) {
         viewToggle.checked = false;
-        
-        // Show graph-only elements with animation
-        graphOnlyElements.forEach(el => {
-            el.style.display = 'flex';
+    }
+
+    graphOnlyElements.forEach(el => {
+        el.style.display = 'flex';
+        requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    el.classList.add('visible');
-                });
+                el.classList.add('visible');
             });
         });
-        
-        if (state.network) {
-            state.network.fit();
-        }
-    } else {
-        graphView.classList.remove('active');
-        listView.classList.add('active');
-        viewToggle.checked = true;
-        
-        // Hide graph-only elements with animation
-        graphOnlyElements.forEach(el => {
-            el.classList.remove('visible');
-            setTimeout(() => {
-                el.style.display = 'none';
-            }, 400);
-        });
-        
-        renderListView();
+    });
+
+    if (getNetwork()) {
+        getNetwork().fit();
     }
 }
