@@ -500,7 +500,10 @@
         height: 100%;
         border-radius: 22px 22px 0 0;
         padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
-        box-shadow: 0 -12px 30px var(--backdrop-deeper);
+        box-shadow: none;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
     }
 
     .citation-key {
@@ -535,10 +538,26 @@
         margin: 14px 0;
         min-height: 0;
         padding: 12px;
+        flex: 0 0 auto;
     }
 
     .article-description {
-        font-size: 0.82rem;
+        font-size: 16px;
         line-height: 1.55;
+        overflow: visible;
+        flex: 0 0 auto;
+        min-height: 20px;
+    }
+
+    .article-description.editing,
+    .article-description:focus {
+        min-height: min(38dvh, 320px);
+        font-size: 16px;
+        line-height: 1.6;
+        padding-bottom: 12px;
+    }
+
+    .article-card.article-card-editing-note .article-section {
+        min-height: min(42dvh, 360px);
     }
 }

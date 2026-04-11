@@ -96,6 +96,36 @@
     opacity: 0.6;
 }
 
+@media (max-width: 800px) {
+    .logo-menu-btn-extended {
+        left: 12px;
+        top: 12px;
+        max-width: calc(100vw - 88px);
+    }
+
+    .logo-menu-btn-part {
+        gap: 0;
+        padding: 10px 12px;
+    }
+
+    .logo-text {
+        display: none;
+    }
+
+    .vertical-divider {
+        margin: 0 2px;
+        height: 30px;
+    }
+
+    .project-title-input {
+        min-width: 0;
+        width: min(44vw, 180px);
+        max-width: min(44vw, 180px);
+        padding: 10px 12px 10px 10px;
+        font-size: 1rem;
+    }
+}
+
 /* Main Dropdown Menu - Apple/Figma Style */
 .main-dropdown {
     position: fixed;

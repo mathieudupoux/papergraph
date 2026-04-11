@@ -9,20 +9,6 @@ import { getMobileBottomDeadzonePx, isPhoneViewport } from './touch-zone-mode.js
 
 let activePulseNodeId = null;
 
-function clampNodeMenuPosition(x, y, nodeWidth = 100, nodeHeight = 50) {
-    if (!isPhoneViewport()) {
-        return { x, y };
-    }
-
-    const sidePadding = 24;
-    const lowerLimit = window.innerHeight - getMobileBottomDeadzonePx() - 36;
-
-    return {
-        x: Math.max(sidePadding + nodeWidth / 2 + 44, Math.min(window.innerWidth - sidePadding - nodeWidth / 2 - 44, x)),
-        y: Math.max(72, Math.min(lowerLimit, y))
-    };
-}
-
 function toRgba(color, alpha) {
     if (!color) return `rgba(74, 144, 226, ${alpha})`;
 
@@ -108,9 +94,6 @@ export function showRadialMenu(x, y, nodeId, nodeWidth = 100, nodeHeight = 50) {
     }
     
     const menu = document.getElementById('radialMenu');
-    const clamped = clampNodeMenuPosition(x, y, nodeWidth, nodeHeight);
-    x = clamped.x;
-    y = clamped.y;
     
     // Clear any previous pulse animation and reset previous node
     if (getStore().currentPulseInterval) {
@@ -124,7 +107,7 @@ export function showRadialMenu(x, y, nodeId, nodeWidth = 100, nodeHeight = 50) {
     }
     
     // Position buttons AROUND the box
-    const padding = 15;
+    const padding = isPhoneViewport() ? 2 : 15;
     
     const connectBtn = document.querySelector('.radial-connect');
     const deleteBtn = document.querySelector('.radial-delete');
@@ -185,11 +168,7 @@ export function showRadialMenu(x, y, nodeId, nodeWidth = 100, nodeHeight = 50) {
 }
 
 export function updateRadialMenuPosition(x, y, nodeWidth, nodeHeight) {
-    const clamped = clampNodeMenuPosition(x, y, nodeWidth, nodeHeight);
-    x = clamped.x;
-    y = clamped.y;
-
-    const padding = 15;
+    const padding = isPhoneViewport() ? 2 : 15;
     
     const connectBtn = document.querySelector('.radial-connect');
     const deleteBtn = document.querySelector('.radial-delete');

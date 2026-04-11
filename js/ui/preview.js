@@ -590,9 +590,14 @@ export function setupInlineEditing() {
         getStore().setOriginalContent(descriptionElement.dataset.rawMarkdown || '');
         descriptionElement.classList.add('editing');
         descriptionElement.closest('.article-section')?.classList.add('editing');
+        descriptionElement.closest('.article-card')?.classList.add('article-card-editing-note');
         descriptionElement.textContent = getStore().originalContent;
         descriptionElement.dataset.autocompleteSelectedIndex = '0';
         hideAutocomplete(descriptionElement);
+
+        requestAnimationFrame(() => {
+            descriptionElement.scrollIntoView({ block: 'center', inline: 'nearest' });
+        });
     });
 
     descriptionElement.addEventListener('blur', () => {
@@ -715,6 +720,7 @@ export function saveInlineEdit(element, field) {
     hideAutocomplete(element);
     element.classList.remove('editing');
     element.closest('.article-section')?.classList.remove('editing');
+    element.closest('.article-card')?.classList.remove('article-card-editing-note');
     getStore().setCurrentEditingElement(null);
     
     if (!getStore().currentPreviewArticleId) return;

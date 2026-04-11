@@ -936,8 +936,12 @@ export function getZoneResizeHandle(event) {
     const mouseY = event.clientY - rect.top;
     const mousePos = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
     
+    const touchLikePointer = typeof window !== 'undefined'
+        && Boolean(window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
+
     // Detection zone: offset to the left and up from the visual border
-    const handleMargin = 10; // Margin on each side of the border (total detection zone = 20)
+    const handleMargin = touchLikePointer ? 16 : 10;
+    const cornerMargin = touchLikePointer ? 24 : handleMargin;
     const offsetX = -5; // Shift detection zone to the left
     const offsetY = -5; // Shift detection zone up
     
@@ -956,22 +960,26 @@ export function getZoneResizeHandle(event) {
         const nearRight = mousePos.x >= borderRight - handleMargin && mousePos.x <= borderRight + handleMargin;
         const nearTop = mousePos.y >= borderTop - handleMargin && mousePos.y <= borderTop + handleMargin;
         const nearBottom = mousePos.y >= borderBottom - handleMargin && mousePos.y <= borderBottom + handleMargin;
+        const nearCornerLeft = mousePos.x >= borderLeft - cornerMargin && mousePos.x <= borderLeft + cornerMargin;
+        const nearCornerRight = mousePos.x >= borderRight - cornerMargin && mousePos.x <= borderRight + cornerMargin;
+        const nearCornerTop = mousePos.y >= borderTop - cornerMargin && mousePos.y <= borderTop + cornerMargin;
+        const nearCornerBottom = mousePos.y >= borderBottom - cornerMargin && mousePos.y <= borderBottom + cornerMargin;
         
         // For edges, we need to be within the zone's bounds (extended by margin)
         const inHorizontalRange = mousePos.y >= borderTop - handleMargin && mousePos.y <= borderBottom + handleMargin;
         const inVerticalRange = mousePos.x >= borderLeft - handleMargin && mousePos.x <= borderRight + handleMargin;
         
         // Check corners first
-        if (nearLeft && nearTop && inHorizontalRange && inVerticalRange) {
+        if (nearCornerLeft && nearCornerTop && inHorizontalRange && inVerticalRange) {
             return { zoneIndex: i, handle: 'nw', zone: zone };
         }
-        if (nearRight && nearTop && inHorizontalRange && inVerticalRange) {
+        if (nearCornerRight && nearCornerTop && inHorizontalRange && inVerticalRange) {
             return { zoneIndex: i, handle: 'ne', zone: zone };
         }
-        if (nearLeft && nearBottom && inHorizontalRange && inVerticalRange) {
+        if (nearCornerLeft && nearCornerBottom && inHorizontalRange && inVerticalRange) {
             return { zoneIndex: i, handle: 'sw', zone: zone };
         }
-        if (nearRight && nearBottom && inHorizontalRange && inVerticalRange) {
+        if (nearCornerRight && nearCornerBottom && inHorizontalRange && inVerticalRange) {
             return { zoneIndex: i, handle: 'se', zone: zone };
         }
         
