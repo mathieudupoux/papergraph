@@ -15,6 +15,7 @@ import { updateGraph } from '../graph/render.js';
 import { fitGraphView } from '../graph/view.js';
 import { setupLogoDropdown } from '../ui/logo-dropdown.js';
 import { hideContextMenu } from '../ui/context-menu.js';
+import { disableTouchZoneCreationMode, syncTouchZoneModeIndicator } from '../ui/touch-zone-mode.js';
 
 // ===== INITIALIZATION & EVENT LISTENERS =====
 // Application initialization and all event bindings
@@ -33,6 +34,8 @@ if (urlParams.get('mode') === 'readonly') {
 }
 
 export function initializeEventListeners() {
+    syncTouchZoneModeIndicator();
+
     // View toggle switch
     const viewToggle = document.getElementById('viewToggle');
     if (viewToggle) {
@@ -318,6 +321,7 @@ export function initializeEventListeners() {
     document.addEventListener('keydown', (e) => {
         // Escape key - hide selection box and menus
         if (e.key === 'Escape') {
+            disableTouchZoneCreationMode();
             hideSelectionBox();
             hideRadialMenu();
             hideEdgeMenu();

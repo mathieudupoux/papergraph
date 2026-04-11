@@ -4,7 +4,6 @@ import { checkNodeZoneMembership, hideZoneDeleteButton } from './zones.js';
 import { save } from '../data/persistence.js';
 import { showSelectionRadialMenu, showEmptyAreaMenu } from '../ui/radial-menu.js';
 import { updateCategoryFilters } from '../ui/filters.js';
-import { getGraphInteractionOptions } from './interaction.js';
 
 // ===== MULTI-SELECTION BOX =====
 
@@ -193,12 +192,12 @@ export function startSelectionBox(event) {
     getStore().updateMultiSelection({ active: true });
     
     getNetwork().setOptions({
-        interaction: getGraphInteractionOptions({
+        interaction: {
             dragNodes: false,
             dragView: false,
             zoomView: false,
             hover: false
-        })
+        }
     });
     
     const canvas = getNetwork().canvas.frame.canvas;
@@ -251,12 +250,12 @@ export function startSelectionBoxDrag(event, mouseX, mouseY, boxLeft, boxTop) {
     });
     
     getNetwork().setOptions({
-        interaction: getGraphInteractionOptions({
+        interaction: {
             dragNodes: false,
             dragView: false,
             zoomView: false,
             hover: false
-        })
+        }
     });
 }
 
@@ -365,14 +364,16 @@ export function endSelectionBoxDrag() {
     save(true);
     
     getNetwork().setOptions({
-        interaction: getGraphInteractionOptions({
+        interaction: {
             dragNodes: true,
+            dragView: false,
+            zoomView: false,
             hover: true,
             hoverConnectedEdges: true,
             selectConnectedEdges: true,
             multiselect: true,
             selectable: true
-        })
+        }
     });
 }
 
@@ -412,14 +413,16 @@ export function endSelectionBox() {
         getStore().updateMultiSelection({ active: false });
         
         getNetwork().setOptions({
-            interaction: getGraphInteractionOptions({
+            interaction: {
                 dragNodes: true,
+                dragView: false,
+                zoomView: false,
                 hover: true,
                 hoverConnectedEdges: true,
                 selectConnectedEdges: true,
                 multiselect: true,
                 selectable: true
-            })
+            }
         });
         return;
     }
@@ -495,14 +498,16 @@ export function endSelectionBox() {
     console.log(`📦 Selected ${getStore().multiSelection.selectedNodes.length} nodes total`);
     
     getNetwork().setOptions({
-        interaction: getGraphInteractionOptions({
+        interaction: {
             dragNodes: true,
+            dragView: false,
+            zoomView: false,
             hover: true,
             hoverConnectedEdges: true,
             selectConnectedEdges: true,
             multiselect: true,
             selectable: true
-        })
+        }
     });
     
     if (getStore().multiSelection.selectedNodes.length > 0) {

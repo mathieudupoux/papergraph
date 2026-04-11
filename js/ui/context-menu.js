@@ -6,6 +6,7 @@ import { openMultiTagDialog, deleteSelectedNodes } from './toolbar.js';
 import { applyNodeLabelFormat } from '../graph/selection.js';
 import { fitGraphView } from '../graph/view.js';
 import { icon } from './icons.js';
+import { enableTouchZoneCreationMode, isTouchScreen } from './touch-zone-mode.js';
 
 let outsideClickHandler = null;
 let escapeHandler = null;
@@ -174,6 +175,7 @@ function buildMenuItems(context = {}) {
     const readOnly = getStore().isReadOnlyMode || getStore().isGalleryViewer;
     const selectedNodeIds = getSelectedNodeIds();
     const hasDeleteTarget = selectedNodeIds.length > 0 || getStore().selectedEdgeId !== null || getStore().selectedZoneIndex !== -1;
+    const touchScreen = isTouchScreen();
 
     return [
         {
@@ -194,9 +196,9 @@ function buildMenuItems(context = {}) {
             divider: true
         },
         {
-            label: 'Tag Selection',
-            enabled: !readOnly && selectedNodeIds.length > 0,
-            onSelect: tagSelectedNodes
+            label: touchScreen ? 'Zone Selection' : 'Tag Selection',
+            enabled: touchScreen ? !readOnly : (!readOnly && selectedNodeIds.length > 0),
+            onSelect: touchScreen ? enableTouchZoneCreationMode : tagSelectedNodes
         },
         {
             label: 'Delete',
@@ -234,7 +236,7 @@ function bindDismissHandlers() {
     };
 
     setTimeout(() => {
-        document.addEventListener('mousedown', outsideClickHandler);
+        document.addEventListener('pointerdown', outsideClickHandler);
     }, 0);
     document.addEventListener('keydown', escapeHandler);
 }
@@ -249,7 +251,7 @@ export function hideContextMenu() {
     hideNodeLabelSubmenu();
 
     if (outsideClickHandler) {
-        document.removeEventListener('mousedown', outsideClickHandler);
+        document.removeEventListener('pointerdown', outsideClickHandler);
         outsideClickHandler = null;
     }
 
