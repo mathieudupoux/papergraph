@@ -168,6 +168,13 @@
     gap: 12px;
 }
 
+@media (max-width: 800px) {
+    .editor-user-dropdown {
+        top: 18px;
+        right: 12px;
+    }
+}
+
 /* Floating action button (e.g. Sign In on gallery page) */
 .pg-floating-action {
     position: fixed;

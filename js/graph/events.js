@@ -53,6 +53,12 @@ const touchState = {
     longPressTimer: null,
 };
 
+const pinchState = {
+    active: false,
+    lastDistance: 0,
+    lastCenter: null,
+};
+
 function updateTouchDrivenZoneMove(event) {
     if (getStore().zoneMoving.readyToMove) {
         const canvas = getNetwork().canvas.frame.canvas;
@@ -144,6 +150,12 @@ function clearTouchLongPressTimer() {
     }
 }
 
+function resetPinchState() {
+    pinchState.active = false;
+    pinchState.lastDistance = 0;
+    pinchState.lastCenter = null;
+}
+
 function resetTouchState() {
     clearTouchLongPressTimer();
     touchState.active = false;
@@ -156,6 +168,71 @@ function resetTouchState() {
     touchState.panning = false;
     touchState.selection = false;
     touchState.longPressTriggered = false;
+}
+
+function getTouchDistance(firstTouch, secondTouch) {
+    return Math.hypot(
+        secondTouch.clientX - firstTouch.clientX,
+        secondTouch.clientY - firstTouch.clientY
+    );
+}
+
+function getTouchCenter(firstTouch, secondTouch) {
+    return {
+        clientX: (firstTouch.clientX + secondTouch.clientX) / 2,
+        clientY: (firstTouch.clientY + secondTouch.clientY) / 2,
+    };
+}
+
+function startPinchGesture(touches) {
+    if (touches.length < 2) return;
+
+    const [firstTouch, secondTouch] = touches;
+    pinchState.active = true;
+    pinchState.lastDistance = getTouchDistance(firstTouch, secondTouch);
+    pinchState.lastCenter = getTouchCenter(firstTouch, secondTouch);
+}
+
+function updatePinchGesture(touches) {
+    if (!pinchState.active || touches.length < 2) return;
+
+    const [firstTouch, secondTouch] = touches;
+    const currentDistance = getTouchDistance(firstTouch, secondTouch);
+    const currentCenter = getTouchCenter(firstTouch, secondTouch);
+
+    if (!isFinite(currentDistance) || currentDistance <= 0 || !pinchState.lastCenter) {
+        return;
+    }
+
+    const currentScale = getNetwork().getScale();
+    const zoomFactor = currentDistance / Math.max(pinchState.lastDistance, 1);
+    const nextScale = Math.min(3.5, Math.max(0.15, currentScale * zoomFactor));
+    const { canvasPosition } = getCanvasPointer(currentCenter);
+    const currentView = getNetwork().getViewPosition();
+    const offsetX = canvasPosition.x - currentView.x;
+    const offsetY = canvasPosition.y - currentView.y;
+    const scaleRatio = currentScale / nextScale;
+    const centerDx = currentCenter.clientX - pinchState.lastCenter.clientX;
+    const centerDy = currentCenter.clientY - pinchState.lastCenter.clientY;
+
+    getNetwork().moveTo({
+        position: {
+            x: canvasPosition.x - offsetX * scaleRatio - centerDx / nextScale,
+            y: canvasPosition.y - offsetY * scaleRatio - centerDy / nextScale,
+        },
+        scale: nextScale,
+        animation: false
+    });
+
+    pinchState.lastDistance = currentDistance;
+    pinchState.lastCenter = currentCenter;
+
+    if (getStore().selectedZoneIndex !== -1) {
+        requestAnimationFrame(() => updateZoneRadialMenuPosition(getStore().selectedZoneIndex));
+    }
+    requestAnimationFrame(() => updateRadialMenuIfActive());
+    requestAnimationFrame(() => updateEdgeMenuPosition());
+    requestAnimationFrame(() => refreshSelectionOverlayPosition());
 }
 
 function getSyntheticPointerEvent(clientX, clientY) {
@@ -625,9 +702,18 @@ export function setupCanvasEvents() {
     }, false);
 
     canvas.addEventListener('touchstart', (event) => {
+        if (event.touches.length === 2) {
+            suppressNextNetworkClick = true;
+            clearTouchLongPressTimer();
+            resetTouchState();
+            startPinchGesture(event.touches);
+            return;
+        }
+
         if (event.touches.length !== 1) {
             suppressNextNetworkClick = true;
             resetTouchState();
+            resetPinchState();
             return;
         }
 
@@ -702,6 +788,17 @@ export function setupCanvasEvents() {
     }, { passive: true, capture: true });
 
     canvas.addEventListener('touchmove', (event) => {
+        if (pinchState.active || event.touches.length >= 2) {
+            event.preventDefault();
+            clearTouchLongPressTimer();
+            resetTouchState();
+            if (!pinchState.active) {
+                startPinchGesture(event.touches);
+            }
+            updatePinchGesture(event.touches);
+            return;
+        }
+
         const touch = event.changedTouches[0];
 
         if (getStore().zoneResizing.active) {
@@ -772,6 +869,14 @@ export function setupCanvasEvents() {
     }, { passive: false, capture: true });
 
     canvas.addEventListener('touchend', (event) => {
+        if (pinchState.active) {
+            if (event.touches.length < 2) {
+                resetPinchState();
+            }
+            suppressNextNetworkClick = true;
+            return;
+        }
+
         if (getStore().zoneResizing.active) {
             event.preventDefault();
             endZoneResize();
@@ -810,6 +915,7 @@ export function setupCanvasEvents() {
     }, { passive: false, capture: true });
 
     canvas.addEventListener('touchcancel', () => {
+        resetPinchState();
         clearTouchLongPressTimer();
 
         if (touchState.selection) {
