@@ -5,9 +5,23 @@ import { getStore, getNetwork } from '../store/appStore.js';
 import { showArticlePreview } from './preview.js';
 import { openMultiTagDialog, deleteSelectedNodes, applyEmptyAreaZoneFromDialog } from './toolbar.js';
 import { icon } from './icons.js';
-import { getGraphInteractionOptions } from '../graph/interaction.js';
+import { getMobileBottomDeadzonePx, isPhoneViewport } from './touch-zone-mode.js';
 
 let activePulseNodeId = null;
+
+function clampNodeMenuPosition(x, y, nodeWidth = 100, nodeHeight = 50) {
+    if (!isPhoneViewport()) {
+        return { x, y };
+    }
+
+    const sidePadding = 24;
+    const lowerLimit = window.innerHeight - getMobileBottomDeadzonePx() - 36;
+
+    return {
+        x: Math.max(sidePadding + nodeWidth / 2 + 44, Math.min(window.innerWidth - sidePadding - nodeWidth / 2 - 44, x)),
+        y: Math.max(72, Math.min(lowerLimit, y))
+    };
+}
 
 function toRgba(color, alpha) {
     if (!color) return `rgba(74, 144, 226, ${alpha})`;
@@ -77,11 +91,13 @@ export function openRadialMenuForNode(nodeId) {
     
     // Keep drag enabled but disable panning and zoom when menu is open
     getNetwork().setOptions({ 
-        interaction: getGraphInteractionOptions({
+        interaction: { 
             dragNodes: true,
+            dragView: false,
+            zoomView: false,
             hover: true,
             hoverConnectedEdges: false
-        })
+        } 
     });
 }
 
@@ -92,6 +108,9 @@ export function showRadialMenu(x, y, nodeId, nodeWidth = 100, nodeHeight = 50) {
     }
     
     const menu = document.getElementById('radialMenu');
+    const clamped = clampNodeMenuPosition(x, y, nodeWidth, nodeHeight);
+    x = clamped.x;
+    y = clamped.y;
     
     // Clear any previous pulse animation and reset previous node
     if (getStore().currentPulseInterval) {
@@ -166,6 +185,10 @@ export function showRadialMenu(x, y, nodeId, nodeWidth = 100, nodeHeight = 50) {
 }
 
 export function updateRadialMenuPosition(x, y, nodeWidth, nodeHeight) {
+    const clamped = clampNodeMenuPosition(x, y, nodeWidth, nodeHeight);
+    x = clamped.x;
+    y = clamped.y;
+
     const padding = 15;
     
     const connectBtn = document.querySelector('.radial-connect');
@@ -227,11 +250,13 @@ export function hideRadialMenu() {
     // Re-enable interactions
     if (getNetwork()) {
         getNetwork().setOptions({ 
-            interaction: getGraphInteractionOptions({
+            interaction: { 
                 dragNodes: true,
+                dragView: false,
+                zoomView: false,
                 hover: true,
                 tooltipDelay: 200
-            })
+            } 
         });
     }
 }
@@ -253,8 +278,11 @@ export function showSelectionRadialMenu(x, y) {
     menuContainer.style.gap = '8px';
     menuContainer.style.pointerEvents = 'none';
     menuContainer.style.zIndex = '10000';
-    menuContainer.style.left = x + 'px';
-    menuContainer.style.top = y + 'px';
+    const lowerLimit = isPhoneViewport()
+        ? window.innerHeight - getMobileBottomDeadzonePx() - 52
+        : window.innerHeight - 52;
+    menuContainer.style.left = Math.max(12, Math.min(window.innerWidth - 120, x)) + 'px';
+    menuContainer.style.top = Math.max(72, Math.min(lowerLimit, y)) + 'px';
     document.body.appendChild(menuContainer);
     
     const buttons = [
@@ -378,8 +406,11 @@ export function showEmptyAreaMenu(x, y) {
     btn.style.color = '#333';
     btn.style.transition = 'transform 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s';
     btn.style.pointerEvents = 'all';
-    btn.style.left = x + 'px';
-    btn.style.top = y + 'px';
+    const lowerLimit = isPhoneViewport()
+        ? window.innerHeight - getMobileBottomDeadzonePx() - 52
+        : window.innerHeight - 52;
+    btn.style.left = Math.max(12, Math.min(window.innerWidth - 52, x)) + 'px';
+    btn.style.top = Math.max(72, Math.min(lowerLimit, y)) + 'px';
     btn.style.opacity = '0';
     btn.style.transform = 'scale(0)';
     

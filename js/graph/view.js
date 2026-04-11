@@ -1,4 +1,5 @@
 import { getStore, getNetwork } from '../store/appStore.js';
+import { isPhoneViewport } from '../ui/touch-zone-mode.js';
 
 export function fitGraphView(options = {}) {
     const network = getNetwork();
@@ -43,16 +44,18 @@ export function fitGraphView(options = {}) {
 
     const width = Math.max(maxX - minX, 1);
     const height = Math.max(maxY - minY, 1);
-    const paddingX = Math.max(width * paddingRatio, 80);
-    const paddingY = Math.max(height * paddingRatio, 80);
-    const canvasWidth = network.canvas.frame.canvas.width;
-    const canvasHeight = network.canvas.frame.canvas.height;
+    const phoneViewport = isPhoneViewport();
+    const paddingX = phoneViewport ? 0 : Math.max(width * paddingRatio, 80);
+    const paddingY = phoneViewport ? 0 : Math.max(height * paddingRatio, 80);
+    const containerRect = network.canvas.frame.canvas.getBoundingClientRect();
+    const canvasWidth = Math.max(containerRect.width, 1);
+    const availableHeightPx = Math.max(containerRect.height, 1);
     const targetScale = Math.max(
         minScale,
         Math.min(
             canvasWidth / (width + paddingX * 2),
-            canvasHeight / (height + paddingY * 2)
-        ) * finalScaleRatio
+            availableHeightPx / (height + paddingY * 2)
+        ) * (phoneViewport ? 1 : finalScaleRatio)
     );
 
     network.moveTo({

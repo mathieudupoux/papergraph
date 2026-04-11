@@ -123,6 +123,7 @@ const storeDefinition = (set, get) => ({
     originalContent: '',
     inlineEditingSetup: false,
     currentPreviewArticleId: null,
+    touchZoneCreationMode: false,
 
     // ── appData Actions ───────────────────────────────────────────────
 
@@ -374,6 +375,7 @@ const storeDefinition = (set, get) => ({
     setCurrentPreviewArticleId: (currentPreviewArticleId) => set({ currentPreviewArticleId }),
     setCurrentEditingElement: (currentEditingElement) => set({ currentEditingElement }),
     setOriginalContent: (originalContent) => set({ originalContent }),
+    setTouchZoneCreationMode: (touchZoneCreationMode) => set({ touchZoneCreationMode }),
 
     updateConnectionMode: (updates) => set((s) => ({
         connectionMode: { ...s.connectionMode, ...updates },

@@ -8,6 +8,7 @@ import { updateCategoryFilters } from '../ui/filters.js';
 import { showArticlePreview, closeArticlePreview } from '../ui/preview.js';
 import { showRadialMenu, hideRadialMenu, updateRadialMenuPosition, updateRadialMenuIfActive, hideSelectionRadialMenu, hideEmptyAreaMenu } from '../ui/radial-menu.js';
 import { showContextMenu, hideContextMenu } from '../ui/context-menu.js';
+import { disableTouchZoneCreationMode, isPhoneViewport } from '../ui/touch-zone-mode.js';
 import {
     getZoneResizeHandle, startZoneResize, getZoneTitleClick, startEditZoneTitle,
     hideZoneDeleteButton, showZoneDeleteButton, getZoneAtPosition, findNestedZones,
@@ -25,7 +26,6 @@ import {
     isControlPoint, showControlPointMenu
 } from './connections.js';
 import { positionNodesInZones, initializeZonesFromTags } from '../data/storage.js';
-import { getGraphInteractionOptions } from './interaction.js';
 
 let lastEdgeClickTime = 0;
 let lastEdgeClickId = null;
@@ -34,6 +34,53 @@ let pendingSelectionStart = null;
 let pendingZoneSelectionIndex = -1;
 let hoveredNodeId = null;
 let suppressNextNetworkBackgroundClick = false;
+let suppressNextNetworkClick = false;
+
+const TOUCH_LONG_PRESS_MS = 550;
+const TOUCH_MOVE_TOLERANCE = 10;
+
+const touchState = {
+    active: false,
+    touchId: null,
+    startClientX: 0,
+    startClientY: 0,
+    startViewPosition: null,
+    canPan: false,
+    zoneSelectionArmed: false,
+    panning: false,
+    selection: false,
+    longPressTriggered: false,
+    longPressTimer: null,
+};
+
+function updateTouchDrivenZoneMove(event) {
+    if (getStore().zoneMoving.readyToMove) {
+        const canvas = getNetwork().canvas.frame.canvas;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+        const mousePos = getNetwork().DOMtoCanvas({ x: mouseX, y: mouseY });
+
+        const dx = Math.abs(mousePos.x - getStore().zoneMoving.startX);
+        const dy = Math.abs(mousePos.y - getStore().zoneMoving.startY);
+
+        if (dx > 5 || dy > 5) {
+            pauseHistory();
+            getStore().updateZoneMoving({ active: true });
+            getStore().updateZoneMoving({ readyToMove: false });
+
+            getNetwork().setOptions({
+                interaction: {
+                    dragNodes: false,
+                    dragView: false,
+                    zoomView: false
+                }
+            });
+        }
+    } else if (getStore().zoneMoving.active) {
+        updateZoneMove(event);
+    }
+}
 
 function toRgba(color, alpha) {
     if (!color) return `rgba(74, 144, 226, ${alpha})`;
@@ -90,6 +137,112 @@ function getCanvasPointer(event) {
     };
 }
 
+function clearTouchLongPressTimer() {
+    if (touchState.longPressTimer !== null) {
+        window.clearTimeout(touchState.longPressTimer);
+        touchState.longPressTimer = null;
+    }
+}
+
+function resetTouchState() {
+    clearTouchLongPressTimer();
+    touchState.active = false;
+    touchState.touchId = null;
+    touchState.startClientX = 0;
+    touchState.startClientY = 0;
+    touchState.startViewPosition = null;
+    touchState.canPan = false;
+    touchState.zoneSelectionArmed = false;
+    touchState.panning = false;
+    touchState.selection = false;
+    touchState.longPressTriggered = false;
+}
+
+function getSyntheticPointerEvent(clientX, clientY) {
+    const { mouseX, mouseY } = getCanvasPointer({ clientX, clientY });
+
+    return {
+        clientX,
+        clientY,
+        offsetX: mouseX,
+        offsetY: mouseY,
+        button: 0,
+        buttons: 1,
+        detail: 1,
+        preventDefault() {},
+        stopPropagation() {},
+    };
+}
+
+function getCanvasHitState(clientX, clientY) {
+    const syntheticEvent = getSyntheticPointerEvent(clientX, clientY);
+    const clickPos = { x: syntheticEvent.offsetX, y: syntheticEvent.offsetY };
+    const nodeId = getNetwork().getNodeAt(clickPos);
+    const edgeId = getNetwork().getEdgeAt(clickPos);
+    const zoneClick = !nodeId && !edgeId ? getZoneAtPosition(syntheticEvent) : { zoneIndex: -1, zone: null };
+
+    return {
+        syntheticEvent,
+        nodeId,
+        edgeId,
+        zoneClick,
+        resizeHandle: getZoneResizeHandle(syntheticEvent),
+        titleClick: getZoneTitleClick(syntheticEvent),
+    };
+}
+
+function openContextMenuAtClientPosition(clientX, clientY) {
+    const { nodeId, edgeId, zoneClick } = getCanvasHitState(clientX, clientY);
+    const { canvasPosition } = getCanvasPointer({ clientX, clientY });
+
+    hideRadialMenu();
+    hideEdgeMenu();
+    hideZoneDeleteButton();
+    hideSelectionRadialMenu();
+
+    if (nodeId) {
+        const isMultiContext = getStore().multiSelection.selectedNodes.includes(nodeId) &&
+            getStore().multiSelection.selectedNodes.length > 1;
+
+        if (!isMultiContext) {
+            hideSelectionBox();
+            getStore().updateMultiSelection({ selectedNodes: [] });
+            getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+        }
+        getStore().setSelectedNodeId(isMultiContext ? null : nodeId);
+        getStore().setSelectedEdgeId(null);
+        getStore().setSelectedZoneIndex(-1);
+        getNetwork().selectNodes(isMultiContext ? getStore().multiSelection.selectedNodes : [nodeId]);
+    } else if (edgeId) {
+        hideSelectionBox();
+        getStore().updateMultiSelection({ selectedNodes: [] });
+        getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+        getStore().setSelectedNodeId(null);
+        getStore().setSelectedEdgeId(edgeId);
+        getStore().setSelectedZoneIndex(-1);
+    } else if (zoneClick.zone !== null) {
+        hideSelectionBox();
+        getStore().updateMultiSelection({ selectedNodes: [] });
+        getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+        getStore().setSelectedNodeId(null);
+        getStore().setSelectedEdgeId(null);
+        getStore().setSelectedZoneIndex(zoneClick.zoneIndex);
+        showZoneDeleteButton(zoneClick.zoneIndex);
+        getNetwork().redraw();
+    } else {
+        getStore().setSelectedNodeId(null);
+        getStore().setSelectedEdgeId(null);
+        getStore().setSelectedZoneIndex(-1);
+    }
+
+    showContextMenu(clientX, clientY, {
+        canvasPosition,
+        nodeId,
+        edgeId,
+        zoneIndex: zoneClick.zoneIndex
+    });
+}
+
 function queueZoneMove(event, zoneIndex) {
     const { canvasPosition } = getCanvasPointer(event);
 
@@ -118,12 +271,7 @@ function queueZoneMove(event, zoneIndex) {
 
 function maybeStartSelectionDrag(event) {
     if (!pendingSelectionStart) return false;
-    const isMousePointer = event.pointerType === 'mouse';
-    const hasActivePress = isMousePointer
-        ? (event.buttons & 1) !== 0
-        : event.buttons !== 0 || event.pressure > 0;
-
-    if (!hasActivePress) {
+    if ((event.buttons & 1) === 0) {
         pendingSelectionStart = null;
         pendingZoneSelectionIndex = -1;
         return false;
@@ -241,30 +389,16 @@ function clearHoveredNodeState(forceReset = false) {
     getNetwork()?.redraw();
 }
 
-function isPrimaryPointerDown(event) {
-    if (event.pointerType === 'mouse') {
-        return event.button === 0;
-    }
-
-    return event.isPrimary !== false;
-}
-
 export function setupCanvasEvents() {
     const canvas = getNetwork().canvas.frame.canvas;
     
-    canvas.addEventListener('pointerdown', (event) => {
+    canvas.addEventListener('mousedown', (event) => {
         hideContextMenu();
 
-        if (!isPrimaryPointerDown(event)) {
+        if (event.button !== 0) {
             pendingSelectionStart = null;
             pendingZoneSelectionIndex = -1;
             return;
-        }
-
-        if (canvas.setPointerCapture) {
-            try {
-                canvas.setPointerCapture(event.pointerId);
-            } catch {}
         }
 
         if (getStore().connectionMode.active) {
@@ -305,8 +439,7 @@ export function setupCanvasEvents() {
             return;
         }
 
-        const { mouseX, mouseY } = getCanvasPointer(event);
-        const clickPos = { x: mouseX, y: mouseY };
+        const clickPos = { x: event.offsetX, y: event.offsetY };
         const nodeId = getNetwork().getNodeAt(clickPos);
         const edgeId = getNetwork().getEdgeAt(clickPos);
 
@@ -375,55 +508,7 @@ export function setupCanvasEvents() {
     canvas.addEventListener('contextmenu', (event) => {
         event.preventDefault();
         event.stopPropagation();
-
-        const clickPos = { x: event.offsetX, y: event.offsetY };
-        const nodeId = getNetwork().getNodeAt(clickPos);
-        const edgeId = getNetwork().getEdgeAt(clickPos);
-        const zoneClick = !nodeId && !edgeId ? getZoneAtPosition(event) : { zoneIndex: -1, zone: null };
-        const { canvasPosition } = getCanvasPointer(event);
-
-        hideRadialMenu();
-        hideEdgeMenu();
-        hideZoneDeleteButton();
-        hideSelectionRadialMenu();
-
-        if (nodeId) {
-            const isMultiContext = getStore().multiSelection.selectedNodes.includes(nodeId) &&
-                getStore().multiSelection.selectedNodes.length > 1;
-
-            if (!isMultiContext) {
-                hideSelectionBox();
-                getStore().updateMultiSelection({ selectedNodes: [] });
-                getStore().updateMultiSelection({ selectedZonesForDrag: [] });
-            }
-            getStore().setSelectedNodeId(isMultiContext ? null : nodeId);
-            getStore().setSelectedEdgeId(null);
-            getStore().setSelectedZoneIndex(-1);
-            getNetwork().selectNodes(isMultiContext ? getStore().multiSelection.selectedNodes : [nodeId]);
-        } else if (edgeId) {
-            hideSelectionBox();
-            getStore().updateMultiSelection({ selectedNodes: [] });
-            getStore().updateMultiSelection({ selectedZonesForDrag: [] });
-            getStore().setSelectedNodeId(null);
-            getStore().setSelectedEdgeId(edgeId);
-            getStore().setSelectedZoneIndex(-1);
-        } else if (zoneClick.zone !== null) {
-            hideSelectionBox();
-            getStore().updateMultiSelection({ selectedNodes: [] });
-            getStore().updateMultiSelection({ selectedZonesForDrag: [] });
-            getStore().setSelectedNodeId(null);
-            getStore().setSelectedEdgeId(null);
-            getStore().setSelectedZoneIndex(zoneClick.zoneIndex);
-            showZoneDeleteButton(zoneClick.zoneIndex);
-            getNetwork().redraw();
-        }
-
-        showContextMenu(event.clientX, event.clientY, {
-            canvasPosition,
-            nodeId,
-            edgeId,
-            zoneIndex: zoneClick.zoneIndex
-        });
+        openContextMenuAtClientPosition(event.clientX, event.clientY);
     }, true);
 
     canvas.addEventListener('wheel', (event) => {
@@ -439,7 +524,7 @@ export function setupCanvasEvents() {
         }
     }, { passive: false });
     
-    canvas.addEventListener('pointermove', (event) => {
+    canvas.addEventListener('mousemove', (event) => {
         if (maybeStartSelectionDrag(event)) {
             return;
         }
@@ -460,11 +545,11 @@ export function setupCanvasEvents() {
                 getStore().updateZoneMoving({ readyToMove: false });
                 
                 getNetwork().setOptions({
-                    interaction: getGraphInteractionOptions({
+                    interaction: {
                         dragNodes: false,
                         dragView: false,
                         zoomView: false
-                    })
+                    }
                 });
             }
         } else if (getStore().zoneMoving.active) {
@@ -490,8 +575,8 @@ export function setupCanvasEvents() {
         }
     }, true);
     
-    const finalizePointerInteraction = (event) => {
-        if (isPrimaryPointerDown(event) && pendingSelectionStart) {
+    canvas.addEventListener('mouseup', (event) => {
+        if (event.button === 0 && pendingSelectionStart) {
             if (pendingZoneSelectionIndex !== -1) {
                 getStore().setSelectedZoneIndex(pendingZoneSelectionIndex);
                 showZoneDeleteButton(pendingZoneSelectionIndex);
@@ -501,17 +586,11 @@ export function setupCanvasEvents() {
             pendingZoneSelectionIndex = -1;
         }
 
-        if (canvas.releasePointerCapture) {
-            try {
-                canvas.releasePointerCapture(event.pointerId);
-            } catch {}
-        }
-
-        if (getStore().isGalleryViewer) {
+        if (event.button === 0 && getStore().isGalleryViewer) {
             return;
         }
 
-        if (getStore().zoneMoving.active || getStore().zoneMoving.readyToMove) {
+        if (event.button === 0 && (getStore().zoneMoving.active || getStore().zoneMoving.readyToMove)) {
             event.preventDefault();
             event.stopPropagation();
             
@@ -524,29 +603,222 @@ export function setupCanvasEvents() {
             }
             getStore().updateZoneMoving({ readyToMove: false });
             getStore().updateZoneMoving({ active: false });
-        } else if (getStore().zoneResizing.active) {
+        } else if (event.button === 0 && getStore().zoneResizing.active) {
             event.preventDefault();
             event.stopPropagation();
             endZoneResize();
-        } else if (getStore().multiSelection.boxDragging) {
+        } else if (event.button === 0 && getStore().multiSelection.boxDragging) {
             event.preventDefault();
             event.stopPropagation();
             endSelectionBoxDrag();
-        } else if (getStore().multiSelection.active) {
+        } else if (event.button === 0 && getStore().multiSelection.active) {
             event.preventDefault();
             event.stopPropagation();
             endSelectionBox();
         }
-    };
-
-    canvas.addEventListener('pointerup', finalizePointerInteraction, true);
-    canvas.addEventListener('pointercancel', finalizePointerInteraction, true);
+    }, true);
     
-    getNetwork().canvas.body.container.addEventListener('pointermove', (event) => {
+    getNetwork().canvas.body.container.addEventListener('mousemove', (event) => {
         if (!getStore().zoneMoving.active && !getStore().zoneResizing.active && !getStore().multiSelection.active && !getStore().multiSelection.boxDragging && !getStore().connectionMode.active && !getStore().zoneEditing.active) {
             updateZoneCursor(event);
         }
     }, false);
+
+    canvas.addEventListener('touchstart', (event) => {
+        if (event.touches.length !== 1) {
+            suppressNextNetworkClick = true;
+            resetTouchState();
+            return;
+        }
+
+        const touch = event.changedTouches[0];
+        const hitState = getCanvasHitState(touch.clientX, touch.clientY);
+        const touchZoneModeActive = getStore().touchZoneCreationMode
+            && !hitState.nodeId
+            && !hitState.edgeId
+            && hitState.resizeHandle.zone === null
+            && hitState.titleClick.zone === null;
+
+        hideContextMenu();
+
+        if (!touchZoneModeActive && hitState.resizeHandle.zone !== null) {
+            event.preventDefault();
+            startZoneResize(hitState.syntheticEvent, hitState.resizeHandle.zoneIndex, hitState.resizeHandle.handle);
+            suppressNextNetworkClick = true;
+            resetTouchState();
+            return;
+        }
+
+        if (!touchZoneModeActive && hitState.titleClick.zone !== null) {
+            event.preventDefault();
+            suppressNextNetworkBackgroundClick = true;
+            queueZoneMove(hitState.syntheticEvent, hitState.titleClick.zoneIndex);
+            suppressNextNetworkClick = true;
+            resetTouchState();
+            return;
+        }
+
+        if (!touchZoneModeActive && hitState.zoneClick.zone !== null) {
+            event.preventDefault();
+
+            if (hitState.zoneClick.zoneIndex === getStore().selectedZoneIndex) {
+                queueZoneMove(hitState.syntheticEvent, hitState.zoneClick.zoneIndex);
+                suppressNextNetworkClick = true;
+                resetTouchState();
+                return;
+            }
+
+            getStore().setSelectedZoneIndex(hitState.zoneClick.zoneIndex);
+            showZoneDeleteButton(hitState.zoneClick.zoneIndex);
+            getNetwork().redraw();
+            suppressNextNetworkClick = true;
+            resetTouchState();
+            return;
+        }
+
+        touchState.active = true;
+        touchState.touchId = touch.identifier;
+        touchState.startClientX = touch.clientX;
+        touchState.startClientY = touch.clientY;
+        touchState.startViewPosition = getNetwork().getViewPosition();
+        touchState.canPan = !touchZoneModeActive
+            && !hitState.nodeId
+            && !hitState.edgeId
+            && hitState.resizeHandle.zone === null
+            && hitState.titleClick.zone === null;
+        touchState.zoneSelectionArmed = touchZoneModeActive;
+        touchState.panning = false;
+        touchState.selection = false;
+        touchState.longPressTriggered = false;
+
+        clearTouchLongPressTimer();
+        if (!touchZoneModeActive) {
+            touchState.longPressTimer = window.setTimeout(() => {
+                touchState.longPressTriggered = true;
+                suppressNextNetworkClick = true;
+                openContextMenuAtClientPosition(touchState.startClientX, touchState.startClientY);
+            }, TOUCH_LONG_PRESS_MS);
+        }
+    }, { passive: true, capture: true });
+
+    canvas.addEventListener('touchmove', (event) => {
+        const touch = event.changedTouches[0];
+
+        if (getStore().zoneResizing.active) {
+            event.preventDefault();
+            updateZoneResize(getSyntheticPointerEvent(touch.clientX, touch.clientY));
+            return;
+        }
+
+        if (getStore().zoneMoving.readyToMove || getStore().zoneMoving.active) {
+            event.preventDefault();
+            updateTouchDrivenZoneMove(getSyntheticPointerEvent(touch.clientX, touch.clientY));
+            return;
+        }
+
+        if (!touchState.active) return;
+
+        const trackedTouch = Array.from(event.changedTouches).find((item) => item.identifier === touchState.touchId)
+            || event.changedTouches[0];
+        if (!trackedTouch) return;
+
+        const dx = trackedTouch.clientX - touchState.startClientX;
+        const dy = trackedTouch.clientY - touchState.startClientY;
+        const movedEnough = Math.abs(dx) > TOUCH_MOVE_TOLERANCE || Math.abs(dy) > TOUCH_MOVE_TOLERANCE;
+
+        if (movedEnough) {
+            clearTouchLongPressTimer();
+        }
+
+        if (touchState.longPressTriggered) {
+            event.preventDefault();
+            return;
+        }
+
+        if (touchState.zoneSelectionArmed) {
+            if (!touchState.selection && movedEnough) {
+                startSelectionBox(getSyntheticPointerEvent(touchState.startClientX, touchState.startClientY));
+                touchState.selection = true;
+            }
+
+            if (touchState.selection) {
+                event.preventDefault();
+                updateSelectionBox(getSyntheticPointerEvent(trackedTouch.clientX, trackedTouch.clientY));
+            }
+            return;
+        }
+
+        if (touchState.canPan && movedEnough) {
+            event.preventDefault();
+            touchState.panning = true;
+
+            const scale = getNetwork().getScale();
+            getNetwork().moveTo({
+                position: {
+                    x: touchState.startViewPosition.x - dx / scale,
+                    y: touchState.startViewPosition.y - dy / scale
+                },
+                scale,
+                animation: false
+            });
+
+            if (getStore().selectedZoneIndex !== -1) {
+                requestAnimationFrame(() => updateZoneRadialMenuPosition(getStore().selectedZoneIndex));
+            }
+            requestAnimationFrame(() => updateRadialMenuIfActive());
+            requestAnimationFrame(() => updateEdgeMenuPosition());
+            requestAnimationFrame(() => refreshSelectionOverlayPosition());
+        }
+    }, { passive: false, capture: true });
+
+    canvas.addEventListener('touchend', (event) => {
+        if (getStore().zoneResizing.active) {
+            event.preventDefault();
+            endZoneResize();
+            suppressNextNetworkClick = true;
+            return;
+        }
+
+        if (getStore().zoneMoving.active || getStore().zoneMoving.readyToMove) {
+            event.preventDefault();
+
+            if (getStore().zoneMoving.active) {
+                endZoneMove();
+            }
+
+            getStore().updateZoneMoving({ readyToMove: false });
+            getStore().updateZoneMoving({ active: false });
+            suppressNextNetworkClick = true;
+            return;
+        }
+
+        if (!touchState.active) return;
+
+        clearTouchLongPressTimer();
+
+        if (touchState.longPressTriggered || touchState.panning) {
+            suppressNextNetworkClick = true;
+        }
+
+        if (touchState.selection) {
+            event.preventDefault();
+            endSelectionBox();
+            disableTouchZoneCreationMode();
+        }
+
+        resetTouchState();
+    }, { passive: false, capture: true });
+
+    canvas.addEventListener('touchcancel', () => {
+        clearTouchLongPressTimer();
+
+        if (touchState.selection) {
+            endSelectionBox();
+            disableTouchZoneCreationMode();
+        }
+
+        resetTouchState();
+    }, { passive: true, capture: true });
 }
 
 export function setupNetworkEvents() {
@@ -589,6 +861,11 @@ export function setupNetworkEvents() {
     });
     
     getNetwork().on('click', (params) => {
+        if (suppressNextNetworkClick) {
+            suppressNextNetworkClick = false;
+            return;
+        }
+
         if (getStore().connectionMode.active) {
             handleConnectionModeClick(params);
             return;
@@ -707,12 +984,12 @@ export function setupNetworkEvents() {
                 
                 showEdgeMenu(screenX, screenY, edgeId);
                 
-                getNetwork().setOptions({
-                    interaction: getGraphInteractionOptions({
+                getNetwork().setOptions({ 
+                    interaction: { 
                         dragNodes: false,
                         dragView: false,
                         zoomView: false
-                    })
+                    } 
                 });
             }
         } else {
@@ -1028,6 +1305,23 @@ export function openRadialMenuForNode(nodeId) {
     const node = getNetwork().body.nodes[nodeId];
     const nodeWidth = node.shape.width || 100;
     const nodeHeight = node.shape.height || 50;
+
+    if (isPhoneViewport()) {
+        const screenX = rect.left + canvasPosition.x;
+        const screenY = rect.top + canvasPosition.y;
+        showRadialMenu(screenX, screenY, nodeId, nodeWidth, nodeHeight);
+        showArticlePreview(nodeId);
+        getNetwork().setOptions({ 
+            interaction: { 
+                dragNodes: true,
+                dragView: false,
+                zoomView: false,
+                hover: true,
+                hoverConnectedEdges: false
+            } 
+        });
+        return;
+    }
     
     const previewWidth = 400;
     const menuRadius = 70;
@@ -1067,10 +1361,12 @@ export function openRadialMenuForNode(nodeId) {
     }
     
     getNetwork().setOptions({ 
-        interaction: getGraphInteractionOptions({
+        interaction: { 
             dragNodes: true,
+            dragView: false,
+            zoomView: false,
             hover: true,
             hoverConnectedEdges: false
-        })
+        } 
     });
 }

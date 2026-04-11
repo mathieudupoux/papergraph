@@ -4,7 +4,6 @@
 import { getStore, getNetwork, setNetwork } from '../store/appStore.js';
 import { getGraphData } from './render.js';
 import { setupCanvasEvents, setupNetworkEvents } from './events.js';
-import { applyTouchSurfaceBehavior, getGraphInteractionOptions } from './interaction.js';
 
 function toRgba(color, alpha) {
     if (!color) return `rgba(74, 144, 226, ${alpha})`;
@@ -139,26 +138,29 @@ export function initializeGraph() {
         physics: {
             enabled: false
         },
-        interaction: getGraphInteractionOptions({
+        interaction: {
+            hover: true,
+            hoverConnectedEdges: true,
+            selectConnectedEdges: true,
+            tooltipDelay: 200,
+            dragView: false,
+            zoomView: false,
             multiselect: !isReadOnly,
+            selectable: true,
             dragNodes: !isReadOnly
-        })
+        }
     };
     
     setNetwork(new vis.Network(container, graphData, options));
-    applyTouchSurfaceBehavior(container);
-    applyTouchSurfaceBehavior(getNetwork()?.canvas?.body?.container);
     
     // Force disable node dragging in gallery viewer mode
     if (getStore().isGalleryViewer) {
         getNetwork().setOptions({
-            interaction: getGraphInteractionOptions({
+            interaction: {
                 dragNodes: false,
                 dragView: false,
-                zoomView: false,
-                multiselect: false,
                 selectable: true
-            }),
+            },
             manipulation: {
                 enabled: false
             }

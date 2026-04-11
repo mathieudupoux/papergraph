@@ -10,7 +10,6 @@ import {
 import { save } from '../data/persistence.js';
 import { updateCategoryFilters } from '../ui/filters.js';
 import { icon } from '../ui/icons.js';
-import { getGraphInteractionOptions } from './interaction.js';
 
 // ===== TAG ZONES =====
 // Zone visualization, interaction, and management
@@ -1151,11 +1150,11 @@ export function startZoneMove(event, zoneIndex) {
     
     // Disable getNetwork() interactions
     getNetwork().setOptions({
-        interaction: getGraphInteractionOptions({
+        interaction: {
             dragNodes: false,
             dragView: false,
             zoomView: false
-        })
+        }
     });
 }
 
@@ -1252,10 +1251,12 @@ export function endZoneMove() {
     
     // Re-enable getNetwork() interactions
     getNetwork().setOptions({
-        interaction: getGraphInteractionOptions({
+        interaction: {
             dragNodes: true,
+            dragView: false,
+            zoomView: false,
             hover: true
-        })
+        }
     });
     
     updateCategoryFilters();
@@ -1276,12 +1277,12 @@ export function startEditZoneTitle(event, zoneIndex) {
     
     // Disable interactions during editing
     getNetwork().setOptions({
-        interaction: getGraphInteractionOptions({
+        interaction: {
             dragNodes: false,
             dragView: false,
             zoomView: false,
             hover: false
-        })
+        }
     });
     
     // Get zone color
@@ -1427,14 +1428,16 @@ export function startEditZoneTitle(event, zoneIndex) {
         
         // Re-enable interactions
         getNetwork().setOptions({
-            interaction: getGraphInteractionOptions({
+            interaction: {
                 dragNodes: true,
+                dragView: false,
+                zoomView: false,
                 hover: true,
                 hoverConnectedEdges: true,
                 selectConnectedEdges: true,
                 multiselect: true,
                 selectable: true
-            })
+            }
         });
         
         getNetwork().redraw();
@@ -1468,14 +1471,16 @@ export function startEditZoneTitle(event, zoneIndex) {
             document.removeEventListener('pointerdown', handleClickOutside, true);
             
             getNetwork().setOptions({
-                interaction: getGraphInteractionOptions({
+                interaction: {
                     dragNodes: true,
+                    dragView: false,
+                    zoomView: false,
                     hover: true,
                     hoverConnectedEdges: true,
                     selectConnectedEdges: true,
                     multiselect: true,
                     selectable: true
-                })
+                }
             });
             
             getNetwork().redraw();
@@ -1524,11 +1529,11 @@ export function startZoneResize(event, zoneIndex, handle) {
     
     // Disable getNetwork() interactions
     getNetwork().setOptions({
-        interaction: getGraphInteractionOptions({
+        interaction: {
             dragNodes: false,
             dragView: false,
             zoomView: false
-        })
+        }
     });
 }
 
@@ -1633,10 +1638,12 @@ export function endZoneResize() {
     
     // Re-enable getNetwork() interactions
     getNetwork().setOptions({
-        interaction: getGraphInteractionOptions({
+        interaction: {
             dragNodes: true,
+            dragView: false,
+            zoomView: false,
             hover: true
-        })
+        }
     });
     
     updateCategoryFilters();
