@@ -10,7 +10,7 @@
     backdrop-filter: blur(10px);
     border-radius: 16px;
     box-shadow: 0 8px 32px var(--backdrop-strong);
-    padding: 4px 4px 4px 16px;
+    padding: 4px 4px;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -299,15 +299,15 @@
     font-size: 0.8rem;
     font-weight: 500;
     white-space: nowrap;
-    background: var(--color-text-primary);
-    color: var(--color-text-on-color);
+    background: var(--toolbar-tooltip-bg);
+    color: var(--toolbar-tooltip-text);
     padding: 6px 12px;
     border-radius: 8px;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 12px var(--backdrop-strong);
+    box-shadow: var(--toolbar-tooltip-shadow);
     z-index: 1000;
 }
 
@@ -320,15 +320,15 @@
     font-size: 0.8rem;
     font-weight: 500;
     white-space: nowrap;
-    background: var(--color-text-primary);
-    color: var(--color-text-on-color);
+    background: var(--toolbar-tooltip-bg);
+    color: var(--toolbar-tooltip-text);
     padding: 6px 12px;
     border-radius: 8px;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 12px var(--backdrop-strong);
+    box-shadow: var(--toolbar-tooltip-shadow);
     z-index: 1000;
 }
 
@@ -340,7 +340,7 @@
     left: 50%;
     transform: translateX(-50%);
     border: 6px solid transparent;
-    border-top-color: var(--color-text-primary);
+    border-top-color: var(--toolbar-tooltip-bg);
 }
 
 .main-tool-btn:hover {

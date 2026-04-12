@@ -39,19 +39,55 @@ export function darkenColor(color, percent) {
         .toString(16).slice(1);
 }
 
-const DEFAULT_NODE_COLOR = {
-    border: '#4a90e2',
-    background: '#e3f2fd',
-};
+export function isDarkThemeActive() {
+    return document.body?.classList.contains('dark-theme');
+}
 
-const DEFAULT_NODE_FONT = {
-    color: '#333333',
-};
+export function getStoredThemePreference() {
+    const currentTheme = localStorage.getItem('theme');
+    const legacyDarkMode = localStorage.getItem('darkMode');
+
+    if (currentTheme === 'dark' || legacyDarkMode === 'enabled') {
+        return 'dark';
+    }
+
+    return 'light';
+}
+
+export function applyThemePreference(theme = getStoredThemePreference()) {
+    const isDark = theme === 'dark';
+    document.body?.classList.toggle('dark-theme', isDark);
+    return isDark;
+}
+
+export function persistThemePreference(isDark) {
+    const nextTheme = isDark ? 'dark' : 'light';
+    localStorage.setItem('theme', nextTheme);
+    localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
+    applyThemePreference(nextTheme);
+    window.dispatchEvent(new CustomEvent('papergraph:themechange', {
+        detail: {
+            theme: nextTheme,
+            isDark,
+        },
+    }));
+    return nextTheme;
+}
+
+export function getThemeCssVar(name, fallback = '') {
+    const value = getComputedStyle(document.body).getPropertyValue(name).trim();
+    return value || fallback;
+}
 
 export function getDefaultNodeAppearance() {
     return {
-        color: { ...DEFAULT_NODE_COLOR },
-        font: { ...DEFAULT_NODE_FONT },
+        color: {
+            border: getThemeCssVar('--color-node-default-border', '#4a90e2'),
+            background: getThemeCssVar('--color-node-default-background', '#e3f2fd'),
+        },
+        font: {
+            color: getThemeCssVar('--color-node-default-font', isDarkThemeActive() ? '#e8eaf0' : '#333333'),
+        },
     };
 }
 
@@ -165,7 +201,7 @@ export function highlightSearchTerm(text, searchTerm) {
 
 // Contrast color from hex background (luminance-based)
 export function getContrastColor(hexColor) {
-    if (!hexColor) return '#333333';
+    if (!hexColor) return isDarkThemeActive() ? '#e8eaf0' : '#333333';
     const hex = hexColor.replace('#', '');
     const r = parseInt(hex.substr(0, 2), 16);
     const g = parseInt(hex.substr(2, 2), 16);

@@ -11,9 +11,11 @@
         window.navigateTo = navigateTo;
     </script>
     <link href="https://api.fontshare.com/v2/css?f[]=chillax@400,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Modular CSS - Base -->
     <link rel="stylesheet" href="css/base/theme.css">
+    <link rel="stylesheet" href="css/base/dark-theme.css">
     <link rel="stylesheet" href="css/base/reset.css">
     <link rel="stylesheet" href="css/base/typography.css">
     
@@ -30,32 +32,31 @@
     <link rel="icon" type="image/svg+xml" href="assets/logo-papergraph.svg">
 </head>
 <body>
-    <!-- Page Container -->
-    <div class="pg-page">
-        
-        <!-- Floating Logo Button (top-left) -->
+    <div class="pg-page pg-page--workspace">
         <div class="logo-menu-container">
             <button id="logoMenuBtnPage" class="logo-menu-btn">
                 <img src="assets/logo-papergraph.svg" alt="papergraph" class="logo-icon">
                 <span class="logo-text">papergraph</span>
             </button>
         </div>
-        <!-- Logo Dropdown (shared partial) -->
         <div class="logo-dropdown-container" data-include="logo-dropdown"></div>
-        
-        <!-- Floating User Dropdown (top-right) -->
+
         <div class="user-dropdown-container editor-user-dropdown" data-include="user-dropdown"></div>
 
         <!-- Main Content -->
         <main class="pg-main">
             <div class="pg-dashboard-header">
-                <h1>My Projects</h1>
+                <div class="pg-dashboard-heading">
+                    <p class="pg-dashboard-kicker">Workspace</p>
+                    <h1>My Projects</h1>
+                    <p class="pg-dashboard-subtitle">Create, import, and refine your research graphs in the same clean workspace language as the landing page.</p>
+                </div>
                 <div class="pg-header-buttons">
-                    <button class="btn-secondary btn-with-icon" onclick="importProject()">
+                    <button class="btn-secondary pg-cta-btn pg-cta-btn--secondary btn-with-icon" onclick="importProject()">
                         <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#upload"></use></svg>
                         Import Project
                     </button>
-                    <button class="btn-primary btn-with-icon" onclick="createNewProject()">
+                    <button class="btn-primary pg-cta-btn pg-cta-btn--primary btn-with-icon" onclick="createNewProject()">
                         <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#add"></use></svg>
                         New Project
                     </button>
@@ -71,7 +72,7 @@
             <div id="emptyState" class="pg-empty-state" style="display: none;">
                 <h2>No projects yet</h2>
                 <p>Create your first project to start organizing your research</p>
-                <button class="btn-primary" onclick="createNewProject()">Create Project</button>
+                <button class="btn-primary pg-cta-btn pg-cta-btn--primary" onclick="createNewProject()">Create Project</button>
             </div>
 
             <!-- Projects Grid -->
@@ -100,9 +101,9 @@
             <span class="close" onclick="closeDeleteModal()">&times;</span>
             <h2>Delete Project?</h2>
             <p style="margin-bottom: 24px; color: #666;">This action cannot be undone. All data in this project will be permanently deleted.</p>
-            <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                <button class="btn-secondary" onclick="closeDeleteModal()">Cancel</button>
-                <button class="btn-danger" onclick="confirmDelete()">Delete</button>
+            <div class="modal-actions">
+                <button class="btn-secondary btn-pill" onclick="closeDeleteModal()">Cancel</button>
+                <button class="btn-danger btn-pill" onclick="confirmDelete()">Delete</button>
             </div>
         </div>
     </div>

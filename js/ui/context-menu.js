@@ -7,6 +7,7 @@ import { applyNodeLabelFormat } from '../graph/selection.js';
 import { fitGraphView } from '../graph/view.js';
 import { icon } from './icons.js';
 import { enableTouchZoneCreationMode, isTouchScreen } from './touch-zone-mode.js';
+import { canUndo, canRedo, performUndo, performRedo, getUndoShortcutLabel, getRedoShortcutLabel } from '../core/shortcuts.js';
 
 let outsideClickHandler = null;
 let escapeHandler = null;
@@ -196,6 +197,21 @@ function buildMenuItems(context = {}) {
             divider: true
         },
         {
+            label: 'Undo',
+            enabled: !readOnly && canUndo(),
+            shortcut: getUndoShortcutLabel(),
+            onSelect: performUndo
+        },
+        {
+            label: 'Redo',
+            enabled: !readOnly && canRedo(),
+            shortcut: getRedoShortcutLabel(),
+            onSelect: performRedo
+        },
+        {
+            divider: true
+        },
+        {
             label: touchScreen ? 'Zone Selection' : 'Tag Selection',
             enabled: touchScreen ? !readOnly : (!readOnly && selectedNodeIds.length > 0),
             onSelect: touchScreen ? enableTouchZoneCreationMode : tagSelectedNodes
@@ -283,6 +299,7 @@ export function showContextMenu(x, y, context = {}) {
         button.innerHTML = `
             <span class="graph-context-menu__icon-slot" aria-hidden="true">${item.iconId ? icon(item.iconId) : ''}</span>
             <span class="graph-context-menu__label">${item.label}</span>
+            ${item.shortcut ? `<span class="graph-context-menu__shortcut" aria-hidden="true">${item.shortcut}</span>` : ''}
             ${item.submenu ? `<span class="graph-context-menu__submenu-caret" aria-hidden="true">›</span>` : ''}
         `;
 

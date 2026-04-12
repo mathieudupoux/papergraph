@@ -4,12 +4,12 @@
 import { getStore, getNetwork } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
 import { hideSelectionBox } from '../graph/selection.js';
-import { resetImportZone } from '../data/import.js';
+import { resetImportZone, setManualFormState } from '../data/import.js';
 import { generateBibtexId } from '../data/bibtex-parser.js';
 import { updateCategoryFilters } from './filters.js';
 import { updateGraph } from '../graph/render.js';
 import { save } from '../data/persistence.js';
-import { showArticlePreview } from './preview.js';
+import { showArticlePreview, closeArticlePreview } from './preview.js';
 
 let pendingArticlePosition = null;
 
@@ -19,9 +19,12 @@ export function setPendingArticlePosition(position) {
 
 export function openArticleModal(articleId = null) {
     const modal = document.getElementById('articleModal');
+    const modalContent = modal?.querySelector('.article-modal-content');
     const modalTitle = document.getElementById('modalTitle');
     const form = document.getElementById('articleForm');
     const deleteBtn = document.getElementById('deleteArticleBtn');
+    const saveBtn = document.getElementById('saveArticleBtn');
+    const articleActions = document.querySelector('.article-form-actions');
     
     getStore().setCurrentEditingArticleId(articleId);
     modal.classList.toggle('modal-transparent-overlay', articleId === null);
@@ -36,15 +39,15 @@ export function openArticleModal(articleId = null) {
     resetImportZone();
     
     // Always collapse manual form on open
-    const manualForm = document.getElementById('manualForm');
-    const toggleBtn = document.getElementById('toggleManualBtn');
-    manualForm.classList.add('collapsed');
-    toggleBtn.textContent = '✏️ Manual Entry / Edit';
+    setManualFormState(false);
     
     if (articleId) {
         // Edit mode - show manual form directly with data
-        modalTitle.textContent = 'Éditer l\'article';
+        modalContent?.classList.remove('is-import-mode');
+        modalTitle.textContent = 'Edit Article';
         deleteBtn.style.display = 'inline-block';
+        if (saveBtn) saveBtn.style.display = 'inline-flex';
+        if (articleActions) articleActions.style.display = 'flex';
         
         const article = getStore().appData.articles.find(a => a.id === articleId);
         if (article) {
@@ -69,12 +72,15 @@ export function openArticleModal(articleId = null) {
             // Hide import zone and show manual form in edit mode
             document.querySelector('.import-zone').style.display = 'none';
             document.getElementById('manualFormToggle').style.display = 'none';
-            manualForm.classList.remove('collapsed');
+            setManualFormState(true);
         }
     } else {
         // New article mode
-        modalTitle.textContent = 'New Article';
+        modalContent?.classList.add('is-import-mode');
+        modalTitle.textContent = 'Import Article';
         deleteBtn.style.display = 'none';
+        if (saveBtn) saveBtn.style.display = 'none';
+        if (articleActions) articleActions.style.display = 'none';
         
         // Show import zone in new article mode
         document.querySelector('.import-zone').style.display = 'block';
@@ -86,8 +92,10 @@ export function openArticleModal(articleId = null) {
 
 export function closeModal() {
     const modal = document.getElementById('articleModal');
+    const modalContent = modal?.querySelector('.article-modal-content');
     modal.classList.remove('active');
     modal.classList.remove('modal-transparent-overlay');
+    modalContent?.classList.remove('is-import-mode');
     getStore().setCurrentEditingArticleId(null);
     getStore().setPendingImportArticle(null); // Clear pending import data
     setPendingArticlePosition(null);
@@ -228,6 +236,14 @@ export function deleteArticle() {
 }
 
 export function deleteArticleById(articleId) {
+    if (getStore().currentPreviewArticleId === articleId) {
+        closeArticlePreview();
+    }
+
+    if (getStore().selectedNodeId === articleId) {
+        getStore().setSelectedNodeId(null);
+    }
+
     // Remove article
     getStore().setArticles(getStore().appData.articles.filter(a => a.id !== articleId));
     
@@ -286,13 +302,7 @@ export function deleteArticleById(articleId) {
 
 export function toggleManualForm() {
     const manualForm = document.getElementById('manualForm');
-    const toggleBtn = document.getElementById('toggleManualBtn');
-    
-    if (manualForm.classList.contains('collapsed')) {
-        manualForm.classList.remove('collapsed');
-        toggleBtn.textContent = '🔼 Collapse';
-    } else {
-        manualForm.classList.add('collapsed');
-        toggleBtn.textContent = '✏️ Manual Entry / Edit';
-    }
+    if (!manualForm) return;
+
+    setManualFormState(manualForm.classList.contains('collapsed'));
 }

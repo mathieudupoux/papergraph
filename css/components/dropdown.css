@@ -45,6 +45,7 @@
 .logo-icon {
     width: 36px;
     height: 36px;
+    filter: var(--logo-mark-filter);
 }
 
 .logo-text {
@@ -515,4 +516,94 @@
 /* Icons visible only on projects page — projects JS removes this class */
 .projects-only-icon {
     visibility: hidden;
+}
+
+body.dark-theme .logo-menu-btn-extended {
+    background: color-mix(in srgb, var(--dark-bg-surface) 88%, transparent);
+    border: 1px solid var(--backdrop-separator);
+    box-shadow: var(--shadow-md);
+}
+
+body.dark-theme .logo-menu-btn-extended:hover {
+    box-shadow: var(--shadow-hover);
+}
+
+body.dark-theme .logo-menu-btn-part:hover {
+    background: color-mix(in srgb, var(--dark-accent) 12%, transparent);
+}
+
+body.dark-theme .logo-text,
+body.dark-theme .project-title-input {
+    color: var(--color-text-primary);
+}
+
+body.dark-theme .project-title-input:focus {
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--dark-accent) 14%, transparent);
+}
+
+body.dark-theme .vertical-divider {
+    background: linear-gradient(
+        to bottom,
+        var(--dark-divider-glow) 0%,
+        var(--dark-divider-solid) 20%,
+        var(--dark-divider-solid) 80%,
+        var(--dark-divider-glow) 100%
+    );
+}
+
+body.dark-theme .main-dropdown,
+body.dark-theme .dropdown-submenu,
+body.dark-theme .logo-dropdown {
+    background: color-mix(in srgb, var(--dark-bg-surface) 94%, transparent);
+    border-color: var(--backdrop-separator);
+    box-shadow: var(--shadow-lg);
+}
+
+body.dark-theme .dropdown-section + .dropdown-section,
+body.dark-theme .dropdown-divider,
+body.dark-theme .logo-dropdown-divider,
+body.dark-theme .logo-dropdown .dropdown-section + .dropdown-section {
+    border-color: var(--backdrop-separator);
+    background: var(--backdrop-separator);
+}
+
+body.dark-theme .dropdown-section-title,
+body.dark-theme .logo-dropdown-section-title {
+    color: var(--color-text-tertiary);
+}
+
+body.dark-theme .dropdown-menu-item,
+body.dark-theme .logo-dropdown-item {
+    color: var(--color-text-primary);
+}
+
+body.dark-theme .dropdown-menu-item span,
+body.dark-theme .logo-dropdown-item span {
+    color: inherit;
+}
+
+body.dark-theme .dropdown-menu-item:hover,
+body.dark-theme .logo-dropdown-item:hover {
+    background: color-mix(in srgb, var(--dark-accent) 12%, transparent);
+}
+
+body.dark-theme .dropdown-menu-item.selected,
+body.dark-theme .logo-dropdown-item.node-label-option.selected {
+    background: color-mix(in srgb, var(--dark-accent) 16%, transparent);
+}
+
+body.dark-theme .dropdown-menu-item svg,
+body.dark-theme .logo-dropdown-item svg,
+body.dark-theme .submenu-arrow {
+    stroke: var(--color-text-tertiary);
+    color: var(--color-text-tertiary);
+}
+
+body.dark-theme .dropdown-menu-item:hover svg,
+body.dark-theme .logo-dropdown-item:hover svg,
+body.dark-theme .dropdown-menu-item-submenu:hover .submenu-arrow,
+body.dark-theme .logo-dropdown-item-submenu:hover .submenu-arrow {
+    stroke: var(--color-text-primary);
+    color: var(--color-text-primary);
 }

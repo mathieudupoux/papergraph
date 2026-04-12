@@ -73,7 +73,7 @@
 
 .citation-key {
     font-size: 0.75rem;
-    color: #95a5a6;
+    color: var(--color-text-tertiary);
     margin: 0 0 8px 0;
     font-family: 'Courier New', monospace;
     font-weight: 400;
@@ -86,7 +86,7 @@
 
 .citation-key:hover {
     background: transparent;
-    color: #95a5a6;
+    color: var(--color-text-tertiary);
 }
 
 .citation-key.editing,

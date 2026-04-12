@@ -6,9 +6,11 @@
     <title>Explore Gallery - Papergraph</title>
     
     <link href="https://api.fontshare.com/v2/css?f[]=chillax@400,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Modular CSS - Base -->
     <link rel="stylesheet" href="css/base/theme.css">
+    <link rel="stylesheet" href="css/base/dark-theme.css">
     <link rel="stylesheet" href="css/base/reset.css">
     <link rel="stylesheet" href="css/base/typography.css">
     
@@ -29,33 +31,32 @@
     <link rel="icon" type="image/svg+xml" href="assets/logo-papergraph.svg">
 </head>
 <body>
-    <!-- Page Container -->
-    <div class="pg-page">
-        
-        <!-- Floating Logo Button (top-left) -->
+    <div class="pg-page pg-page--workspace">
         <div class="logo-menu-container">
             <button id="logoMenuBtnPage" class="logo-menu-btn">
                 <img src="assets/logo-papergraph.svg" alt="papergraph" class="logo-icon">
                 <span class="logo-text">papergraph</span>
             </button>
         </div>
-        <!-- Logo Dropdown (shared partial) -->
         <div class="logo-dropdown-container" data-include="logo-dropdown"></div>
-        
-        <!-- Floating User Dropdown (top-right) -->
-        <div class="user-dropdown-container editor-user-dropdown" data-include="user-dropdown"></div>
-        
-        <!-- Sign In Button (shown when not logged in) -->
-        <button id="signInBtn" class="btn-secondary pg-floating-action" onclick="openAuthModal()" style="display: none;">
-            Sign In
-        </button>
+
+        <div id="galleryUserMenu" class="user-dropdown-container editor-user-dropdown" data-include="user-dropdown" style="display: none;"></div>
+
+        <div id="galleryAuthActions" class="pg-gallery-auth-actions" style="display: none;">
+            <button class="btn-secondary pg-cta-btn pg-cta-btn--secondary pg-cta-btn--sm" type="button" onclick="openAuthModal('signin')">Sign in</button>
+            <button class="btn-primary pg-cta-btn pg-cta-btn--primary pg-cta-btn--sm" type="button" onclick="openAuthModal('signup')">Sign up</button>
+        </div>
 
         <!-- Main Content -->
         <main class="pg-main">
             <div class="pg-dashboard-header">
-                <h1>Explore Gallery</h1>
+                <div class="pg-dashboard-heading">
+                    <p class="pg-dashboard-kicker">Community</p>
+                    <h1>Explore Gallery</h1>
+                    <p class="pg-dashboard-subtitle">Browse public research graphs, discover structures that work, and share your own when you're ready.</p>
+                </div>
                 <div class="pg-header-buttons">
-                    <button id="submitToGalleryBtn" class="btn-primary btn-with-icon" onclick="openSubmitToGalleryModal()" style="display: none;">
+                    <button id="submitToGalleryBtn" class="btn-primary pg-cta-btn pg-cta-btn--primary btn-with-icon" onclick="openSubmitToGalleryModal()" style="display: none;">
                         <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#upload"></use></svg>
                         Submit to Gallery
                     </button>
@@ -71,7 +72,7 @@
             <div id="emptyState" class="pg-empty-state" style="display: none;">
                 <h2>No projects in the gallery yet</h2>
                 <p>Be the first to share your research with the community!</p>
-                <button class="btn-primary" onclick="openSubmitToGalleryModal()">Submit a Project</button>
+                <button class="btn-primary pg-cta-btn pg-cta-btn--primary" onclick="openSubmitToGalleryModal()">Submit a Project</button>
             </div>
 
             <!-- Gallery Grid -->
@@ -82,7 +83,6 @@
 
         <!-- Footer -->
         <div data-include="footer"></div>
-
     </div>
 
     <!-- Preferences Modal -->

@@ -183,3 +183,84 @@
     z-index: 1100;
 }
 
+.pg-gallery-auth-actions {
+    position: fixed;
+    top: 32px;
+    right: 32px;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+@media (max-width: 800px) {
+    .pg-gallery-auth-actions {
+        top: 18px;
+        right: 12px;
+        gap: 10px;
+    }
+}
+
+body.dark-theme .user-avatar-btn {
+    background: color-mix(in srgb, var(--dark-bg-surface) 90%, transparent);
+    border: 1px solid var(--backdrop-separator);
+    box-shadow: var(--shadow-md);
+}
+
+body.dark-theme .user-avatar-btn:hover {
+    background: color-mix(in srgb, var(--dark-bg-surface-hover) 92%, transparent);
+    box-shadow: var(--shadow-hover);
+}
+
+body.dark-theme .user-dropdown {
+    background: color-mix(in srgb, var(--dark-bg-surface) 96%, transparent);
+    border-color: var(--backdrop-separator);
+    box-shadow: var(--shadow-lg);
+}
+
+body.dark-theme .user-dropdown-header {
+    background: color-mix(in srgb, var(--dark-accent) 8%, transparent);
+    border-radius: calc(var(--dropdown-menu-radius) - 4px);
+}
+
+body.dark-theme .user-dropdown-name {
+    color: var(--color-text-primary);
+}
+
+body.dark-theme .user-dropdown-username,
+body.dark-theme .user-dropdown-email {
+    color: var(--color-text-secondary);
+}
+
+body.dark-theme .user-dropdown-provider {
+    color: var(--color-text-tertiary);
+}
+
+body.dark-theme .user-dropdown-divider {
+    background: var(--backdrop-separator);
+}
+
+body.dark-theme .user-dropdown-item {
+    color: var(--color-text-primary);
+}
+
+body.dark-theme .user-dropdown-item:hover {
+    background: color-mix(in srgb, var(--dark-accent) 12%, transparent);
+}
+
+body.dark-theme .user-dropdown-item svg {
+    opacity: 0.82;
+    stroke: var(--color-text-tertiary);
+}
+
+body.dark-theme .user-dropdown-item:hover svg {
+    stroke: var(--color-text-primary);
+}
+
+body.dark-theme .user-dropdown-item-danger {
+    color: var(--color-error);
+}
+
+body.dark-theme .user-dropdown-item-danger:hover {
+    background: color-mix(in srgb, var(--color-error) 12%, transparent);
+}

@@ -566,9 +566,10 @@ export function showZoneRadialMenu(zoneIndex) {
         btn.style.width = `${ZONE_MENU_BUTTON_SIZE}px`;
         btn.style.height = `${ZONE_MENU_BUTTON_SIZE}px`;
         btn.style.borderRadius = '50%';
-        btn.style.border = 'none';
-        btn.style.background = 'rgba(255, 255, 255, 0.96)';
-        btn.style.boxShadow = '0 8px 22px rgba(15, 23, 42, 0.18)';
+        btn.style.border = '1px solid var(--zone-radial-border)';
+        btn.style.background = 'var(--zone-radial-bg)';
+        btn.style.color = 'var(--zone-radial-text)';
+        btn.style.boxShadow = 'var(--zone-radial-shadow)';
         btn.style.cursor = 'pointer';
         btn.style.display = 'flex';
         btn.style.alignItems = 'center';
@@ -583,13 +584,13 @@ export function showZoneRadialMenu(zoneIndex) {
         
         btn.addEventListener('mouseenter', () => {
             btn.style.background = btnConfig.hoverColor;
-            btn.style.color = 'white';
+            btn.style.color = 'var(--color-text-on-color)';
             // No scale transform on hover for zone buttons
         });
         
         btn.addEventListener('mouseleave', () => {
-            btn.style.background = '';
-            btn.style.color = '';
+            btn.style.background = 'var(--zone-radial-bg)';
+            btn.style.color = 'var(--zone-radial-text)';
         });
         
         btn.addEventListener('click', () => {
@@ -635,8 +636,7 @@ export function openZoneColorDialog(zoneIndex) {
     modal.style.zIndex = '10002';
     modal.style.minWidth = '340px';
     
-    const isDarkTheme = document.body.classList.contains('dark-theme');
-    const borderColor = isDarkTheme ? '#e8eaf0' : '#2c3e50';
+    const borderColor = getComputedStyle(document.body).getPropertyValue('--color-text-primary').trim() || '#2c3e50';
     
     const colorPaletteHTML = defaultColors.map(color => 
         `<div class="color-option" data-color="${color}" 
@@ -720,7 +720,7 @@ export function openZoneColorDialog(zoneIndex) {
             }
         });
         option.addEventListener('mouseleave', () => {
-            if (option.style.border !== '2px solid #2c3e50') {
+            if (option.style.border !== `2px solid ${borderColor}`) {
                 option.style.transform = 'scale(1)';
             }
         });

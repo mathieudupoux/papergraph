@@ -67,61 +67,53 @@ export function openMultiTagDialog(isEmptyAreaMode = false) {
     
     const modal = document.createElement('div');
     modal.id = 'multiTagModal';
+    modal.className = 'multi-tag-modal multi-tag-modal-content';
     modal.style.position = 'fixed';
     modal.style.top = '50%';
     modal.style.left = '50%';
     modal.style.transform = 'translate(-50%, -50%)';
-    modal.style.backgroundColor = 'white';
-    modal.style.border = '2px solid #4a90e2';
-    modal.style.borderRadius = '12px';
-    modal.style.padding = '24px';
-    modal.style.boxShadow = '0 8px 32px rgba(0,0,0,0.3)';
     modal.style.zIndex = '10001';
-    modal.style.minWidth = '340px';
+    modal.style.maxWidth = 'calc(100vw - 32px)';
     
     const colorPaletteHTML = defaultColors.map(color => 
-        `<div class="color-option" data-color="${color}" 
-              style="width: 28px; height: 28px; background: ${color}; border-radius: 6px; cursor: pointer; 
-                     border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-         </div>`
+        `<button type="button" class="color-option multi-tag-color-option" data-color="${color}" style="--zone-color: ${color};">
+         </button>`
     ).join('');
     
     modal.innerHTML = `
-        <div style="font-weight: bold; margin-bottom: 15px; color: #2c3e50; font-size: 1.1rem;">
-            ${isEmptyAreaMode ? 'Create a tag zone' : 'Add a tag'}
+        <div class="multi-tag-modal-header">
+            <h2>${isEmptyAreaMode ? 'Create a tag zone' : 'Add a tag'}</h2>
         </div>
-        ${!isEmptyAreaMode ? `<div style="color: #666; margin-bottom: 15px; font-size: 0.9rem;">
+        ${!isEmptyAreaMode ? `<div class="multi-tag-modal-meta">
             ${getStore().multiSelection.selectedNodes.length} node(s) selected
         </div>` : ''}
-        <div style="position: relative; margin-bottom: 15px;">
-            <input type="text" id="multiTagInput" placeholder="Tag name" 
-                   style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 0.95rem;">
-            <div id="tagWarning" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #e74c3c; font-size: 0.85rem; font-weight: 600; display: none;">
+        <div class="multi-tag-field" style="position: relative;">
+            <input type="text" id="multiTagInput" class="multi-tag-input" placeholder="Tag name">
+            <div id="tagWarning" class="multi-tag-warning" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); margin-top: 0; display: none;">
                 ⚠ Tag already exists
             </div>
         </div>
-        <div style="margin-bottom: 15px;">
-            <label style="display: block; margin-bottom: 8px; color: #666; font-size: 0.9rem; font-weight: 600;">Tag color:</label>
-            <div id="colorPalette" style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px;">
+        <div class="multi-tag-field">
+            <label class="multi-tag-color-label">Tag color:</label>
+            <div id="colorPalette" class="multi-tag-color-grid">
                 ${colorPaletteHTML}
-                <div class="color-option color-picker-option" id="customColorOption"
-                     style="width: 28px; height: 28px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 6px; cursor: pointer; 
-                            border: 2px solid transparent; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; display: flex; align-items: center; justify-content: center; color: white;">
+                <button type="button" class="color-option multi-tag-color-option multi-tag-color-option--picker" id="customColorOption"
+                     style="background: var(--gradient-accent);">
                     ${icon('eyedropper', { size: 'sm' })}
-                </div>
+                </button>
             </div>
-            <div id="customColorPicker" style="display: none; margin-top: 12px; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <input type="color" id="colorPickerInput" value="#4a90e2" style="width: 48px; height: 48px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">
-                    <input type="text" id="colorHex" value="#4a90e2" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 0.9rem;">
+            <div id="customColorPicker" class="multi-tag-custom-picker">
+                <div class="multi-tag-custom-picker-row">
+                    <input type="color" id="colorPickerInput" value="#4a90e2">
+                    <input type="text" id="colorHex" value="#4a90e2">
                 </div>
             </div>
         </div>
-        <div style="display: flex; gap: 10px;">
-            <button id="cancelMultiTag" style="flex: 1; padding: 10px; background: #e0e0e0; color: #333; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.95rem;">
+        <div class="multi-tag-modal-actions">
+            <button id="cancelMultiTag" class="btn-secondary btn-pill">
                 Cancel
             </button>
-            <button id="applyMultiTag" style="flex: 1; padding: 10px; background: #4a90e2; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.95rem;">
+            <button id="applyMultiTag" class="btn-primary btn-pill">
                 ${isEmptyAreaMode ? 'Create' : 'Apply'}
             </button>
         </div>
@@ -185,44 +177,28 @@ export function openMultiTagDialog(isEmptyAreaMode = false) {
     
     colorOptions.forEach((option, index) => {
         if (index === 0) {
-            option.style.border = '2px solid #2c3e50';
-            option.style.transform = 'scale(1.1)';
+            option.classList.add('is-selected');
         }
-        
+
         option.addEventListener('click', () => {
-            customColorPickerDiv.style.display = 'none';
+            customColorPickerDiv.classList.remove('show');
             document.querySelectorAll('.color-option').forEach(opt => {
-                opt.style.border = '2px solid transparent';
-                opt.style.transform = 'scale(1)';
+                opt.classList.remove('is-selected');
             });
-            option.style.border = '2px solid #2c3e50';
-            option.style.transform = 'scale(1.1)';
+            option.classList.add('is-selected');
             selectedColor = option.getAttribute('data-color');
-        });
-        
-        option.addEventListener('mouseenter', () => {
-            if (option.style.border !== '2px solid #2c3e50') {
-                option.style.transform = 'scale(1.05)';
-            }
-        });
-        option.addEventListener('mouseleave', () => {
-            if (option.style.border !== '2px solid #2c3e50') {
-                option.style.transform = 'scale(1)';
-            }
         });
     });
     
     customColorOption.addEventListener('click', () => {
-        const isVisible = customColorPickerDiv.style.display !== 'none';
-        customColorPickerDiv.style.display = isVisible ? 'none' : 'block';
+        const isVisible = customColorPickerDiv.classList.contains('show');
+        customColorPickerDiv.classList.toggle('show', !isVisible);
         
         if (!isVisible) {
             document.querySelectorAll('.color-option:not(#customColorOption)').forEach(opt => {
-                opt.style.border = '2px solid transparent';
-                opt.style.transform = 'scale(1)';
+                opt.classList.remove('is-selected');
             });
-            customColorOption.style.border = '2px solid #2c3e50';
-            customColorOption.style.transform = 'scale(1.1)';
+            customColorOption.classList.add('is-selected');
             selectedColor = colorPickerInput.value;
             setTimeout(() => colorPickerInput.click(), 100);
         }
@@ -237,10 +213,16 @@ export function openMultiTagDialog(isEmptyAreaMode = false) {
     });
     document.getElementById('cancelMultiTag').addEventListener('click', closeMultiTagDialog);
     
+    const outsideClickHandler = (e) => {
+        if (!modal.contains(e.target)) {
+            closeMultiTagDialog();
+        }
+    };
+    document.addEventListener('mousedown', outsideClickHandler);
+
     const escapeHandler = (e) => {
         if (e.key === 'Escape') {
             closeMultiTagDialog();
-            document.removeEventListener('keydown', escapeHandler);
         }
     };
     document.addEventListener('keydown', escapeHandler);
@@ -254,11 +236,23 @@ export function openMultiTagDialog(isEmptyAreaMode = false) {
             }
         }
     });
+
+    modal.dataset.escapeHandlerBound = 'true';
+    modal._escapeHandler = escapeHandler;
+    modal._outsideClickHandler = outsideClickHandler;
 }
 
 export function closeMultiTagDialog() {
     const modal = document.getElementById('multiTagModal');
-    if (modal) modal.remove();
+    if (modal) {
+        if (modal._escapeHandler) {
+            document.removeEventListener('keydown', modal._escapeHandler);
+        }
+        if (modal._outsideClickHandler) {
+            document.removeEventListener('mousedown', modal._outsideClickHandler);
+        }
+        modal.remove();
+    }
     
     if (getStore().multiSelection.selectionBox) {
         getStore().multiSelection.selectionBox.style.display = 'none';

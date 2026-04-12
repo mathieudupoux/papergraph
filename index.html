@@ -7,25 +7,23 @@
     <meta name="keywords" content="research tool, paper management, knowledge graph, academic papers, literature review, bibliography, citation manager">
     <meta name="author" content="Rémy Vallot">
 
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://papergraph.net/" />
-    <meta property="og:title" content="Papergraph - Map your research. Connect ideas." />
-    <meta property="og:description" content="Organize and visualize academic literature through an elegant visual graph interface. Build your research graph, connected related papers and organize with tags and zones." />
-    <meta property="og:image" content="https://papergraph.net/assets/og_image.png" />
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://papergraph.net/">
+    <meta property="og:title" content="Papergraph - Map your research. Connect ideas.">
+    <meta property="og:description" content="Organize and visualize academic literature through an elegant visual graph interface. Build your research graph, connect related papers, and keep your synthesis in context.">
+    <meta property="og:image" content="https://papergraph.net/assets/og_image.png">
 
     <title>Papergraph - Map your research. Connect ideas.</title>
-    
-    <!-- Base path helper must load first -->
+
     <script type="module" src="js/pages/landing.js"></script>
-    
+
     <link href="https://api.fontshare.com/v2/css?f[]=chillax@400,700&display=swap" rel="stylesheet">
-    
-    <!-- Modular CSS - Base -->
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="css/base/theme.css">
     <link rel="stylesheet" href="css/base/reset.css">
     <link rel="stylesheet" href="css/base/typography.css">
-    
-    <!-- Modular CSS - Components -->
+
     <link rel="stylesheet" href="css/components/buttons.css">
     <link rel="stylesheet" href="css/components/icons.css">
     <link rel="stylesheet" href="css/components/dropdown.css">
@@ -34,145 +32,229 @@
     <link rel="stylesheet" href="css/components/user-dropdown.css">
     <link rel="stylesheet" href="css/pages/landing.css">
     <link rel="stylesheet" href="css/pages/auth-modal.css">
-    
+
     <link rel="icon" type="image/svg+xml" href="assets/logo-papergraph.svg">
 </head>
 <body>
-    <!-- Page Container -->
-    <div class="pg-page">
-        
-        <!-- Header -->
-        <header class="pg-header">
+    <div class="pg-page pg-page--landing">
+        <header class="pg-header pg-header--landing">
             <a href="index.html" class="pg-header-logo">
                 <img src="assets/logo-papergraph.svg" alt="Papergraph">
                 <span class="logo-text">papergraph</span>
             </a>
+
+            <nav class="pg-header-nav" aria-label="Primary">
+                <a href="gallery.html" class="pg-header-link">Gallery</a>
+                <a href="https://github.com/remyvallot/papergraph/releases" target="_blank" rel="noopener" class="pg-header-link">Blog</a>
+            </nav>
+
             <div class="pg-header-actions">
-                <button class="btn-secondary" onclick="openAuthModal()">Sign in</button>
+                <button class="btn-secondary pg-cta-btn pg-cta-btn--secondary pg-cta-btn--sm" id="headerSignInBtn" type="button">Sign in</button>
+                <button class="btn-primary pg-cta-btn pg-cta-btn--primary pg-cta-btn--sm" id="headerSignUpBtn" type="button">Sign up</button>
             </div>
         </header>
 
-        <!-- Hero Section -->
-        <section class="pg-hero">
-            <h1>Map your research.<br>Connect ideas.</h1>
-            <p>Organize and visualize academic literature through an elegant visual graph interface.</p>
-            <div class="pg-hero-actions">
-                <button class="btn-secondary" onclick="window.location.href='gallery.html'">
-                    Explore Gallery
-                </button>
-                <button class="btn-primary" id="getStartedBtn">Get started</button>
-            </div>
+        <main class="pg-landing-main">
+            <section class="pg-hero">
+                <p class="pg-eyebrow">Visual workspace for serious literature reviews</p>
+                <h1>
+                    <span class="pg-hero-line">Research that feels</span>
+                    <span class="pg-hero-rotator" aria-label="connected, organized, clear, and shareable">
+                        <span class="pg-hero-rotator-track">
+                            <span class="pg-hero-word">connected.</span>
+                            <span class="pg-hero-word">organized.</span>
+                            <span class="pg-hero-word">clear.</span>
+                            <span class="pg-hero-word">shareable.</span>
+                            <span class="pg-hero-word">connected.</span>
+                        </span>
+                    </span>
+                </h1>
+                <p class="pg-hero-copy">
+                    Papergraph turns <span class="pg-text-gradient-group">papers, notes, and relationships</span> into a focused whiteboard for research. Build a graph that helps you understand,
+                    not just store, your literature.
+                </p>
+                <div class="pg-hero-actions">
+                    <button class="btn-primary pg-cta-btn pg-cta-btn--primary" id="getStartedBtn" type="button">Get Started</button>
+                    <a class="btn-secondary pg-cta-btn pg-cta-btn--secondary" href="gallery.html">Explore Gallery</a>
+                </div>
+            </section>
 
-            <!-- Trusted By Banner -->
-            <!-- <div class="pg-trusted-by">
-                <p class="pg-trusted-p">Used by researchers at</p>
-                <div class="pg-logos-marquee">
-                    <div class="pg-logos-track" id="logosTrack">
-                        <div class="pg-logo-item">
-                            <img src="assets/logos/ens-ps.png" alt="ENS Paris-Saclay" class="pg-logo-img">
+            <section class="pg-trusted-by" aria-labelledby="trustedByTitle">
+                <div class="pg-section-shell pg-trusted-shell">
+                    <p class="pg-trusted-by-text" id="trustedByTitle">Used in research workflows at</p>
+                    <div class="pg-logos-marquee" aria-label="Institutions using Papergraph">
+                        <div class="pg-logos-track" id="logosTrack">
+                            <div class="pg-logo-item">
+                                <img src="assets/logos/ens-ps.png" alt="ENS Paris-Saclay" class="pg-logo-img">
+                            </div>
+                            <div class="pg-logo-item">
+                                <img src="assets/logos/utc.png" alt="UTC" class="pg-logo-img">
+                            </div>
+                            <div class="pg-logo-item">
+                                <img src="assets/logos/poitiers.svg" alt="Université de Poitiers" class="pg-logo-img">
+                            </div>
                         </div>
-                        <div class="pg-logo-item">
-                            <img src="assets/logos/utc.png" alt="Université Technologique Compiègne" class="pg-logo-img">
+                    </div>
+                </div>
+            </section>
+
+            <section class="pg-search-engines" id="features">
+                <div class="pg-section-shell">
+                    <div class="pg-section-heading">
+                        <p class="pg-eyebrow">Search and import</p>
+                        <h2>Import articles from the sources researchers already use.</h2>
+                        <p>
+                            Start with identifiers and formats you already have in your workflow, then turn them into
+                            connected nodes in seconds.
+                        </p>
+                    </div>
+
+                    <div class="pg-provider-row" aria-label="Supported import providers">
+                        <span class="pg-provider-logo-tile">
+                            <img src="assets/providers-logos/arxiv.png" alt="arXiv" class="pg-provider-logo">
+                        </span>
+                        <span class="pg-provider-logo-tile">
+                            <img src="assets/providers-logos/DOI.svg" alt="DOI" class="pg-provider-logo">
+                        </span>
+                        <span class="pg-provider-logo-tile">
+                            <img src="assets/providers-logos/BibTeX.svg" alt="BibTeX" class="pg-provider-logo">
+                        </span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="pg-features">
+                <div class="pg-section-shell">
+                    <div class="pg-feature-section">
+                        <div class="pg-feature-content">
+                            <p class="pg-feature-kicker">Core workflow</p>
+                            <h2>Build your research graph from a clean import flow.</h2>
+                            <p>
+                                Add articles with a single action. Import from DOI, arXiv or BibTeX and let each source become a node in a graph built for reasoning, not just storage.
+                            </p>
+                            <div class="pg-feature-tags">
+                                <span class="pg-tag">DOI import</span>
+                                <span class="pg-tag">arXiv</span>
+                                <span class="pg-tag">BibTeX</span>
+                            </div>
                         </div>
-                        <div class="pg-logo-item">
-                            <img src="assets/logos/poitiers.svg" alt="Université de Poitiers" class="pg-logo-img">
+                        <div class="pg-feature-visual">
+                            <div class="pg-demo-window">
+                                <div class="pg-demo-window-bar">
+                                    <span class="pg-window-dots" aria-hidden="true"></span>
+                                    <span>Import article</span>
+                                </div>
+                                <div class="pg-demo-window-body">
+                                    <img src="assets/demo-add-node.gif" alt="Demo showing a paper being added to the graph" class="pg-demo-gif">
+                                </div>
+                            </div>
                         </div>
-                        <div class="pg-logo-item">
-                            <img src="assets/logos/x.png" alt="Ecole Polytechnique" class="pg-logo-img">
+                    </div>
+
+                    <div class="pg-feature-section pg-feature-reverse">
+                        <div class="pg-feature-content">
+                            <p class="pg-feature-kicker">Reasoning in structure</p>
+                            <h2>Connect related papers with explicit semantics.</h2>
+                            <p>
+                                Draw edges between papers, label the relationship, and make your interpretation visible.
+                                Citations, methodological overlap, or disagreement can all live directly on the graph.
+                            </p>
+                            <div class="pg-feature-tags">
+                                <span class="pg-tag">Labeled edges</span>
+                                <span class="pg-tag">Visual relations</span>
+                                <span class="pg-tag">Semantic links</span>
+                            </div>
+                        </div>
+                        <div class="pg-feature-visual">
+                            <div class="pg-demo-window">
+                                <div class="pg-demo-window-bar">
+                                    <span class="pg-window-dots" aria-hidden="true"></span>
+                                    <span>Relationship mapping</span>
+                                </div>
+                                <div class="pg-demo-window-body">
+                                    <img src="assets/demo-connect-ideas.gif" alt="Demo showing connected research papers with labeled links" class="pg-demo-gif">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pg-feature-section">
+                        <div class="pg-feature-content">
+                            <p class="pg-feature-kicker">Visual organization</p>
+                            <h2>Organize with tags and zones without losing clarity.</h2>
+                            <p>
+                                Group themes spatially, color-code topics, and filter your graph when you need to focus.
+                                The layout stays readable even as your corpus becomes more connected.
+                            </p>
+                            <div class="pg-feature-tags">
+                                <span class="pg-tag">Color coding</span>
+                                <span class="pg-tag">Tag zones</span>
+                                <span class="pg-tag">Smart filters</span>
+                            </div>
+                        </div>
+                        <div class="pg-feature-visual">
+                            <div class="pg-demo-window">
+                                <div class="pg-demo-window-bar">
+                                    <span class="pg-window-dots" aria-hidden="true"></span>
+                                    <span>Topic organization</span>
+                                </div>
+                                <div class="pg-demo-window-body">
+                                    <img src="assets/demo-organize-tags.gif" alt="Demo showing papers grouped with tags and zones" class="pg-demo-gif">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pg-feature-section pg-feature-reverse">
+                        <div class="pg-feature-content">
+                            <p class="pg-feature-kicker">Markdown contextual notes</p>
+                            <h2>Write synthesis directly in the graph view.</h2>
+                            <p>
+                                Capture context where it belongs. Papergraph uses the same markdown note rendering from
+                                the editor to support headings, lists, links, and node citations directly alongside your graph.
+                            </p>
+                            <div class="pg-feature-tags">
+                                <span class="pg-tag">Markdown notes</span>
+                                <span class="pg-tag">Inline citations</span>
+                                <span class="pg-tag">Context in graph</span>
+                            </div>
+                        </div>
+                        <div class="pg-feature-visual">
+                            <div class="pg-demo-window">
+                                <div class="pg-demo-window-bar">
+                                    <span class="pg-window-dots" aria-hidden="true"></span>
+                                    <span>Notes.md</span>
+                                </div>
+                                <div class="pg-demo-window-body">
+                                    <img src="assets/demo-notes.png" alt="Demo showing papers grouped with tags and zones" class="pg-demo-gif">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div> -->
-        </section>
+            </section>
 
-        <!-- Feature Showcase -->
-        <section class="pg-features">
-            
-            <!-- Feature 1: Add Nodes -->
-            <div class="pg-feature-section">
-                <div class="pg-feature-content">
-                    <h2>Build your research graph</h2>
-                    <p>Add articles with a single click. Import from DOI, arXiv, BibTeX, or add manually. Each article becomes a node in your visual knowledge network.</p>
-                    <div class="pg-feature-tags">
-                        <span class="pg-tag">DOI Import</span>
-                        <span class="pg-tag">arXiv</span>
-                        <span class="pg-tag">BibTeX</span>
-                        <span class="pg-tag">PDF Metadata</span>
+            <section class="pg-final-cta-section">
+                <div class="pg-section-shell">
+                    <div class="pg-final-cta">
+                        <h2>Start mapping your research in minutes.</h2>
+                        <p class="pg-final-cta-copy">
+                            Create a project or browse the gallery for inspiration.
+                        </p>
+                        <div class="pg-final-cta-actions">
+                            <button class="btn-primary pg-cta-btn pg-cta-btn--primary" type="button" onclick="openAuthModal('signup')">Start a Project</button>
+                            <a class="btn-secondary pg-cta-btn pg-cta-btn--secondary" href="gallery.html">Explore Gallery</a>
+                        </div>
                     </div>
                 </div>
-                <div class="pg-feature-visual">
-                    <div class="pg-demo-container">
-                        <img src="assets/demo-add-node.gif" alt="Add nodes demo" class="pg-demo-gif">
-                    </div>
-                </div>
-            </div>
+            </section>
 
-            <!-- Feature 2: Connect Ideas -->
-            <div class="pg-feature-section pg-feature-reverse">
-                <div class="pg-feature-content">
-                    <h2>Connect related papers</h2>
-                    <p>Draw connections between articles to visualize relationships. Label each connection to explain how papers relate—citations, similar methods, contrasting views.</p>
-                    <div class="pg-feature-tags">
-                        <span class="pg-tag">Labeled Edges</span>
-                        <span class="pg-tag">Visual Relations</span>
-                        <span class="pg-tag">Semantic Links</span>
-                    </div>
-                </div>
-                <div class="pg-feature-visual">
-                    <div class="pg-demo-container">
-                        <img src="assets/demo-connect-ideas.gif" alt="Connect ideas demo" class="pg-demo-gif">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Feature 3: Organize with Tags -->
-            <div class="pg-feature-section">
-                <div class="pg-feature-content">
-                    <h2>Organize with tags and zones</h2>
-                    <p>Color-code articles by topic or theme. Create spatial zones to group related papers. Filter your graph by tags to focus on specific research areas.</p>
-                    <div class="pg-feature-tags">
-                        <span class="pg-tag">Color Coding</span>
-                        <span class="pg-tag">Tag Zones</span>
-                        <span class="pg-tag">Smart Filters</span>
-                    </div>
-                </div>
-                <div class="pg-feature-visual">
-                    <div class="pg-demo-container">
-                        <img src="assets/demo-organize-tags.gif" alt="Organize with tags demo" class="pg-demo-gif">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Feature 4: Multiple Views -->
-            <div class="pg-feature-section pg-feature-reverse">
-                <div class="pg-feature-content">
-                    <h2>Switch between views</h2>
-                    <p>Toggle between graph view for visual exploration and list view for detailed reference management. Export to PDF, PNG, BibTeX, or JSON for backups.</p>
-                    <div class="pg-feature-tags">
-                        <span class="pg-tag">Graph View</span>
-                        <span class="pg-tag">List View</span>
-                        <span class="pg-tag">PDF Export</span>
-                        <span class="pg-tag">BibTeX Export</span>
-                    </div>
-                </div>
-                <div class="pg-feature-visual">
-                    <div class="pg-demo-container">
-                        <img src="assets/demo-switch-views.gif" alt="Switch views demo" class="pg-demo-gif">
-                    </div>
-                </div>
-            </div>
-
-        </section>
-
-        <!-- Footer -->
-        <div data-include="footer"></div>
-
+            <div data-include="landing-footer"></div>
+        </main>
     </div>
 
-    <!-- Auth Modal -->
     <div data-include="auth-modal"></div>
 
-    <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </body>
 </html>

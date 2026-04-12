@@ -1,5 +1,5 @@
 import { getStore, getNetwork } from '../store/appStore.js';
-import { darkenColor } from '../utils/helpers.js';
+import { darkenColor, getDefaultNodeAppearance, getThemeCssVar } from '../utils/helpers.js';
 
 // ===== GRAPH SEARCH =====
 
@@ -16,8 +16,9 @@ export function searchInGraph(searchTerm = '') {
         console.log('Clearing previous search highlights:', searchHighlightedNodes.length);
         const nodesToUpdate = searchHighlightedNodes.map(nodeId => {
             const article = getStore().appData.articles.find(a => a.id === nodeId);
-            let resetBorder = '#4a90e2';
-            let resetBackground = '#e3f2fd';
+            const defaultAppearance = getDefaultNodeAppearance();
+            let resetBorder = defaultAppearance.color.border;
+            let resetBackground = defaultAppearance.color.background;
             
             // Restore original color based on category
             if (article && article.categories.length > 0) {
@@ -82,10 +83,10 @@ export function searchInGraph(searchTerm = '') {
     if (resultCount) {
         if (matchingArticles.length === 0) {
             resultCount.textContent = '0';
-            resultCount.style.color = '#999';
+            resultCount.style.color = getThemeCssVar('--color-text-muted', '#999');
         } else {
             resultCount.textContent = `${matchingArticles.length}`;
-            resultCount.style.color = '#4a90e2';
+            resultCount.style.color = getThemeCssVar('--color-primary', '#4a90e2');
         }
     }
     
@@ -102,8 +103,9 @@ export function searchInGraph(searchTerm = '') {
         const article = getStore().appData.articles.find(a => a.id === nodeId);
         
         // Get original border color
-        let originalBorder = '#4a90e2';
-        let originalBackground = '#e3f2fd';
+        const defaultAppearance = getDefaultNodeAppearance();
+        let originalBorder = defaultAppearance.color.border;
+        let originalBackground = defaultAppearance.color.background;
         
         if (article && article.categories.length > 0) {
             const firstCategory = article.categories[0];
@@ -118,10 +120,10 @@ export function searchInGraph(searchTerm = '') {
             id: nodeId,
             borderWidth: 4,
             color: {
-                border: '#ffd54f',  // Yellow border like list view
+                border: getThemeCssVar('--color-search-highlight-border', '#ffd54f'),
                 background: originalBackground,  // Keep original background
                 highlight: {
-                    border: '#ffb300',
+                    border: getThemeCssVar('--color-search-highlight-border-strong', '#ffb300'),
                     background: originalBackground
                 }
             }

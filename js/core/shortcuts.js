@@ -1,7 +1,7 @@
 // ===== KEYBOARD SHORTCUTS =====
 // Global keyboard shortcut bindings for undo/redo and other actions.
 
-import { undo, redo, getStore } from '../store/appStore.js';
+import { undo, redo, getStore, appStore } from '../store/appStore.js';
 import { updateGraph } from '../graph/render.js';
 import { getNetwork } from '../store/appStore.js';
 import { checkNodeZoneMembership } from '../graph/zones.js';
@@ -32,6 +32,42 @@ function applyUndoRedo() {
     });
 }
 
+function isMacPlatform() {
+    return navigator.platform?.startsWith('Mac') ?? false;
+}
+
+export function canUndo() {
+    return (appStore.temporal?.getState().pastStates?.length ?? 0) > 0;
+}
+
+export function canRedo() {
+    return (appStore.temporal?.getState().futureStates?.length ?? 0) > 0;
+}
+
+export function getUndoShortcutLabel() {
+    return isMacPlatform() ? 'Cmd+Z' : 'Ctrl+Z';
+}
+
+export function getRedoShortcutLabel() {
+    return isMacPlatform() ? 'Cmd+Shift+Z' : 'Ctrl+Y';
+}
+
+export function performUndo() {
+    if (!canUndo()) return false;
+    console.log('[shortcuts] undo triggered');
+    undo();
+    applyUndoRedo();
+    return true;
+}
+
+export function performRedo() {
+    if (!canRedo()) return false;
+    console.log('[shortcuts] redo triggered');
+    redo();
+    applyUndoRedo();
+    return true;
+}
+
 /**
  * Initialise all global keydown shortcuts.
  * Call once after the DOM is ready.
@@ -46,7 +82,7 @@ export function initShortcuts() {
         const isRealInput = tag === 'input' && !document.activeElement?.closest('.vis-network');
         if (isTyping || isRealInput) return;
 
-        const isMac = navigator.platform?.startsWith('Mac') ?? false;
+        const isMac = isMacPlatform();
         const ctrl = isMac ? e.metaKey : e.ctrlKey;
 
         if (!ctrl) return;
@@ -54,18 +90,14 @@ export function initShortcuts() {
         // Undo: Ctrl+Z / Cmd+Z
         if (e.key === 'z' && !e.shiftKey) {
             e.preventDefault();
-            console.log('[shortcuts] undo triggered');
-            undo();
-            applyUndoRedo();
+            performUndo();
             return;
         }
 
-        // Redo: Ctrl+Y / Cmd+Shift+Z
+        // Redo: Ctrl+Y / Cmd+Y / Cmd+Shift+Z
         if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
             e.preventDefault();
-            console.log('[shortcuts] redo triggered');
-            redo();
-            applyUndoRedo();
+            performRedo();
         }
     });
 }

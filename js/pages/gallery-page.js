@@ -26,16 +26,19 @@
                 
                 if (currentUser) {
                     document.getElementById('submitToGalleryBtn').style.display = 'flex';
-                    document.getElementById('signInBtn').style.display = 'none';
+                    document.getElementById('galleryAuthActions').style.display = 'none';
+                    document.getElementById('galleryUserMenu').style.display = 'flex';
                     console.log('? User logged in:', currentUser.email);
                 } else {
-                    document.getElementById('signInBtn').style.display = 'block';
+                    document.getElementById('galleryAuthActions').style.display = 'flex';
+                    document.getElementById('galleryUserMenu').style.display = 'none';
                     document.getElementById('submitToGalleryBtn').style.display = 'none';
                     console.log('?? No user logged in');
                 }
             } catch (error) {
                 console.error('? Auth check error:', error);
-                document.getElementById('signInBtn').style.display = 'block';
+                document.getElementById('galleryAuthActions').style.display = 'flex';
+                document.getElementById('galleryUserMenu').style.display = 'none';
             }
 
             // Setup logo dropdown (shared) AFTER checking auth
@@ -75,7 +78,7 @@
             // Check if user is logged in
             if (!currentUser) {
                 console.log('?? User not logged in, opening login modal');
-                openAuthModal();
+                openAuthModal('signin');
                 return;
             }
             
@@ -188,13 +191,21 @@
         window.handleSubmitClick = function() {
             if (!currentUser) {
                 console.log('?? User not logged in, opening login modal');
-                openAuthModal();
+                openAuthModal('signin');
             } else {
                 openSubmitToGalleryModal();
             }
         };
 
-        window.openAuthModal = function() {
+        function syncAuthMode(mode = 'signin') {
+            const shouldSignUp = mode === 'signup';
+            if (shouldSignUp !== isSignUp) {
+                toggleAuthMode();
+            }
+        }
+
+        window.openAuthModal = function(mode = 'signin') {
+            syncAuthMode(mode);
             document.getElementById('authModal').classList.add('active');
         };
 

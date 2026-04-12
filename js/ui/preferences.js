@@ -1,5 +1,10 @@
 // Unified Preferences Modal Logic
-import { showNotification } from '../utils/helpers.js';
+import {
+  applyThemePreference,
+  getStoredThemePreference,
+  persistThemePreference,
+  showNotification,
+} from '../utils/helpers.js';
 import { supabase } from '../auth/config.js';
 import { openModal, closeModal, registerModal } from './modal-manager.js';
 
@@ -56,7 +61,7 @@ function loadPreferencesData() {
   const unEl = document.getElementById('prefUsername');
   if (dnEl) dnEl.textContent = displayName;
   if (unEl) unEl.value = username;
-  const darkModeEnabled = localStorage.getItem('darkMode') === 'enabled';
+  const darkModeEnabled = getStoredThemePreference() === 'dark';
   const toggle = document.getElementById('darkModeToggle');
   const status = document.getElementById('darkModeStatus');
   if (toggle) toggle.checked = darkModeEnabled;
@@ -160,8 +165,8 @@ export async function confirmDeleteAccount() {
 }
 
 export function toggleDarkMode() {
-  const isDark = document.body.classList.toggle('dark-theme');
-  localStorage.setItem('darkMode', isDark ? 'enabled' : 'disabled');
+  const isDark = !document.body.classList.contains('dark-theme');
+  persistThemePreference(isDark);
   const status = document.getElementById('darkModeStatus');
   if (status) status.textContent = isDark ? 'Dark Mode' : 'Light Mode';
 }
@@ -183,14 +188,20 @@ export function initPreferencesFromPage() {
 function initOnce() {
   if (initialized) return; initialized = true;
   ensureModalPresent();
+  window.addEventListener('papergraph:themechange', (event) => {
+    const isDark = event?.detail?.isDark ?? document.body.classList.contains('dark-theme');
+    const toggle = document.getElementById('darkModeToggle');
+    const status = document.getElementById('darkModeStatus');
+    if (toggle) toggle.checked = isDark;
+    if (status) status.textContent = isDark ? 'Dark Mode' : 'Light Mode';
+  });
   document.addEventListener('click', (e) => {
     const modal = document.getElementById('preferencesModal');
     if (modal && modal.classList.contains('active') && e.target === modal) {
       closePreferencesModal();
     }
   });
-  const darkModeEnabled = localStorage.getItem('darkMode') === 'enabled';
-  if (darkModeEnabled) document.body.classList.add('dark-theme');
+  applyThemePreference();
 }
 
 if (document.readyState === 'loading') {
