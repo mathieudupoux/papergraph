@@ -1,5 +1,5 @@
 import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
-import { showNotification } from '../utils/helpers.js';
+import { showNotification, getThemeCssVar } from '../utils/helpers.js';
 import { checkNodeZoneMembership, hideZoneDeleteButton } from './zones.js';
 import { save } from '../data/persistence.js';
 import { showSelectionRadialMenu, showEmptyAreaMenu } from '../ui/radial-menu.js';
@@ -10,6 +10,11 @@ import { updateCategoryFilters } from '../ui/filters.js';
 const SELECTION_PADDING = 50;
 const FLOATING_MENU_OFFSET_Y = 44;
 
+function applySelectionBoxTheme(element) {
+    element.style.border = `2px dashed ${getThemeCssVar('--color-primary', '#4a90e2')}`;
+    element.style.backgroundColor = getThemeCssVar('--color-primary-light', 'rgba(74, 144, 226, 0.1)');
+}
+
 function ensureSelectionBoxElement() {
     if (getStore().multiSelection.selectionBox) {
         return getStore().multiSelection.selectionBox;
@@ -19,8 +24,7 @@ function ensureSelectionBoxElement() {
     getStore().updateMultiSelection({ selectionBox: document.createElement('div') });
     getStore().multiSelection.selectionBox.id = 'selectionBox';
     getStore().multiSelection.selectionBox.style.position = 'absolute';
-    getStore().multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
-    getStore().multiSelection.selectionBox.style.backgroundColor = 'rgba(74, 144, 226, 0.1)';
+    applySelectionBoxTheme(getStore().multiSelection.selectionBox);
     getStore().multiSelection.selectionBox.style.pointerEvents = 'none';
     getStore().multiSelection.selectionBox.style.zIndex = '1000';
     canvas.parentElement.appendChild(getStore().multiSelection.selectionBox);
@@ -158,8 +162,7 @@ export function syncSelectionBoxToNodes(nodeIds) {
     const containerRect = graphContainer.getBoundingClientRect();
     const selectionBox = ensureSelectionBoxElement();
 
-    selectionBox.style.border = '2px dashed #4a90e2';
-    selectionBox.style.backgroundColor = 'rgba(74, 144, 226, 0.1)';
+    applySelectionBoxTheme(selectionBox);
     selectionBox.style.left = topLeft.x + 'px';
     selectionBox.style.top = topLeft.y + 'px';
     selectionBox.style.width = (bottomRight.x - topLeft.x) + 'px';
@@ -208,7 +211,7 @@ export function startSelectionBox(event) {
     
     ensureSelectionBoxElement();
     
-    getStore().multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
+    applySelectionBoxTheme(getStore().multiSelection.selectionBox);
     getStore().multiSelection.selectionBox.style.left = getStore().multiSelection.startX + 'px';
     getStore().multiSelection.selectionBox.style.top = getStore().multiSelection.startY + 'px';
     getStore().multiSelection.selectionBox.style.width = '0px';
@@ -477,7 +480,7 @@ export function endSelectionBox() {
     });
     
     if (getStore().multiSelection.selectionBox) {
-        getStore().multiSelection.selectionBox.style.border = '2px dashed #4a90e2';
+        applySelectionBoxTheme(getStore().multiSelection.selectionBox);
     }
     getStore().updateMultiSelection({ active: false });
     

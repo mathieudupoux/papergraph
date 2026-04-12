@@ -5,21 +5,25 @@ set -e
 # 1. Versions de build / commit
 BUILD_VERSION=$(date +"%yw%V.%u")
 DATE_COMMIT=$(date +"%Y.%m.%d %H%M")
-FOOTER_FILE="footer.html"
+LAST_UPDATE=$(date +"%B %-d, %Y")
+FOOTER_FILES=("footer.html" "landing-footer.html")
 
-update_footer_version() {
+update_footer_metadata() {
   local footer_version="v$1"
 
-  if [[ ! -f "$FOOTER_FILE" ]]; then
-    echo "❌ Impossible de mettre à jour la version: $FOOTER_FILE introuvable"
-    exit 1
-  fi
+  for footer_file in "${FOOTER_FILES[@]}"; do
+    if [[ ! -f "$footer_file" ]]; then
+      echo "❌ Impossible de mettre à jour le footer: $footer_file introuvable"
+      exit 1
+    fi
 
-  sed -i -E "s|(<span class=\"app-version\">)[^<]*(</span>)|\1${footer_version}\2|" "$FOOTER_FILE"
+    sed -i -E "s|(<span class=\"app-version\">)[^<]*(</span>)|\1${footer_version}\2|" "$footer_file"
+    sed -i -E "s|(<span class=\"footer-date\">Last update: )[^<]*(</span>)|\1${LAST_UPDATE}\2|" "$footer_file"
+  done
 }
 
 commit_footer_version_on_main() {
-  git add "$FOOTER_FILE"
+  git add "${FOOTER_FILES[@]}"
   git commit -m "📝 Footer version: v$BUILD_VERSION" || echo "Pas de changement de version à committer sur main"
 }
 
@@ -27,7 +31,7 @@ echo "🚀 Préparation du déploiement propre ($DATE_COMMIT | $BUILD_VERSION)..
 
 # 2. On se place sur main et on commit la version affichée dans le footer
 git checkout main
-update_footer_version "$BUILD_VERSION"
+update_footer_metadata "$BUILD_VERSION"
 commit_footer_version_on_main
 
 # 4. On pousse main pour garder l'historique source aligné avec le déploiement

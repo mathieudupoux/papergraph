@@ -94,6 +94,10 @@
     <circle cx="11" cy="11" r="8"/>
     <path d="m21 21-4.35-4.35"/>
   </symbol>
+  <symbol id="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 6 6 18"/>
+    <path d="m6 6 12 12"/>
+  </symbol>
   <symbol id="fit-view" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
     <path d="M15 3h6v6"/>
     <path d="M9 21H3v-6"/>

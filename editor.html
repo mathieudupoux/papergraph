@@ -210,39 +210,44 @@
 
         <!-- Article Edit Modal -->
         <div id="articleModal" class="modal">
-            <div class="modal-content">
-                <span class="close">&times;</span>
-                <h2 id="modalTitle">New Article</h2>
+            <div class="modal-content article-modal-content">
+                <div class="article-modal-header">
+                    <p class="article-modal-kicker">Node</p>
+                    <h2 id="modalTitle">New Article</h2>
+                </div>
                 <form id="articleForm">
-                    <!-- Minimal import section -->
                     <div class="import-zone">
-                        <div id="dropZone" class="drop-zone">
-                            <div class="drop-zone-content">
-                                <span class="drop-icon">📄</span>
-                                <p class="drop-text">Drop PDF or .bib file here</p>
-                                <p class="drop-or">or</p>
-                                <input type="text" id="quickImport" placeholder="Paste DOI, arXiv ID or BibTeX (e.g. 10.1234/... or @article{...})">
-                                <div class="bibtex-paste-area" style="display: none;">
-                                    <textarea id="bibtexPasteArea" placeholder="Paste one or more complete BibTeX entries here...&#10;&#10;@article{key2024,&#10;  title = {Example},&#10;  author = {Doe, John},&#10;  year = {2024},&#10;  ...&#10;}" rows="10"></textarea>
-                                    <button type="button" id="parseBibtexBtn" class="btn-primary">✓ Import</button>
-                                    <button type="button" id="cancelBibtexBtn" class="btn-secondary">Cancel</button>
+                        <div id="dropZone" class="drop-zone drop-zone-floating">
+                            <div class="drop-zone-content drop-zone-content--floating">
+                                <div class="prompt-surface">
+                                    <label class="quick-import-entry" for="quickImport">
+                                        <textarea id="quickImport" rows="1" placeholder="Paste DOI, arXiv ID, or BibTeX"></textarea>
+                                    </label>
+                                    <div id="importStatus" class="import-status"></div>
+                                    <div class="quick-import-tools">
+                                        <div class="quick-import-shortcuts">
+                                            <button type="button" id="browseFileBtn" class="prompt-chip-btn">
+                                                <svg class="ui-icon ui-icon--sm" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#add"></use></svg>
+                                                <span>Import .bib</span>
+                                            </button>
+                                            <div id="manualFormToggle" class="manual-toggle manual-toggle-inline">
+                                                <button type="button" id="toggleManualBtn" class="prompt-chip-btn">
+                                                    <svg class="ui-icon ui-icon--sm" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#add"></use></svg>
+                                                    <span>Manual entry</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <button type="button" id="promptActionBtn" class="prompt-action-btn" aria-label="Import or save node" title="Import metadata">
+                                            <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#chevron-right"></use></svg>
+                                        </button>
+                                    </div>
                                 </div>
-                                <input type="file" id="pdfFileInput" accept=".pdf,.bib" style="display: none;">
-                                <button type="button" id="browseFileBtn" class="btn-browse">Browse...</button>
                             </div>
                         </div>
-                        <div id="importStatus" class="import-status"></div>
+                        <input type="file" id="pdfFileInput" accept=".bib,.bibtex,.pdf" style="display: none;">
                     </div>
-                    
-                    <!-- Collapsible manual form -->
-                    <div id="manualFormToggle" class="manual-toggle">
-                        <button type="button" id="toggleManualBtn" class="toggle-manual-btn">
-                            ✏️ Manual entry / edit
-                        </button>
-                    </div>
-                    
+
                     <div id="manualForm" class="manual-form collapsed">
-                        <!-- Essential fields -->
                         <div class="form-group">
                             <label for="articleTitle">Title *</label>
                             <input type="text" id="articleTitle" required>
@@ -342,10 +347,9 @@
                         </div>
                     </div>
 
-                    <div class="form-actions">
-                        <button type="button" id="deleteArticleBtn" class="btn-danger">�Delete</button>
-                        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-                        <button type="submit" class="btn-primary">Save</button>
+                    <div class="form-actions article-form-actions">
+                        <button type="button" id="deleteArticleBtn" class="btn-danger btn-pill">Delete</button>
+                        <button type="submit" id="saveArticleBtn" class="btn-primary btn-pill">Save</button>
                     </div>
                 </form>
             </div>

@@ -143,6 +143,12 @@ function getCanvasPointer(event) {
     };
 }
 
+function rememberCanvasPointer(event) {
+    const { canvasPosition } = getCanvasPointer(event);
+    getStore().setLastCanvasPointerPosition(canvasPosition);
+    return canvasPosition;
+}
+
 function clearTouchLongPressTimer() {
     if (touchState.longPressTimer !== null) {
         window.clearTimeout(touchState.longPressTimer);
@@ -602,6 +608,8 @@ export function setupCanvasEvents() {
     }, { passive: false });
     
     canvas.addEventListener('mousemove', (event) => {
+        rememberCanvasPointer(event);
+
         if (maybeStartSelectionDrag(event)) {
             return;
         }
@@ -650,6 +658,14 @@ export function setupCanvasEvents() {
         if (!getStore().zoneMoving.active && !getStore().zoneResizing.active && !getStore().multiSelection.active && !getStore().multiSelection.boxDragging && !getStore().connectionMode.active) {
             updateZoneCursor(event);
         }
+    }, true);
+
+    canvas.addEventListener('mouseenter', (event) => {
+        rememberCanvasPointer(event);
+    }, true);
+
+    canvas.addEventListener('contextmenu', (event) => {
+        rememberCanvasPointer(event);
     }, true);
     
     canvas.addEventListener('mouseup', (event) => {

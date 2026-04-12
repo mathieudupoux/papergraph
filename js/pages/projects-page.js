@@ -266,6 +266,8 @@ function generateProjectPreview(project) {
 window.toggleProjectMenu = function(projectId) {
     const menu = document.getElementById(`menu-${projectId}`);
     const allMenus = document.querySelectorAll('.pg-project-menu-dropdown');
+    const allCards = document.querySelectorAll('.pg-project-card');
+    const currentCard = menu?.closest('.pg-project-card');
     
     // Close all other menus
     allMenus.forEach(m => {
@@ -273,9 +275,19 @@ window.toggleProjectMenu = function(projectId) {
             m.style.display = 'none';
         }
     });
+
+    allCards.forEach(card => {
+        if (card !== currentCard) {
+            card.classList.remove('menu-open');
+        }
+    });
     
     // Toggle current menu
-    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    if (!menu || !currentCard) return;
+
+    const isOpening = menu.style.display === 'none';
+    menu.style.display = isOpening ? 'block' : 'none';
+    currentCard.classList.toggle('menu-open', isOpening);
 }
 
 // Close menus when clicking outside
@@ -283,6 +295,9 @@ document.addEventListener('click', (e) => {
     if (!e.target.closest('.pg-project-menu')) {
         document.querySelectorAll('.pg-project-menu-dropdown').forEach(m => {
             m.style.display = 'none';
+        });
+        document.querySelectorAll('.pg-project-card.menu-open').forEach(card => {
+            card.classList.remove('menu-open');
         });
     }
 });
@@ -325,6 +340,7 @@ window.startRenameFromMenu = function(projectId) {
     // Close the menu
     const menu = document.getElementById(`menu-${projectId}`);
     if (menu) menu.style.display = 'none';
+    menu?.closest('.pg-project-card')?.classList.remove('menu-open');
     
     // Get the title element
     const titleElement = document.getElementById(`title-${projectId}`);
@@ -365,6 +381,9 @@ window.finishEditingTitle = async function(element, originalName) {
 // Delete project
 window.deleteProjectPrompt = function(projectId) {
     projectToDelete = projectId;
+    const menu = document.getElementById(`menu-${projectId}`);
+    if (menu) menu.style.display = 'none';
+    menu?.closest('.pg-project-card')?.classList.remove('menu-open');
     openModal('deleteModal');
 };
 

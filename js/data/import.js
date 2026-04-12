@@ -17,6 +17,7 @@ export function setupImportZone() {
     const quickImport = document.getElementById('quickImport');
     const browseBtn = document.getElementById('browseFileBtn');
     const fileInput = document.getElementById('pdfFileInput');
+    const promptActionBtn = document.getElementById('promptActionBtn');
     
     if (!dropZone || !quickImport) return; // Elements might not exist in all views
     
@@ -71,11 +72,11 @@ export function setupImportZone() {
         });
     }
     
-    // Quick import on Enter or blur
+    // Quick import on Enter
     quickImport.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            processQuickImport();
+            handlePromptAction();
         }
     });
     
@@ -88,38 +89,287 @@ export function setupImportZone() {
             }
         }, 10); // Small delay to let paste complete
     });
+
+    quickImport.addEventListener('input', syncPromptActionState);
+    quickImport.addEventListener('input', autoResizeQuickImport);
+
+    const articleForm = document.getElementById('articleForm');
+    if (articleForm) {
+        articleForm.addEventListener('input', syncPromptActionState);
+    }
     
-    quickImport.addEventListener('blur', () => {
-        if (quickImport.value.trim()) {
-            processQuickImport();
+    if (promptActionBtn) {
+        promptActionBtn.addEventListener('click', handlePromptAction);
+    }
+
+    document.addEventListener('keydown', (e) => {
+        const articleModal = document.getElementById('articleModal');
+        const promptSurface = document.querySelector('.prompt-surface');
+
+        if (!articleModal?.classList.contains('active')) return;
+        if (promptSurface?.dataset.status !== 'success') return;
+        if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+
+        const target = e.target;
+        if (target instanceof HTMLElement) {
+            const isTypingInManualField =
+                (target.tagName === 'TEXTAREA' && target.id !== 'quickImport') ||
+                (target.tagName === 'INPUT' && target.id !== 'quickImport') ||
+                target.isContentEditable;
+
+            if (isTypingInManualField) return;
         }
+
+        e.preventDefault();
+        handlePromptAction();
     });
-    
-    // BibTeX buttons
-    const parseBibtexBtn = document.getElementById('parseBibtexBtn');
-    const cancelBibtexBtn = document.getElementById('cancelBibtexBtn');
-    
-    if (parseBibtexBtn) {
-        parseBibtexBtn.addEventListener('click', processBibTeXImport);
-    }
-    
-    if (cancelBibtexBtn) {
-        cancelBibtexBtn.addEventListener('click', hideBibTeXPasteArea);
-    }
+
+    autoResizeQuickImport();
 }
 
-export function toggleManualForm() {
+export function setManualFormState(shouldOpen) {
     const manualForm = document.getElementById('manualForm');
     const btn = document.getElementById('toggleManualBtn');
     
     if (!manualForm || !btn) return;
-    
-    if (manualForm.classList.contains('collapsed')) {
+
+    if (shouldOpen) {
         manualForm.classList.remove('collapsed');
-        btn.textContent = '▼ Collapse';
+        const label = btn.querySelector('span');
+        if (label) {
+            label.textContent = 'Hide manual';
+        } else {
+            btn.textContent = 'Hide manual';
+        }
+        btn.classList.add('is-active');
     } else {
         manualForm.classList.add('collapsed');
-        btn.textContent = '✏️ Manual Entry / Edit';
+        const label = btn.querySelector('span');
+        if (label) {
+            label.textContent = 'Manual entry';
+        } else {
+            btn.textContent = 'Manual entry';
+        }
+        btn.classList.remove('is-active');
+    }
+
+    syncPromptActionState();
+}
+
+export function toggleManualForm(forceState) {
+    const manualForm = document.getElementById('manualForm');
+    if (!manualForm) return;
+
+    const shouldOpen = typeof forceState === 'boolean'
+        ? forceState
+        : manualForm.classList.contains('collapsed');
+
+    setManualFormState(shouldOpen);
+}
+
+function canSubmitArticleForm() {
+    const titleField = document.getElementById('articleTitle');
+    return Boolean(titleField && titleField.value.trim());
+}
+
+function requestArticleSubmit() {
+    const form = document.getElementById('articleForm');
+    if (!form) return;
+
+    if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+    } else {
+        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    }
+}
+
+function autoResizeQuickImport() {
+    const quickImport = document.getElementById('quickImport');
+    if (!quickImport) return;
+
+    quickImport.style.height = 'auto';
+    quickImport.style.height = `${Math.min(quickImport.scrollHeight, 180)}px`;
+}
+
+function extractDoiFromText(value = '') {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return null;
+
+    if (!trimmedValue.includes('doi.org') && !(trimmedValue.includes('10.') && trimmedValue.includes('/'))) {
+        return null;
+    }
+
+    const doiMatch = trimmedValue.match(/10\.\d{4,}(?:\.\d+)?\/[A-Za-z0-9.\-_\(\)\/]+/);
+    return doiMatch ? doiMatch[0].replace(/[.,;:!?]+$/, '') : null;
+}
+
+function extractArxivIdFromText(value = '') {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return null;
+
+    if (!trimmedValue.toLowerCase().includes('arxiv') && !/\d{4}\.\d{4,5}/.test(trimmedValue) && !/[a-z\-]+\/\d{7}/i.test(trimmedValue)) {
+        return null;
+    }
+
+    const numericMatch = trimmedValue.match(/(\d{4}\.\d{4,5})(?:v\d+)?/);
+    if (numericMatch) {
+        return numericMatch[1];
+    }
+
+    const legacyMatch = trimmedValue.match(/([a-z\-]+\/\d{7})(?:v\d+)?/i);
+    return legacyMatch ? legacyMatch[1] : null;
+}
+
+function detectImportPayload(value = '') {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return null;
+
+    if (isBibTeXFormat(trimmedValue)) {
+        return { type: 'bibtex', value: trimmedValue };
+    }
+
+    const doi = extractDoiFromText(trimmedValue);
+    if (doi) {
+        return { type: 'doi', value: doi };
+    }
+
+    const arxivId = extractArxivIdFromText(trimmedValue);
+    if (arxivId) {
+        return { type: 'arxiv', value: arxivId };
+    }
+
+    return null;
+}
+
+export function isSupportedImportText(value = '') {
+    return Boolean(detectImportPayload(value));
+}
+
+function getImportAnchorPosition(position = null) {
+    if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) {
+        return { x: position.x, y: position.y };
+    }
+
+    if (typeof getNetwork() !== 'undefined' && getNetwork()) {
+        return getNetwork().getViewPosition();
+    }
+
+    return { x: 0, y: 0 };
+}
+
+function normalizeImportedArticle(article = {}) {
+    return {
+        ...article,
+        categories: Array.isArray(article.categories) ? article.categories : [],
+        text: article.text || article.note || article.abstract || '',
+    };
+}
+
+function confirmDirectImport(existingArticle, sourceLabel) {
+    if (!existingArticle) return true;
+
+    return confirm(
+        `⚠️ Warning: An article with this ${sourceLabel} already exists:\n\n` +
+        `"${existingArticle.title}"\n\n` +
+        'Do you want to import it anyway?'
+    );
+}
+
+function addImportedArticlesToGraph(articles, position = null) {
+    if (!Array.isArray(articles) || articles.length === 0) return 0;
+
+    const normalizedArticles = articles.map(normalizeImportedArticle);
+    const anchor = getImportAnchorPosition(position);
+    const verticalSpacing = 100;
+    const horizontalSpacing = 300;
+    const maxPerColumn = 10;
+    const totalColumns = Math.ceil(normalizedArticles.length / maxPerColumn);
+
+    normalizedArticles.forEach((article, index) => {
+        let x = anchor.x;
+        let y = anchor.y;
+
+        if (normalizedArticles.length > 1) {
+            const columnIndex = Math.floor(index / maxPerColumn);
+            const rowIndex = index % maxPerColumn;
+            const itemsInColumn = Math.min(maxPerColumn, normalizedArticles.length - columnIndex * maxPerColumn);
+            x = anchor.x + (columnIndex - (totalColumns - 1) / 2) * horizontalSpacing;
+            y = anchor.y + (rowIndex - (itemsInColumn - 1) / 2) * verticalSpacing;
+        }
+
+        getStore().createArticle({
+            ...article,
+            x,
+            y,
+        });
+    });
+
+    const activeFilter = getStore().currentCategoryFilter;
+    if (activeFilter && !normalizedArticles.some((article) => article.categories.includes(activeFilter))) {
+        getStore().setCategoryFilter('');
+        const categoryFilter = document.getElementById('categoryFilter');
+        if (categoryFilter) categoryFilter.value = '';
+    }
+
+    updateCategoryFilters();
+    updateGraph();
+    save();
+
+    setTimeout(() => {
+        if (!getNetwork()) return;
+
+        if (getStore().savedNodePositions) {
+            const positions = getNetwork().getPositions();
+            getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
+        }
+
+        if (typeof checkNodeZoneMembership === 'function') {
+            checkNodeZoneMembership();
+        }
+
+        save(true);
+    }, 200);
+
+    return normalizedArticles.length;
+}
+
+export function syncPromptActionState() {
+    const quickImport = document.getElementById('quickImport');
+
+    if (quickImport && quickImport.value.trim()) {
+        updatePromptActionState('import');
+        return;
+    }
+
+    updatePromptActionState(canSubmitArticleForm() ? 'save' : 'import');
+}
+
+export function updatePromptActionState(mode = 'import') {
+    const modal = document.getElementById('articleModal');
+    const button = document.getElementById('promptActionBtn');
+    if (!modal || !button) return;
+
+    modal.dataset.promptMode = mode;
+    button.classList.toggle('is-ready', mode === 'save');
+    button.title = mode === 'save' ? 'Add node to graph' : 'Import metadata';
+    button.setAttribute('aria-label', mode === 'save' ? 'Add node to graph' : 'Import metadata');
+}
+
+export function handlePromptAction() {
+    const quickImport = document.getElementById('quickImport');
+
+    if (quickImport && quickImport.value.trim()) {
+        processQuickImport();
+        return;
+    }
+
+    if (canSubmitArticleForm()) {
+        requestArticleSubmit();
+        return;
+    }
+
+    if (quickImport) {
+        quickImport.focus();
     }
 }
 
@@ -129,127 +379,52 @@ export function processQuickImport() {
     
     const value = input.value.trim();
     if (!value) return;
-    
-    // Detect if BibTeX entry
-    if (isBibTeXFormat(value)) {
-        showBibTeXPasteArea(value);
+
+    const payload = detectImportPayload(value);
+    if (!payload) {
+        showImportStatus('Format non reconnu. Utilisez un DOI (10.xxxx/...), arXiv ID (2301.12345, 1210.0686 ou cs/0701001) ou BibTeX (@article{...})', 'error');
         return;
     }
-    
-    // PRIORITY 1: Check for DOI FIRST (always starts with "10.")
-    // This prevents false arXiv detection for DOIs like "10.1016/j.ress.2024.110120"
-   if (value.includes('doi.org') || (value.includes('10.') && value.includes('/'))) {
-        console.log('Attempting to extract DOI from:', value);
-        
-        // More robust DOI extraction - allow letters, numbers, dots, slashes, hyphens, parentheses
-        // Remove any trailing punctuation that's not part of the DOI
-        const doiMatch = value.match(/10\.\d{4,}(?:\.\d+)?\/[A-Za-z0-9\.\-_\(\)\/]+/);
-        
-        console.log('Extracted DOI:', doiMatch ? doiMatch[0] : 'none');
-        
-        if (doiMatch) {
-            // Clean up trailing punctuation if user pasted URL with period at end
-            let doi = doiMatch[0].replace(/[.,;:!?]+$/, '');
-            console.log('Cleaned DOI:', doi);
-            importFromDoi(doi);
-            return;
-        } else {
-            showImportStatus('Invalid DOI format', 'error');
-            // return;
-        }
+
+    if (payload.type === 'bibtex') {
+        processBibTeXImport();
+        return;
     }
-    
-    // PRIORITY 2: Check for arXiv (only if NOT a DOI)
-    if (value.toLowerCase().includes('arxiv') || /\d{4}\.\d{4,5}/.test(value) || /[a-z\-]+\/\d{7}/i.test(value)) {
-        // arXiv formats:
-        // - New: 2301.12345 or 2301.12345v1
-        // - Old: 1210.0686 (2007-2014, YYMM.NNNN with 4 digits)
-        // - Very old: cs/0701001, hep-th/9901001 (pre-2007)
-        // - URL: https://arxiv.org/abs/1210.0686
-        
-        console.log('Attempting to extract arXiv ID from:', value);
-        
-        // Extract arXiv ID from various formats
-        let arxivMatch = null;
-        
-        // Try new/old numeric format (YYMM.NNNNN or YYMM.NNNN)
-        // Must have exactly 4 digits before dot, and 4 or 5 digits after
-        arxivMatch = value.match(/(\d{4}\.\d{4,5})(?:v\d+)?/);
-        
-        // Try old format (category/number like cs/0701001)
-        if (!arxivMatch) {
-            arxivMatch = value.match(/([a-z\-]+\/\d{7})(?:v\d+)?/i);
-        }
-        
-        console.log('Extracted arXiv ID:', arxivMatch ? arxivMatch[1] : 'none');
-        
-        if (arxivMatch) {
-            importFromArxiv(arxivMatch[1]);
-        } else {
-            showImportStatus('Invalid arXiv format - impossible d\'extraire l\'ID', 'error');
-        }
-    } else {
-        showImportStatus('Format non reconnu. Utilisez un DOI (10.xxxx/...), arXiv ID (2301.12345, 1210.0686 ou cs/0701001) ou BibTeX (@article{...})', 'error');
+
+    if (payload.type === 'doi') {
+        importFromDoi(payload.value);
+        return;
     }
+
+    importFromArxiv(payload.value);
 }
 
 // ===== BIBTEX HANDLING =====
 
 export function showBibTeXPasteArea(initialValue = '') {
     const quickImport = document.getElementById('quickImport');
-    const bibtexArea = document.querySelector('.bibtex-paste-area');
-    const bibtexTextarea = document.getElementById('bibtexPasteArea');
-    const dropIcon = document.querySelector('.drop-icon');
-    const dropText = document.querySelector('.drop-text');
-    const dropOr = document.querySelector('.drop-or');
-    const browseBtn = document.getElementById('browseFileBtn');
-    
-    if (!bibtexArea || !bibtexTextarea) return;
-    
-    // Hide normal import elements
-    if (quickImport) quickImport.style.display = 'none';
-    if (dropIcon) dropIcon.style.display = 'none';
-    if (dropText) dropText.style.display = 'none';
-    if (dropOr) dropOr.style.display = 'none';
-    if (browseBtn) browseBtn.style.display = 'none';
-    
-    // Show BibTeX area
-    bibtexArea.style.display = 'block';
-    bibtexTextarea.value = initialValue;
-    bibtexTextarea.focus();
+    if (!quickImport) return;
+
+    quickImport.value = initialValue;
+    autoResizeQuickImport();
+    quickImport.focus();
+    syncPromptActionState();
 }
 
 export function hideBibTeXPasteArea() {
     const quickImport = document.getElementById('quickImport');
-    const bibtexArea = document.querySelector('.bibtex-paste-area');
-    const dropIcon = document.querySelector('.drop-icon');
-    const dropText = document.querySelector('.drop-text');
-    const dropOr = document.querySelector('.drop-or');
-    const browseBtn = document.getElementById('browseFileBtn');
-    
-    // Show normal import elements
     if (quickImport) {
-        quickImport.style.display = 'block';
         quickImport.value = '';
+        autoResizeQuickImport();
     }
-    if (dropIcon) dropIcon.style.display = 'block';
-    if (dropText) dropText.style.display = 'block';
-    if (dropOr) dropOr.style.display = 'block';
-    if (browseBtn) browseBtn.style.display = 'block';
-    
-    // Hide BibTeX area
-    if (bibtexArea) {
-        bibtexArea.style.display = 'none';
-        const textarea = document.getElementById('bibtexPasteArea');
-        if (textarea) textarea.value = '';
-    }
+    syncPromptActionState();
 }
 
 export async function processBibTeXImport() {
-    const bibtexTextarea = document.getElementById('bibtexPasteArea');
-    if (!bibtexTextarea) return;
+    const quickImport = document.getElementById('quickImport');
+    if (!quickImport) return;
     
-    const bibtexText = bibtexTextarea.value.trim();
+    const bibtexText = quickImport.value.trim();
     if (!bibtexText) {
         showImportStatus('Please paste a BibTeX entry', 'error');
         return;
@@ -274,8 +449,13 @@ export async function processBibTeXImport() {
             getStore().setPendingImportArticle(article);
             
             fillFormWithArticleData(article);
-            showImportStatus(`✓ BibTeX entry imported: ${article.title}`, 'success');
-            hideBibTeXPasteArea();
+            showImportSuccess({
+                title: article.title || 'Imported entry',
+                subtitle: 'BibTeX imported. Press Enter or Send to add it.'
+            });
+            quickImport.value = '';
+            autoResizeQuickImport();
+            quickImport.focus();
             // Don't automatically open manual form - let user decide
         } else {
             // Multiple entries: import all directly with column layout
@@ -395,9 +575,9 @@ export async function handleBibFile(file) {
             return;
         }
         
-        // Show in the BibTeX paste area for review/editing
+        // Load into the main prompt area for review/editing
         showBibTeXPasteArea(text);
-        showImportStatus('✓ .bib file loaded. Review and click Import.', 'success');
+        showImportStatus('.bib loaded. Review and send when ready.', 'success');
         
     } catch (error) {
         console.error('Error reading .bib file:', error);
@@ -434,8 +614,9 @@ export async function handlePdfFile(file) {
                 showImportStatus('PDF loaded. Attempting import via found DOI...', 'loading');
                 await importFromDoi(doiMatch[0]);
             } else {
-                showImportStatus('✓ PDF file loaded (name extracted). Use DOI/arXiv for more info.', 'success');
-                toggleManualForm(); // Show form for manual entry
+                showImportStatus('PDF loaded. Press Send to add it or keep refining.', 'success');
+                toggleManualForm(true);
+                updatePromptActionState('save');
             }
         }
     } catch (error) {
@@ -465,8 +646,9 @@ export async function extractPdfMetadata(file) {
         const pdfUrl = URL.createObjectURL(file);
         if (pdfField) pdfField.value = pdfUrl;
         
-        showImportStatus('PDF loaded, but no DOI found. Please complete manually.', 'success');
-        toggleManualForm();
+        showImportStatus('PDF loaded. Press Send to add it or keep refining.', 'success');
+        toggleManualForm(true);
+        updatePromptActionState('save');
     }
 }
 
@@ -478,6 +660,62 @@ export async function extractTextFromPdf(arrayBuffer) {
 }
 
 // ===== DOI IMPORT =====
+
+async function fetchArticleFromDoi(doi) {
+    let bibtexData = null;
+
+    try {
+        const bibtexResponse = await fetch(`https://api.crossref.org/works/${doi}/transform/application/x-bibtex`);
+        if (bibtexResponse.ok) {
+            const bibtexText = await bibtexResponse.text();
+            bibtexData = await parseBibTeXEntry(bibtexText);
+        }
+    } catch (error) {
+        console.log('BibTeX fetch failed, falling back to CrossRef JSON:', error);
+    }
+
+    const response = await fetch(`https://api.crossref.org/works/${doi}`);
+    if (!response.ok) {
+        throw new Error(`DOI non trouvé (status ${response.status})`);
+    }
+
+    const data = await response.json();
+    const work = data.message;
+
+    const authors = work.author?.map((author) => {
+        return `${author.given || ''} ${author.family || ''}`.trim();
+    }).join(', ') || bibtexData?.author || '';
+
+    const year = work.published?.['date-parts']?.[0]?.[0] ||
+        work.created?.['date-parts']?.[0]?.[0] ||
+        bibtexData?.year ||
+        '';
+
+    const article = {
+        title: (bibtexData?.title || work.title?.[0] || 'Imported article').replace(/[{}]/g, ''),
+        authors,
+        abstract: work.abstract || bibtexData?.abstract || '',
+        doi,
+        year: year ? String(year) : '',
+        journal: work['container-title']?.[0] || bibtexData?.journal || bibtexData?.booktitle || '',
+        volume: work.volume || bibtexData?.volume || '',
+        pages: work.page || bibtexData?.pages || '',
+        publisher: work.publisher || bibtexData?.publisher || '',
+        link: work.URL || bibtexData?.link || bibtexData?.url || '',
+        entryType: ({
+            'journal-article': 'article',
+            'proceedings-article': 'inproceedings',
+            'book-chapter': 'inbook',
+            'book': 'book',
+            'dissertation': 'phdthesis'
+        })[work.type] || bibtexData?.entryType || 'article',
+        bibtexId: bibtexData?.bibtexId || bibtexData?.citationKey || '',
+        citationKey: bibtexData?.citationKey || bibtexData?.bibtexId || '',
+        originalBibTeX: bibtexData?.originalBibTeX || '',
+    };
+
+    return article;
+}
 
 export async function importFromDoi(doi) {
     if (!doi) {
@@ -511,121 +749,158 @@ export async function importFromDoi(doi) {
     showImportStatus('Fetching metadata...', 'loading');
     
     try {
-        // Try to fetch BibTeX first for better metadata
-        let bibtexData = null;
-        try {
-            console.log('Fetching BibTeX from CrossRef...');
-            const bibtexResponse = await fetch(`https://api.crossref.org/works/${doi}/transform/application/x-bibtex`);
-            console.log('BibTeX response status:', bibtexResponse.status);
-            if (bibtexResponse.ok) {
-                const bibtexText = await bibtexResponse.text();
-                console.log('BibTeX text received:', bibtexText.substring(0, 200) + '...');
-                bibtexData = await parseBibTeXEntry(bibtexText);
-                console.log('BibTeX parsed:', bibtexData);
-            }
-        } catch (e) {
-            console.log('BibTeX fetch failed, falling back to JSON:', e);
-        }
+        const article = await fetchArticleFromDoi(doi);
+        getStore().setPendingImportArticle(article);
+        fillFormWithArticleData(article);
         
-        // Use CrossRef API to get metadata
-        console.log('Fetching JSON metadata from CrossRef...');
-        const response = await fetch(`https://api.crossref.org/works/${doi}`);
-        console.log('JSON response status:', response.status);
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('CrossRef API error:', errorText);
-            throw new Error(`DOI non trouvé (status ${response.status})`);
-        }
-        
-        const data = await response.json();
-        const work = data.message;
-        console.log('Work data received:', work);
-        
-        // Fill form fields - prioritize BibTeX data if available
-        const titleField = document.getElementById('articleTitle');
-        const authorsField = document.getElementById('articleAuthors');
-        const textField = document.getElementById('articleText');
-        const doiField = document.getElementById('articleDoi');
-        const linkField = document.getElementById('articleLink');
-        const yearField = document.getElementById('articleYear');
-        const journalField = document.getElementById('articleJournal');
-        const volumeField = document.getElementById('articleVolume');
-        const pagesField = document.getElementById('articlePages');
-        const publisherField = document.getElementById('articlePublisher');
-        const entryTypeField = document.getElementById('articleEntryType');
-        
-        if (titleField) titleField.value = (bibtexData?.title || work.title?.[0] || '').replace(/[{}]/g, '');
-        
-        // Authors
-        const authors = work.author?.map(a => {
-            return `${a.given || ''} ${a.family || ''}`.trim();
-        }).join(', ') || bibtexData?.author || '';
-        if (authorsField) authorsField.value = authors;
-        
-        // Abstract
-        if (textField) textField.value = work.abstract || '';
-        
-        // DOI
-        if (doiField) doiField.value = doi;
-        
-        // Year
-        const year = work.published?.['date-parts']?.[0]?.[0] || 
-                     work.created?.['date-parts']?.[0]?.[0] || 
-                     bibtexData?.year || '';
-        if (yearField) yearField.value = year;
-        
-        // Journal/Booktitle
-        const journal = work['container-title']?.[0] || bibtexData?.journal || bibtexData?.booktitle || '';
-        if (journalField) journalField.value = journal;
-        
-        // Volume
-        if (volumeField && work.volume) volumeField.value = work.volume;
-        
-        // Pages
-        if (pagesField && work.page) pagesField.value = work.page;
-        
-        // Publisher
-        if (publisherField && work.publisher) publisherField.value = work.publisher;
-        
-        // Entry type
-        if (entryTypeField && work.type) {
-            const typeMapping = {
-                'journal-article': 'article',
-                'proceedings-article': 'inproceedings',
-                'book-chapter': 'inbook',
-                'book': 'book',
-                'dissertation': 'phdthesis'
-            };
-            entryTypeField.value = typeMapping[work.type] || 'article';
-        }
-        
-        // Link
-        if (work.URL && linkField) {
-            linkField.value = work.URL;
-        }
-        
-        showImportStatus('✓ Metadata imported successfully!', 'success');
-        
-        // Show success summary
         showImportSuccess({
-            title: (bibtexData?.title || work.title?.[0] || '').replace(/[{}]/g, ''),
-            authors: authors,
-            doi: doi
+            title: article.title || 'Imported article',
+            subtitle: 'Metadata ready. Press Enter or Send to add it.'
         });
         
         // Clear quick import
         const input = document.getElementById('quickImport');
-        if (input) input.value = '';
+        if (input) {
+            input.value = '';
+            autoResizeQuickImport();
+            input.focus();
+        }
         
     } catch (error) {
         console.error('Error importing DOI:', error);
         showImportStatus(`Error: ${error.message}`, 'error');
-        toggleManualForm(); // Show manual form on error
+        toggleManualForm(true);
     }
 }
 
 // ===== ARXIV IMPORT =====
+
+async function fetchArticleFromArxiv(arxivId) {
+    let text = '';
+
+    try {
+        const response = await window.supabaseClient.functions.invoke('fetch-arxiv', {
+            body: { arxivId: arxivId }
+        });
+
+        const { data, error } = response;
+
+        if (error) {
+            let errorDetails = error.message || 'Unknown error';
+            try {
+                if (error.context && error.context.body) {
+                    const bodyText = await error.context.body.text();
+                    errorDetails += ' | Body: ' + bodyText;
+                }
+            } catch (_) {}
+            throw new Error(`Supabase function failed: ${errorDetails}`);
+        }
+
+        if (!data || typeof data !== 'string') {
+            throw new Error('Invalid response from Supabase function');
+        }
+
+        if (!data.includes('<feed') && !data.includes('<?xml') && !data.includes('<entry')) {
+            throw new Error('Response is not valid XML');
+        }
+
+        text = data;
+    } catch (supabaseError) {
+        const arxivApiUrl = `https://export.arxiv.org/api/query?id_list=${arxivId}`;
+        const proxies = [
+            `https://corsproxy.io/?${encodeURIComponent(arxivApiUrl)}`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(arxivApiUrl)}`,
+        ];
+        const proxyErrors = [];
+
+        for (const proxyUrl of proxies) {
+            try {
+                const response = await fetch(proxyUrl);
+                if (!response.ok) {
+                    throw new Error(`Proxy returned status ${response.status}`);
+                }
+                text = await response.text();
+                break;
+            } catch (proxyError) {
+                proxyErrors.push(proxyError.message);
+            }
+        }
+
+        if (!text) {
+            throw new Error(`Could not fetch arXiv metadata. Supabase: ${supabaseError.message}. Proxies: ${proxyErrors.join('; ')}`);
+        }
+    }
+
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, 'text/xml');
+    const parserError = xml.querySelector('parsererror');
+    if (parserError) {
+        throw new Error('XML parsing error from arXiv response');
+    }
+
+    const entry = xml.querySelector('entry');
+    if (!entry) {
+        const totalResults = xml.querySelector('totalResults')?.textContent;
+        if (totalResults === '0') {
+            throw new Error(`arXiv article not found for ID: ${arxivId}`);
+        }
+        throw new Error('arXiv article not found - invalid response');
+    }
+
+    const title = entry.querySelector('title')?.textContent.trim().replace(/\s+/g, ' ') || '';
+    const summary = entry.querySelector('summary')?.textContent.trim().replace(/\s+/g, ' ') || '';
+    const authors = Array.from(entry.querySelectorAll('author name'))
+        .map((author) => author.textContent.trim())
+        .join(', ');
+    const pdfLink = entry.querySelector('link[title="pdf"]')?.getAttribute('href') || '';
+    const htmlLink = entry.querySelector('id')?.textContent.trim() || '';
+    const publishedDate = entry.querySelector('published')?.textContent.trim() || '';
+    const year = publishedDate ? new Date(publishedDate).getFullYear() : '';
+
+    if (!title || title.length < 5) {
+        throw new Error('Title not found in arXiv response');
+    }
+
+    let bibtexData = null;
+    try {
+        const bibtexResponse = await window.supabaseClient.functions.invoke('fetch-arxiv', {
+            body: { arxivId: arxivId, format: 'bibtex' }
+        });
+        if (!bibtexResponse.error && bibtexResponse.data && typeof bibtexResponse.data === 'string') {
+            bibtexData = await parseBibTeXEntry(bibtexResponse.data);
+        }
+    } catch (error) {
+        console.log('BibTeX fetch failed, generating from arXiv metadata:', error.message);
+    }
+
+    if (!bibtexData) {
+        const firstAuthorLast = authors.split(',')[0].trim().split(/\s+/).pop() || 'unknown';
+        bibtexData = {
+            entryType: 'misc',
+            title: title,
+            author: authors,
+            year: String(year),
+            journal: 'arXiv preprint',
+            eprint: arxivId,
+            archivePrefix: 'arXiv',
+            citationKey: `${firstAuthorLast.toLowerCase()}${year}`,
+        };
+    }
+
+    return {
+        title: (bibtexData?.title || title).replace(/[{}]/g, ''),
+        authors: bibtexData?.author || authors,
+        abstract: summary,
+        link: htmlLink,
+        pdf: pdfLink,
+        year: bibtexData?.year || String(year || ''),
+        entryType: bibtexData?.entryType || 'misc',
+        journal: bibtexData?.journal || 'arXiv preprint',
+        bibtexId: bibtexData?.bibtexId || bibtexData?.citationKey || '',
+        citationKey: bibtexData?.citationKey || bibtexData?.bibtexId || '',
+        originalBibTeX: bibtexData?.originalBibTeX || '',
+    };
+}
 
 export async function importFromArxiv(arxivId) {
     console.log('importFromArxiv called with:', arxivId);
@@ -667,202 +942,27 @@ export async function importFromArxiv(arxivId) {
     showImportStatus('Fetching arXiv metadata...', 'loading');
     
     try {
-        // Use arXiv API via Supabase Edge Function
-        console.log('Fetching arXiv ID:', arxivId);
+        const article = await fetchArticleFromArxiv(arxivId);
+        getStore().setPendingImportArticle(article);
+        fillFormWithArticleData(article);
         
-        let text;
-        
-        // Try Supabase function first
-        try {
-            const response = await window.supabaseClient.functions.invoke('fetch-arxiv', {
-                body: { arxivId: arxivId }
-            });
-
-            const { data, error } = response;
-            
-            if (error) {
-                // Try to read the response body for more details
-                let errorDetails = error.message || 'Unknown error';
-                try {
-                    if (error.context && error.context.body) {
-                        const bodyText = await error.context.body.text();
-                        errorDetails += ' | Body: ' + bodyText;
-                    }
-                } catch (_) {}
-                console.warn('Supabase function error:', errorDetails);
-                throw new Error(`Supabase function failed: ${errorDetails}`);
-            }
-            
-            // Check if data is valid
-            if (!data || typeof data !== 'string') {
-                console.warn('Invalid response type from Supabase function:', typeof data, data);
-                throw new Error('Invalid response from Supabase function');
-            }
-            
-            // Check if it looks like XML (flexible check for Atom feed)
-            if (!data.includes('<feed') && !data.includes('<?xml') && !data.includes('<entry')) {
-                console.warn('Response does not appear to be XML:', data.substring(0, 300));
-                throw new Error('Response is not valid XML');
-            }
-            
-            text = data;
-            console.log('arXiv API response received via Supabase, length:', text.length);
-        } catch (supabaseError) {
-            console.warn('Supabase fetch-arxiv failed:', supabaseError.message);
-            
-            // Fallback: try using CORS proxies
-            console.log('Trying CORS proxy fallback...');
-            const arxivApiUrl = `https://export.arxiv.org/api/query?id_list=${arxivId}`;
-            const proxies = [
-                `https://corsproxy.io/?${encodeURIComponent(arxivApiUrl)}`,
-                `https://api.allorigins.win/raw?url=${encodeURIComponent(arxivApiUrl)}`,
-            ];
-            let proxyErrors = [];
-            for (const proxyUrl of proxies) {
-                try {
-                    const response = await fetch(proxyUrl);
-                    if (!response.ok) {
-                        throw new Error(`Proxy returned status ${response.status}`);
-                    }
-                    text = await response.text();
-                    console.log('arXiv API response received via CORS proxy, length:', text.length);
-                    break;
-                } catch (proxyError) {
-                    console.warn('CORS proxy failed:', proxyUrl, proxyError.message);
-                    proxyErrors.push(proxyError.message);
-                }
-            }
-            if (!text) {
-                throw new Error(`Could not fetch arXiv metadata. Supabase: ${supabaseError.message}. Proxies: ${proxyErrors.join('; ')}`);
-            }
-        }
-        
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(text, 'text/xml');
-        
-        // Check for parsing errors
-        const parserError = xml.querySelector('parsererror');
-        if (parserError) {
-            console.error('XML parsing error:', parserError.textContent);
-            throw new Error('XML parsing error from arXiv response');
-        }
-        
-        const entry = xml.querySelector('entry');
-        if (!entry) {
-            console.error('No entry found in XML response');
-            console.log('Full XML content:', text);
-            
-            // Check if there's an error message in the feed
-            const totalResults = xml.querySelector('totalResults')?.textContent;
-            if (totalResults === '0') {
-                throw new Error(`arXiv article not found for ID: ${arxivId}`);
-            }
-            
-            throw new Error('arXiv article not found - invalid response');
-        }
-        
-        console.log('Entry found, extracting metadata...');
-        
-        // Extract metadata with better error handling
-        const title = entry.querySelector('title')?.textContent.trim().replace(/\s+/g, ' ') || '';
-        const summary = entry.querySelector('summary')?.textContent.trim().replace(/\s+/g, ' ') || '';
-        const authors = Array.from(entry.querySelectorAll('author name'))
-            .map(a => a.textContent.trim())
-            .join(', ');
-        const pdfLink = entry.querySelector('link[title="pdf"]')?.getAttribute('href') || '';
-        const htmlLink = entry.querySelector('id')?.textContent.trim() || '';
-        
-        // Extract published date (must be before using 'year' in log)
-        const publishedDate = entry.querySelector('published')?.textContent.trim() || '';
-        const year = publishedDate ? new Date(publishedDate).getFullYear() : '';
-        
-        console.log('Extracted:', { title: title.substring(0, 50), authors, year });
-        console.log('Published date:', publishedDate, '→ Year:', year);
-        
-        // Validate that we got meaningful data
-        if (!title || title.length < 5) {
-            throw new Error('Title not found in arXiv response');
-        }
-        
-        // Try to fetch BibTeX from arXiv via Supabase edge function
-        let bibtexData = null;
-        try {
-            console.log('Fetching BibTeX from arXiv...');
-            const bibtexResponse = await window.supabaseClient.functions.invoke('fetch-arxiv', {
-                body: { arxivId: arxivId, format: 'bibtex' }
-            });
-            if (!bibtexResponse.error && bibtexResponse.data && typeof bibtexResponse.data === 'string') {
-                console.log('BibTeX response:', bibtexResponse.data.substring(0, 200));
-                bibtexData = await parseBibTeXEntry(bibtexResponse.data);
-                console.log('BibTeX parsed:', bibtexData);
-            } else {
-                console.log('BibTeX fetch via edge function failed, generating from metadata');
-            }
-        } catch (e) {
-            console.log('BibTeX fetch failed, generating from metadata:', e.message);
-        }
-
-        // Fallback: generate BibTeX data from the XML metadata we already have
-        if (!bibtexData) {
-            const firstAuthorLast = authors.split(',')[0].trim().split(/\s+/).pop() || 'unknown';
-            bibtexData = {
-                entryType: 'misc',
-                title: title,
-                author: authors,
-                year: String(year),
-                journal: 'arXiv preprint',
-                eprint: arxivId,
-                archivePrefix: 'arXiv',
-                citeKey: `${firstAuthorLast.toLowerCase()}${year}`,
-            };
-        }
-        
-        // Fill form fields
-        const titleField = document.getElementById('articleTitle');
-        const authorsField = document.getElementById('articleAuthors');
-        const textField = document.getElementById('articleText');
-        const linkField = document.getElementById('articleLink');
-        const pdfField = document.getElementById('articlePdf');
-        const yearField = document.getElementById('articleYear');
-        const entryTypeField = document.getElementById('articleEntryType');
-        const journalField = document.getElementById('articleJournal');
-        
-        if (titleField) titleField.value = (bibtexData?.title || title).replace(/[{}]/g, '');
-        if (authorsField) authorsField.value = bibtexData?.author || authors;
-        if (textField) textField.value = summary;
-        if (linkField) linkField.value = htmlLink;
-        if (pdfLink && pdfField) pdfField.value = pdfLink;
-        if (yearField) yearField.value = bibtexData?.year || year;
-        
-        // Set entry type (arXiv papers are typically preprints/misc)
-        if (entryTypeField) {
-            entryTypeField.value = bibtexData?.entryType || 'misc';
-        }
-        
-        // Set journal if available from BibTeX
-        if (journalField && bibtexData?.journal) {
-            journalField.value = bibtexData.journal;
-        } else if (journalField) {
-            journalField.value = 'arXiv preprint';
-        }
-        
-        showImportStatus('✓ arXiv metadata imported successfully!', 'success');
-        
-        // Show success summary
         showImportSuccess({
-            title: (bibtexData?.title || title).replace(/[{}]/g, ''),
-            authors: bibtexData?.author || authors,
-            doi: ''
+            title: article.title || 'Imported article',
+            subtitle: 'arXiv metadata ready. Press Enter or Send to add it.'
         });
         
         // Clear quick import
         const input = document.getElementById('quickImport');
-        if (input) input.value = '';
+        if (input) {
+            input.value = '';
+            autoResizeQuickImport();
+            input.focus();
+        }
         
     } catch (error) {
         console.error('Error importing arXiv:', error);
         showImportStatus(`Erreur: ${error.message}`, 'error');
-        toggleManualForm(); // Show manual form on error
+        toggleManualForm(true);
     }
 }
 
@@ -870,85 +970,135 @@ export async function importFromArxiv(arxivId) {
 
 export function showImportStatus(message, type) {
     const status = document.getElementById('importStatus');
+    const promptSurface = document.querySelector('.prompt-surface');
     if (!status) return;
-    
-    status.textContent = message;
+
+    if (typeof message === 'object' && message !== null) {
+        const { title = '', subtitle = '' } = message;
+        status.innerHTML = '';
+
+        if (title) {
+            const titleElement = document.createElement('div');
+            titleElement.className = 'import-status-title';
+            titleElement.textContent = title;
+            status.appendChild(titleElement);
+        }
+
+        if (subtitle) {
+            const subtitleElement = document.createElement('div');
+            subtitleElement.className = 'import-status-subtitle';
+            subtitleElement.textContent = subtitle;
+            status.appendChild(subtitleElement);
+        }
+    } else {
+        status.textContent = message;
+    }
+
     status.className = `import-status show ${type}`;
-    
-    if (type === 'success' || type === 'error') {
-        setTimeout(() => {
-            status.classList.remove('show');
-        }, 5000);
+    if (promptSurface) {
+        if (type) {
+            promptSurface.dataset.status = type;
+        } else {
+            delete promptSurface.dataset.status;
+        }
     }
 }
 
 export function resetImportZone() {
     // Clear quick import input
     const quickInput = document.getElementById('quickImport');
-    if (quickInput) quickInput.value = '';
+    const promptSurface = document.querySelector('.prompt-surface');
+    if (quickInput) {
+        quickInput.value = '';
+        autoResizeQuickImport();
+    }
     
     // Hide import status
     const status = document.getElementById('importStatus');
-    if (status) status.classList.remove('show');
-    
-    // Show drop zone, hide success summary
-    const dropZone = document.getElementById('dropZone');
-    const importZone = document.querySelector('.import-zone');
-    
-    if (importZone) {
-        // Remove any existing summary
-        const existingSummary = importZone.querySelector('.import-summary');
-        if (existingSummary) {
-            existingSummary.remove();
-        }
+    if (status) {
+        status.classList.remove('show', 'loading', 'success', 'error', 'info');
+        status.textContent = '';
     }
-    
+    if (promptSurface) {
+        delete promptSurface.dataset.status;
+    }
+
+    // Show drop zone
+    const dropZone = document.getElementById('dropZone');
     // Show drop zone
     if (dropZone) dropZone.style.display = 'block';
+
+    hideBibTeXPasteArea();
+    setManualFormState(false);
+    updatePromptActionState('import');
 }
 
-export function showImportSuccess(data) {
-    // Hide drop zone
-    const dropZone = document.getElementById('dropZone');
-    if (dropZone) dropZone.style.display = 'none';
-    
-    // Create success summary
-    const importZone = document.querySelector('.import-zone');
-    if (!importZone) return;
-    
-    // Remove existing summary if any
-    const existingSummary = importZone.querySelector('.import-summary');
-    if (existingSummary) {
-        existingSummary.remove();
-    }
-    
-    const summary = document.createElement('div');
-    summary.className = 'import-summary';
-    summary.innerHTML = `
-        <div class="import-success-icon">✓</div>
-        <h3>Article imported</h3>
-        <div class="import-details">
-            <p><strong>Title:</strong> ${data.title || 'Not available'}</p>
-            <p><strong>Authors:</strong> ${data.authors || 'Not available'}</p>
-            ${data.doi ? `<p><strong>DOI:</strong> ${data.doi}</p>` : ''}
-        </div>
-        <button type="button" id="reimportBtn" class="btn-secondary">↻ Reimport</button>
-    `;
-    
-    importZone.insertBefore(summary, importZone.firstChild);
-    
-    // Add reimport button listener
-    const reimportBtn = document.getElementById('reimportBtn');
-    if (reimportBtn) {
-        reimportBtn.addEventListener('click', () => {
-            resetImportZone();
-            // Clear form fields
-            const fields = ['articleTitle', 'articleAuthors', 'articleText', 'articleDoi', 'articleLink', 'articlePdf'];
-            fields.forEach(fieldId => {
-                const field = document.getElementById(fieldId);
-                if (field) field.value = '';
-            });
+export function showImportSuccess(message = {
+    title: 'Imported article',
+    subtitle: 'Metadata ready. Press Enter or Send to add it.'
+}) {
+    showImportStatus(message, 'success');
+    updatePromptActionState('save');
+
+    const promptActionBtn = document.getElementById('promptActionBtn');
+    promptActionBtn?.focus();
+}
+
+export async function importTextToGraph(text, position = null) {
+    const payload = detectImportPayload(text);
+    if (!payload) return false;
+
+    try {
+        if (payload.type === 'bibtex') {
+            showNotification('Importing BibTeX to graph...', 'info');
+            const articles = await parseMultipleBibTeXEntries(payload.value);
+            if (!articles.length) {
+                throw new Error('No valid BibTeX entry found');
+            }
+
+            const importedCount = addImportedArticlesToGraph(articles, position);
+            showNotification(
+                importedCount === 1
+                    ? `Imported "${articles[0].title || 'article'}"`
+                    : `Imported ${importedCount} articles from BibTeX`,
+                'success'
+            );
+            return true;
+        }
+
+        if (payload.type === 'doi') {
+            const existingArticle = getStore().appData.articles.find((article) =>
+                article.doi && article.doi.toLowerCase() === payload.value.toLowerCase()
+            );
+            if (!confirmDirectImport(existingArticle, 'DOI')) {
+                return false;
+            }
+
+            showNotification('Fetching DOI metadata...', 'info');
+            const article = await fetchArticleFromDoi(payload.value);
+            addImportedArticlesToGraph([article], position);
+            showNotification(`Imported "${article.title || 'article'}"`, 'success');
+            return true;
+        }
+
+        const existingArticle = getStore().appData.articles.find((article) => {
+            const linkHasArxiv = article.link && article.link.includes(payload.value);
+            const pdfHasArxiv = article.pdf && article.pdf.includes(payload.value);
+            return linkHasArxiv || pdfHasArxiv;
         });
+        if (!confirmDirectImport(existingArticle, 'arXiv ID')) {
+            return false;
+        }
+
+        showNotification('Fetching arXiv metadata...', 'info');
+        const article = await fetchArticleFromArxiv(payload.value);
+        addImportedArticlesToGraph([article], position);
+        showNotification(`Imported "${article.title || 'article'}"`, 'success');
+        return true;
+    } catch (error) {
+        console.error('Direct graph import failed:', error);
+        showNotification(`Import failed: ${error.message}`, 'error');
+        return false;
     }
 }
 
@@ -1051,5 +1201,3 @@ export async function importBibtexFile(event) {
         event.target.value = '';
     }
 }
-
-

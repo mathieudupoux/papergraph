@@ -46,21 +46,32 @@ window.navigateTo = navigateTo;
             // User not logged in
             if (redirect === 'share' && token) {
                 // Show auth modal with message about shared project
-                openAuthModal();
+                openAuthModal('signin');
                 showAuthMessage('Please sign in to view this shared project', false);
             }
 
             // Attach event listeners after DOM is ready
             const getStartedBtn = document.getElementById('getStartedBtn');
             if (getStartedBtn) {
-                getStartedBtn.addEventListener('click', openAuthModal);
+                getStartedBtn.addEventListener('click', () => openAuthModal('signup'));
+            }
+
+            const headerSignInBtn = document.getElementById('headerSignInBtn');
+            if (headerSignInBtn) {
+                headerSignInBtn.addEventListener('click', () => openAuthModal('signin'));
+            }
+
+            const headerSignUpBtn = document.getElementById('headerSignUpBtn');
+            if (headerSignUpBtn) {
+                headerSignUpBtn.addEventListener('click', () => openAuthModal('signup'));
             }
 
             // Duplicate logos for seamless infinite scroll
             const track = document.getElementById('logosTrack');
-            if (track) {
+            if (track && !track.dataset.duplicated) {
                 const logos = track.innerHTML;
-                track.innerHTML = logos + logos;
+                track.innerHTML = logos.repeat(4);
+                track.dataset.duplicated = 'true';
             }
             
             // Close auth modal on outside click
@@ -81,7 +92,15 @@ window.navigateTo = navigateTo;
         }
 
         // Modal functions
-        function openAuthModal() {
+        function syncAuthMode(mode = 'signin') {
+            const shouldSignUp = mode === 'signup';
+            if (shouldSignUp !== isSignUp) {
+                toggleAuthMode();
+            }
+        }
+
+        function openAuthModal(mode = 'signin') {
+            syncAuthMode(mode);
             document.getElementById('authModal').classList.add('active');
         }
 
@@ -131,13 +150,16 @@ window.navigateTo = navigateTo;
         // Show message
         function showAuthMessage(message, isError = false) {
             const messageDiv = document.getElementById('authMessage');
+            if (!messageDiv) return;
             messageDiv.className = isError ? 'auth-error' : 'auth-success';
             messageDiv.textContent = message;
         }
 
         function clearAuthMessage() {
-            document.getElementById('authMessage').textContent = '';
-            document.getElementById('authMessage').className = '';
+            const messageDiv = document.getElementById('authMessage');
+            if (!messageDiv) return;
+            messageDiv.textContent = '';
+            messageDiv.className = '';
         }
 
         // Email/Password Auth

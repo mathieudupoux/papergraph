@@ -1,7 +1,7 @@
 import { getStore, getNetwork } from '../store/appStore.js';
-import { showNotification } from '../utils/helpers.js';
+import { applyThemePreference, getStoredThemePreference, persistThemePreference, showNotification } from '../utils/helpers.js';
 import { exportProject, exportToBibtex, exportToImage, exportToSVG } from '../data/export.js';
-import { importBibtexFile, setupImportZone, toggleManualForm } from '../data/import.js';
+import { importBibtexFile, importTextToGraph, isSupportedImportText, setupImportZone, toggleManualForm } from '../data/import.js';
 import { importProjectFileAsNewProject } from '../data/project-import.js';
 import { openArticleModal, closeModal, saveArticle, deleteArticle, deleteArticleById, setPendingArticlePosition } from '../ui/modal.js';
 import { toggleCategoryDropdown, updateCategoryFilters, updateActiveFiltersDisplay } from '../ui/filters.js';
@@ -35,6 +35,22 @@ if (urlParams.get('mode') === 'readonly') {
 
 export function initializeEventListeners() {
     syncTouchZoneModeIndicator();
+
+    const refreshGraphTheme = (event) => {
+        const isDark = event?.detail?.isDark ?? document.body.classList.contains('dark-theme');
+        const themeToggleText = document.getElementById('themeToggleText');
+        if (themeToggleText) {
+            themeToggleText.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+        }
+
+        if (!getNetwork()) return;
+        requestAnimationFrame(() => {
+            updateGraph();
+            getNetwork()?.redraw();
+        });
+    };
+
+    window.addEventListener('papergraph:themechange', refreshGraphTheme);
 
     // View toggle switch
     const viewToggle = document.getElementById('viewToggle');
@@ -91,19 +107,14 @@ export function initializeEventListeners() {
     // Dark Theme Toggle (in user dropdown)
     const editorThemeToggle = document.getElementById('editorThemeToggle');
     const themeToggleText = document.getElementById('themeToggleText');
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    
-    // Apply saved theme on load
-    if (savedTheme === 'dark') {
-        document.body.classList.add('dark-theme');
-        if (themeToggleText) themeToggleText.textContent = 'Light Mode';
-    }
+    const savedTheme = getStoredThemePreference();
+    const isDarkTheme = applyThemePreference(savedTheme);
+    if (themeToggleText) themeToggleText.textContent = isDarkTheme ? 'Light Mode' : 'Dark Mode';
     
     if (editorThemeToggle) {
         editorThemeToggle.addEventListener('click', () => {
-            document.body.classList.toggle('dark-theme');
-            const isDark = document.body.classList.contains('dark-theme');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            const isDark = !document.body.classList.contains('dark-theme');
+            persistThemePreference(isDark);
             if (themeToggleText) {
                 themeToggleText.textContent = isDark ? 'Light Mode' : 'Dark Mode';
             }
@@ -352,6 +363,42 @@ export function initializeEventListeners() {
                 deleteZone(getStore().selectedZoneIndex);
             }
         }
+    });
+
+    document.addEventListener('paste', async (e) => {
+        const target = e.target;
+        if (target instanceof HTMLElement) {
+            const isTypingContext =
+                target.tagName === 'INPUT' ||
+                target.tagName === 'TEXTAREA' ||
+                target.isContentEditable ||
+                Boolean(target.closest('.modal-content')) ||
+                Boolean(target.closest('.markdown-toolbar')) ||
+                Boolean(target.closest('.editor-panel'));
+
+            if (isTypingContext) {
+                return;
+            }
+        }
+
+        if (!document.getElementById('graphView')?.classList.contains('active')) {
+            return;
+        }
+
+        if (document.getElementById('articleModal')?.classList.contains('active')) {
+            return;
+        }
+
+        const text = e.clipboardData?.getData('text/plain')?.trim();
+        if (!text || !isSupportedImportText(text)) {
+            return;
+        }
+
+        e.preventDefault();
+        await importTextToGraph(
+            text,
+            getStore().lastCanvasPointerPosition || getNetwork()?.getViewPosition() || null
+        );
     });
     
     // Radial menu actions

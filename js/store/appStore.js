@@ -124,6 +124,7 @@ const storeDefinition = (set, get) => ({
     inlineEditingSetup: false,
     currentPreviewArticleId: null,
     touchZoneCreationMode: false,
+    lastCanvasPointerPosition: null,
 
     // ── appData Actions ───────────────────────────────────────────────
 
@@ -376,6 +377,7 @@ const storeDefinition = (set, get) => ({
     setCurrentEditingElement: (currentEditingElement) => set({ currentEditingElement }),
     setOriginalContent: (originalContent) => set({ originalContent }),
     setTouchZoneCreationMode: (touchZoneCreationMode) => set({ touchZoneCreationMode }),
+    setLastCanvasPointerPosition: (lastCanvasPointerPosition) => set({ lastCanvasPointerPosition }),
 
     updateConnectionMode: (updates) => set((s) => ({
         connectionMode: { ...s.connectionMode, ...updates },

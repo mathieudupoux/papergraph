@@ -1,98 +1,109 @@
 <!-- Preferences Modal -->
 <div id="preferencesModal" class="modal">
     <div class="modal-content preferences-modal">
-        <button class="close-modal" onclick="closePreferencesModal()">&times;</button>
-        
-        <div class="preferences-container">
-            <!-- Left Sidebar with Tabs -->
-            <div class="preferences-sidebar">
-                <button class="preferences-tab active" data-tab="profile">
-                    <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#user"></use></svg>
-                    Profile
-                </button>
-                <button class="preferences-tab" data-tab="appearance">
-                    <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#sun"></use></svg>
-                    Appearance
-                </button>
-                <button class="preferences-tab" data-tab="support">
-                    <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#help"></use></svg>
-                    Support
-                </button>
+        <div class="preferences-shell">
+            <div class="preferences-modal-header">
+                <div class="preferences-modal-heading">
+                    <p class="preferences-modal-kicker">Workspace</p>
+                    <h2>Preferences</h2>
+                    <p class="preferences-modal-subtitle">Manage your profile, appearance, and support settings from one place.</p>
+                </div>
+                <button class="close-modal preferences-close-btn" onclick="closePreferencesModal()" aria-label="Close preferences">&times;</button>
             </div>
 
-            <!-- Right Content Area -->
-            <div class="preferences-content">
-                <!-- Profile Tab -->
-                <div class="preferences-panel active" id="profile-panel">
-                    <h2>Profile Information</h2>
-                    
-                    <div class="preferences-section">
-                        <label>Display Name</label>
-                        <div id="prefDisplayName" class="preferences-display-value"></div>
-                    </div>
-
-                    <div class="preferences-section">
-                        <label>Username</label>
-                        <div class="preferences-input-group">
-                            <span class="preferences-input-prefix">@</span>
-                            <input type="text" id="prefUsername" class="preferences-input" 
-                                   pattern="[a-zA-Z0-9_]+" minlength="3" maxlength="20">
-                            <button class="btn-secondary btn-small" onclick="updateUsername()">Save</button>
-                        </div>
-                        <small class="preferences-hint">3-20 characters, letters, numbers and underscore only</small>
-                    </div>
-
-                    <div class="preferences-section">
-                        <label>Connected Accounts</label>
-                        <div class="connected-accounts" id="connectedAccounts">
-                            <!-- Will be populated dynamically -->
-                        </div>
-                    </div>
-
-                    <div class="preferences-section danger-zone">
-                        <h3>Delete Account</h3>
-                        <p>Once you delete your account, there is no going back. All your projects and data will be permanently deleted.</p>
-                        <button class="btn-danger" onclick="confirmDeleteAccount()">Delete Account</button>
-                    </div>
+            <div class="preferences-container">
+                <!-- Left Sidebar with Tabs -->
+                <div class="preferences-sidebar">
+                    <button class="preferences-tab active" data-tab="profile">
+                        <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#user"></use></svg>
+                        <span>Profile</span>
+                    </button>
+                    <button class="preferences-tab" data-tab="appearance">
+                        <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#sun"></use></svg>
+                        <span>Appearance</span>
+                    </button>
+                    <button class="preferences-tab" data-tab="support">
+                        <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#help"></use></svg>
+                        <span>Support</span>
+                    </button>
                 </div>
 
-                <!-- Appearance Tab -->
-                <div class="preferences-panel" id="appearance-panel">
-                    <h2>Appearance</h2>
-                    
-                    <div class="preferences-section">
-                        <label>Dark Mode</label>
-                        <div class="preferences-toggle-container">
-                            <label class="preferences-toggle">
-                                <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()">
-                                <span class="preferences-toggle-slider"></span>
-                            </label>
-                            <div class="preferences-toggle-label">
-                                <span id="darkModeStatus">Light Mode</span>
+                <!-- Right Content Area -->
+                <div class="preferences-content">
+                    <!-- Profile Tab -->
+                    <div class="preferences-panel active" id="profile-panel">
+                        <h2>Profile Information</h2>
+
+                        <div class="preferences-section">
+                            <label>Display Name</label>
+                            <div id="prefDisplayName" class="preferences-display-value"></div>
+                        </div>
+
+                        <div class="preferences-section">
+                            <label>Username</label>
+                            <div class="preferences-input-group">
+                                <div class="preferences-input-shell">
+                                    <span class="preferences-input-prefix">@</span>
+                                    <input type="text" id="prefUsername" class="preferences-input"
+                                           pattern="[a-zA-Z0-9_]+" minlength="3" maxlength="20">
+                                </div>
+                                <button class="btn-primary btn-pill preferences-action-btn" onclick="updateUsername()">Save</button>
+                            </div>
+                            <small class="preferences-hint">3-20 characters, letters, numbers and underscore only</small>
+                        </div>
+
+                        <div class="preferences-section">
+                            <label>Connected Accounts</label>
+                            <div class="connected-accounts" id="connectedAccounts">
+                                <!-- Will be populated dynamically -->
                             </div>
                         </div>
-                        <small class="preferences-hint preferences-warning">⚠️ Dark mode is not fully implemented yet. Some elements may not display correctly.</small>
-                    </div>
-                </div>
 
-                <!-- Support Tab -->
-                <div class="preferences-panel" id="support-panel">
-                    <h2>Support</h2>
-                    
-                    <div class="preferences-section">
-                        <label>Report a Bug</label>
-                        <p style="color: #6c757d; margin-bottom: 16px;">Found a bug or have a suggestion? Let us know!</p>
-                        <button class="btn-primary btn-with-icon" onclick="reportBug()">
-                            <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#bug"></use></svg>
-                            Open GitHub Issues
-                        </button>
+                        <div class="preferences-section danger-zone">
+                            <h3>Delete Account</h3>
+                            <p>Once you delete your account, there is no going back. All your projects and data will be permanently deleted.</p>
+                            <button class="btn-danger btn-pill" onclick="confirmDeleteAccount()">Delete Account</button>
+                        </div>
                     </div>
 
-                    <div class="preferences-section">
-                        <label>About PaperGraph</label>
-                        <p style="color: #6c757d; line-height: 1.6;">
-                            PaperGraph helps researchers organize and visualize their academic papers.<br>
-                        </p>
+                    <!-- Appearance Tab -->
+                    <div class="preferences-panel" id="appearance-panel">
+                        <h2>Appearance</h2>
+
+                        <div class="preferences-section">
+                            <label>Dark Mode</label>
+                            <div class="preferences-toggle-container">
+                                <label class="preferences-toggle">
+                                    <input type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()">
+                                    <span class="preferences-toggle-slider"></span>
+                                </label>
+                                <div class="preferences-toggle-label">
+                                    <span id="darkModeStatus">Light Mode</span>
+                                </div>
+                            </div>
+                            <small class="preferences-hint preferences-warning">Dark mode is not fully implemented yet. Some elements may not display correctly.</small>
+                        </div>
+                    </div>
+
+                    <!-- Support Tab -->
+                    <div class="preferences-panel" id="support-panel">
+                        <h2>Support</h2>
+
+                        <div class="preferences-section">
+                            <label>Report a Bug</label>
+                            <p class="preferences-body-copy">Found a bug or have a suggestion? Let us know!</p>
+                            <button class="btn-primary btn-pill btn-with-icon" onclick="reportBug()">
+                                <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#bug"></use></svg>
+                                Open GitHub Issues
+                            </button>
+                        </div>
+
+                        <div class="preferences-section">
+                            <label>About PaperGraph</label>
+                            <p class="preferences-body-copy">
+                                PaperGraph helps researchers organize and visualize their academic papers.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -27,7 +27,7 @@
     padding: 48px 40px;
     box-shadow: 0 8px 32px var(--backdrop-strong);
     position: relative;
-    animation: modalSlideIn 0.3s ease;
+    animation: modalSlideIn var(--transition-fast);
     border: 1px solid var(--color-glass-light);
 }
 
@@ -71,10 +71,12 @@
 }
 
 .auth-modal-header h2 {
+    font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-size: 1.75rem;
     font-weight: 700;
     color: var(--color-text-primary);
     margin: 0 0 8px 0;
+    letter-spacing: -0.03em;
 }
 
 .auth-modal-header p {
@@ -95,20 +97,25 @@
     align-items: center;
     justify-content: center;
     gap: 12px;
-    padding: 14px 20px;
-    border: 2px solid var(--color-border);
-    border-radius: 12px;
-    background: var(--color-bg);
+    min-height: 50px;
+    padding: 0 1.2rem;
+    border: 1px solid rgba(44, 62, 80, 0.12);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.84);
     cursor: pointer;
     font-size: 0.95rem;
-    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    font-weight: 600;
     color: var(--color-text-primary);
     transition: all 0.2s;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .auth-provider-btn:hover {
-    border-color: var(--color-primary);
-    background: var(--color-bg-secondary);
+    border-color: rgba(49, 95, 212, 0.22);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
 }
 
 .auth-provider-btn svg {
@@ -134,7 +141,7 @@
 
 .auth-divider span {
     position: relative;
-    background: #f7f7f7;
+    background: rgba(255, 255, 255, 0.96);
     padding: 0 16px;
     color: var(--color-text-tertiary);
     font-size: 0.85rem;
@@ -147,16 +154,38 @@
 }
 
 .auth-form input {
-    padding: 14px 16px;
-    border: 2px solid var(--color-border);
-    border-radius: 12px;
+    min-height: 50px;
+    padding: 0 1.2rem;
+    border: 1px solid rgba(44, 62, 80, 0.12);
+    border-radius: 999px;
     font-size: 0.95rem;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    font-weight: 600;
     transition: all 0.2s;
+    background: rgba(255, 255, 255, 0.84);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    color: var(--color-text-primary);
 }
 
 .auth-form input:focus {
     outline: none;
     border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+    background: rgba(255, 255, 255, 0.96);
+}
+
+.auth-form input::placeholder {
+    color: var(--color-text-tertiary);
+    font-weight: 500;
+}
+
+.auth-form .btn-primary {
+    width: 100%;
+    min-height: 50px;
+    border-radius: 999px;
+    font-size: 0.96rem;
+    font-weight: 700;
 }
 
 .auth-form-toggle {
@@ -171,12 +200,13 @@
     border: none;
     color: var(--color-primary);
     cursor: pointer;
-    font-weight: 500;
-    text-decoration: underline;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-decoration: none;
 }
 
 .auth-error {
-    background: var(--color-bg-error-light)
+    background: var(--color-bg-error-light);
     color: #c33;
     padding: 12px;
     border-radius: 8px;

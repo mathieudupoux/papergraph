@@ -58,6 +58,63 @@ function getPlainTextFromElement(element) {
         .replace(/\r/g, '');
 }
 
+function getEditableMarkdownText(element) {
+    const blockTags = new Set(['DIV', 'P', 'LI', 'BLOCKQUOTE', 'PRE']);
+    const lines = [];
+    let currentLine = '';
+
+    function pushLine() {
+        lines.push(currentLine);
+        currentLine = '';
+    }
+
+    function walk(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            currentLine += node.textContent || '';
+            return;
+        }
+
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+            return;
+        }
+
+        const { tagName } = node;
+        if (tagName === 'BR') {
+            pushLine();
+            return;
+        }
+
+        const isBlock = blockTags.has(tagName) || /^H[1-6]$/.test(tagName);
+        const hadContentBeforeBlock = currentLine.length > 0 || lines.length > 0;
+
+        if (isBlock && currentLine.length > 0) {
+            pushLine();
+        }
+
+        Array.from(node.childNodes).forEach(walk);
+
+        if (isBlock) {
+            const hasWrittenContent = currentLine.length > 0 || hadContentBeforeBlock;
+            if (hasWrittenContent) {
+                pushLine();
+            }
+        }
+    }
+
+    Array.from(element.childNodes).forEach(walk);
+
+    if (currentLine.length > 0) {
+        pushLine();
+    }
+
+    return lines.join('\n')
+        .replace(/\u00a0/g, ' ')
+        .replace(/\r/g, '')
+        .replace(/[ \t]+\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
 function getTextBeforeCaretWithin(element) {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return '';
@@ -729,7 +786,7 @@ export function saveInlineEdit(element, field) {
     if (!article) return;
     
     const newValue = field === 'note'
-        ? element.innerText.replace(/\u00a0/g, ' ').replace(/\r/g, '').trim()
+        ? getEditableMarkdownText(element)
         : element.textContent.trim();
     const originalValue = getStore().originalContent.trim();
 
