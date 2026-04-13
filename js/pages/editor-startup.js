@@ -4,12 +4,73 @@ import { showNotification } from '../utils/helpers.js';
 import { load } from '../data/persistence.js';
 import { scheduleBibliographyRebuild } from '../data/bibliography.js';
 import { initializeEventListeners } from '../core/init.js';
-import { updateCategoryFilters } from '../ui/filters.js';
 import { initializeGraph } from '../graph/init.js';
 import { initCloudStorage } from '../data/cloud-storage.js';
+import { icon } from '../ui/icons.js';
+import { refreshProjectShareButton } from '../ui/project-share.js';
 import { includesReady } from '../utils/load-footer.js';
+import { getUrl } from '../utils/base-path.js';
 import { getSession } from '../auth/auth.js';
 import { config } from '../auth/config.js';
+
+let driverLoaderPromise = null;
+
+function buildTourDescription({ iconId, eyebrow, intro, items = [], mediaSrc = null, mediaAlt = '' }) {
+    const itemsMarkup = items.length > 0
+        ? `
+            <ul class="pg-tour-list">
+                ${items.map((item) => `
+                    <li class="pg-tour-list-item">
+                        <span class="pg-tour-list-icon">${icon(item.iconId || 'chevron-right', { size: 'sm' })}</span>
+                        <span>${item.text}</span>
+                    </li>
+                `).join('')}
+            </ul>
+        `
+        : '';
+
+    const mediaMarkup = mediaSrc
+        ? `
+            <div class="pg-tour-media-shell">
+                <img class="pg-tour-media" src="${getUrl(mediaSrc)}" alt="${mediaAlt}" loading="lazy">
+            </div>
+        `
+        : '';
+
+    return `
+        <div class="pg-tour-card">
+            <div class="pg-tour-heading">
+                <span class="pg-tour-heading-icon">${icon(iconId, { size: 'md' })}</span>
+                <div class="pg-tour-heading-copy">
+                    <p class="pg-tour-kicker">${eyebrow}</p>
+                    <p class="pg-tour-intro">${intro}</p>
+                </div>
+            </div>
+            ${itemsMarkup}
+            ${mediaMarkup}
+        </div>
+    `;
+}
+
+function loadDriverLibrary() {
+    if (window.driver?.js?.driver) {
+        return Promise.resolve();
+    }
+
+    if (driverLoaderPromise) {
+        return driverLoaderPromise;
+    }
+
+    driverLoaderPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load Driver.js'));
+        document.head.appendChild(script);
+    });
+
+    return driverLoaderPromise;
+}
 
 function redirectToLanding() {
     window.location.replace('index.html');
@@ -19,7 +80,32 @@ function redirectToProjects() {
     window.location.replace('projects.html');
 }
 
+function getReadOnlyViewerSuffix(metadata = {}) {
+    return metadata.viewerType === 'share' ? 'Papergraph Shared' : 'Papergraph Gallery';
+}
+
+function resizeProjectTitleInput(input, { minWidth = 120, maxWidth = 600, extraPadding = 40 } = {}) {
+    if (!input) return;
+
+    const span = document.createElement('span');
+    span.style.visibility = 'hidden';
+    span.style.position = 'absolute';
+    span.style.whiteSpace = 'nowrap';
+    span.style.fontFamily = window.getComputedStyle(input).fontFamily;
+    span.style.fontSize = window.getComputedStyle(input).fontSize;
+    span.style.fontWeight = window.getComputedStyle(input).fontWeight;
+    span.textContent = input.value || input.placeholder;
+    document.body.appendChild(span);
+
+    const width = Math.max(minWidth, Math.min(maxWidth, span.offsetWidth + extraPadding));
+
+    document.body.removeChild(span);
+    input.style.width = `${width}px`;
+}
+
 async function initApp() {
+            document.body.classList.remove('shared-readonly-view');
+            document.body.classList.remove('editor-readonly-view');
             // Check if importing from gallery
             const urlParams = new URLSearchParams(window.location.search);
             const importFromGallery = urlParams.get('source') === 'gallery';
@@ -56,9 +142,10 @@ async function initApp() {
                 return;
             }
 
-            // On the hosted app, unauthenticated users should not access the
-            // editor directly unless they are viewing a gallery project.
-            if (!config.isDevelopment && !isGalleryAccess && !session) {
+            // Unauthenticated visitors should only reach the editor through a
+            // public shared-project URL. Every other editor entry point
+            // requires a session.
+            if (!shareToken && !session) {
                 redirectToLanding();
                 return;
             }
@@ -134,7 +221,7 @@ async function initApp() {
                     
                     // Store metadata for display
                     getStore().setGalleryProjectMetadata(metadata);
-                    getStore().galleryProjectData = { data: projectData, metadata: metadata };
+                    getStore().setGalleryProjectData({ data: projectData, metadata });
                     getStore().setCurrentProjectId(metadata.id);
                     
                     // Set project title and make it readonly
@@ -143,7 +230,7 @@ async function initApp() {
                         titleInput.value = metadata.title;
                         titleInput.disabled = true;
                         titleInput.style.cursor = 'default';
-                        document.title = `${metadata.title} - Papergraph Gallery`;
+                        document.title = `${metadata.title} - ${getReadOnlyViewerSuffix(metadata)}`;
                     }
                     
                 } catch (error) {
@@ -227,10 +314,10 @@ Object.assign(getStore().appData, projectData);
             
             // Wait for HTML partials (logo-dropdown, user-dropdown, etc.) to load
             await includesReady;
+            refreshProjectShareButton();
             
             initializeEventListeners();
             initShortcuts();
-            updateCategoryFilters();
             // Clear any history entries created during loading so undo starts clean
             clearHistory();
 
@@ -315,27 +402,11 @@ Object.assign(getStore().appData, projectData);
             
             // Set initial title from localStorage or default
             if (projectTitleInput && !getStore().isGalleryViewer) {
-                // Helper function to resize input based on content
-                const resizeInput = (input) => {
-                    const span = document.createElement('span');
-                    span.style.visibility = 'hidden';
-                    span.style.position = 'absolute';
-                    span.style.whiteSpace = 'nowrap';
-                    span.style.fontFamily = window.getComputedStyle(input).fontFamily;
-                    span.style.fontSize = window.getComputedStyle(input).fontSize;
-                    span.style.fontWeight = window.getComputedStyle(input).fontWeight;
-                    span.textContent = input.value || input.placeholder;
-                    document.body.appendChild(span);
-                    const width = Math.max(120, Math.min(600, span.offsetWidth + 40)); // +40 for padding
-                    document.body.removeChild(span);
-                    input.style.width = width + 'px';
-                };
-                
                 const savedTitle = localStorage.getItem('currentProjectTitle');
                 if (savedTitle) {
                     console.log('? Setting saved title:', savedTitle);
                     projectTitleInput.value = savedTitle;
-                    resizeInput(projectTitleInput);
+                    resizeProjectTitleInput(projectTitleInput);
                 } else {
                     console.log('? Setting default title');
                     // Default title for new projects
@@ -358,7 +429,7 @@ Object.assign(getStore().appData, projectData);
                         }
                         
                         // Auto-adjust input width
-                        resizeInput(projectTitleInput);
+                        resizeProjectTitleInput(projectTitleInput);
                         
                         // Save to localStorage
                         localStorage.setItem('currentProjectTitle', newTitle);
@@ -378,7 +449,7 @@ Object.assign(getStore().appData, projectData);
                     
                     // Debounced save on input
                     projectTitleInput.addEventListener('input', () => {
-                        resizeInput(projectTitleInput);
+                        resizeProjectTitleInput(projectTitleInput);
                         clearTimeout(saveTimeout);
                         saveTimeout = setTimeout(saveTitle, 1000);
                     });
@@ -467,26 +538,19 @@ Object.assign(getStore().appData, projectData);
         // ===== INTERACTIVE TOUR (Driver.js) =====
         function startInteractiveTour() {
             console.log('Starting interactive tour...');
-            
-            // Load Driver.js
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js';
-            script.onload = () => {
-                console.log('Driver.js script loaded');
-                // Wait a bit for the library to initialize
-                setTimeout(() => {
-                    console.log('window.driver available:', typeof window.driver);
+
+            loadDriverLibrary()
+                .then(() => {
                     if (typeof window.driver === 'undefined') {
                         console.error('Driver.js not found on window object. Available keys:', Object.keys(window).filter(k => k.includes('driver') || k.includes('Driver')));
                         return;
                     }
+
                     initializeTour();
-                }, 100);
-            };
-            script.onerror = () => {
-                console.error('Failed to load Driver.js');
-            };
-            document.head.appendChild(script);
+                })
+                .catch((error) => {
+                    console.error(error.message);
+                });
         }
 
         function initializeTour() {
@@ -494,42 +558,97 @@ Object.assign(getStore().appData, projectData);
                 const driverObj = window.driver.js.driver({
                     showProgress: true,
                     showButtons: ['next', 'previous', 'close'],
+                    popoverClass: 'pg-tour-popover',
                     steps: [
                         {
                             element: '#addArticleBtn',
                             popover: {
-                                title: '?? Add articles',
-                                description: 'Click here to add new research articles. You can also drop PDF/BibTeX files directly onto the canvas or paste a DOI link.',
+                                title: 'Add articles',
+                                description: buildTourDescription({
+                                    iconId: 'add',
+                                    eyebrow: 'Get started',
+                                    intro: 'Add a node manually or import a reference in a few seconds.',
+                                    items: [
+                                        { iconId: 'add', text: 'Click Add to open the editor.' },
+                                        { iconId: 'upload', text: 'Paste a DOI, arXiv ID, or BibTeX.' },
+                                        { iconId: 'file', text: 'Or drop a PDF or .bib file.' }
+                                    ]
+                                }),
                                 side: 'top',
                                 align: 'center'
                             }
                         },
                         {
+                            element: '#searchToggleBtn',
                             popover: {
-                                title: '?? Connect nodes',
-                                description: '<div style="text-align: left;"><p>To connect articles:</p><ol style="margin: 8px 0 0 20px;"><li>Click a node to select it</li><li>Click the Link icon in the radial menu</li><li>Click another node to create a connection</li></ol><img src="assets/demo-connect-ideas.gif" style="width: 100%; margin-top: 12px; border-radius: 8px; border: 1px solid #ddd;"></div>'
-                            }
-                        },
-                        {
-                            popover: {
-                                title: '??? Create tag zones',
-                                description: '<div style="text-align: left;"><p>Organize your research by creating visual zones:</p><ul style="margin: 8px 0 0 20px;"><li>Click and drag to draw a zone</li><li>Label it to group related articles by topic</li></ul><img src="assets/demo-organize-tags.gif" style="width: 100%; margin-top: 12px; border-radius: 8px; border: 1px solid #ddd;"></div>'
-                            }
-                        },
-                        {
-                            element: '.toolbar-view-toggle',
-                            popover: {
-                                title: '??? Switch views',
-                                description: 'Toggle between Graph View for visual mapping and List View for a structured overview of your research.',
+                                title: 'Search your graph',
+                                description: buildTourDescription({
+                                    iconId: 'search',
+                                    eyebrow: 'Find context fast',
+                                    intro: 'Search across titles, authors, notes, and tags.',
+                                    items: [
+                                        { iconId: 'search', text: 'Open the search field from the toolbar.' },
+                                        { iconId: 'labels', text: 'Matches highlight as you type.' }
+                                    ]
+                                }),
                                 side: 'top',
                                 align: 'center'
+                            }
+                        },
+                        {
+                            element: '#graphContainer',
+                            popover: {
+                                title: 'Connect ideas',
+                                description: buildTourDescription({
+                                    iconId: 'connect',
+                                    eyebrow: 'Build relationships',
+                                    intro: 'Link nodes to map relationships between ideas.',
+                                    items: [
+                                        { iconId: 'node', text: 'Select a node to open its radial actions.' },
+                                        { iconId: 'connect', text: 'Choose connect, then click a second node.' },
+                                        { iconId: 'edge', text: 'Edit the connection later from the edge menu.' }
+                                    ],
+                                    mediaSrc: 'assets/demo-connect-ideas.gif',
+                                    mediaAlt: 'Animated demo showing how to connect two research nodes in Papergraph.'
+                                }),
+                                side: 'left',
+                                align: 'start'
+                            }
+                        },
+                        {
+                            element: '#graphContainer',
+                            popover: {
+                                title: 'Organize with zones',
+                                description: buildTourDescription({
+                                    iconId: 'tag',
+                                    eyebrow: 'Group concepts visually',
+                                    intro: 'Use zones to group related papers on the canvas.',
+                                    items: [
+                                        { iconId: 'tag', text: 'Drag on empty space to create a zone.' },
+                                        { iconId: 'edit', text: 'Name it to make the group clear.' },
+                                        { iconId: 'eyedropper', text: 'Adjust the color if needed.' }
+                                    ],
+                                    mediaSrc: 'assets/demo-organize-tags.gif',
+                                    mediaAlt: 'Animated demo showing how to create and organize tag zones in Papergraph.'
+                                }),
+                                side: 'left',
+                                align: 'start'
                             }
                         },
                         {
                             element: '#logoMenuBtnExtended',
                             popover: {
-                                title: '?? Import & export',
-                                description: 'Click here to access the menu where you can:<br>? Import projects and BibTeX files<br>? Export your work in multiple formats (JSON, BibTeX, PDF, PNG)',
+                                title: 'Project menu',
+                                description: buildTourDescription({
+                                    iconId: 'dashboard',
+                                    eyebrow: 'Manage your workspace',
+                                    intro: 'Open the project menu for file-level actions.',
+                                    items: [
+                                        { iconId: 'upload', text: 'Import projects or bibliography files.' },
+                                        { iconId: 'download', text: 'Export your graph when you need it.' },
+                                        { iconId: 'settings', text: 'Keep the title and workspace tools close by.' }
+                                    ]
+                                }),
                                 side: 'bottom',
                                 align: 'start'
                             }
@@ -565,6 +684,10 @@ Object.assign(getStore().appData, projectData);
         // ===== READ-ONLY MODE SETUP =====
         if (getStore().isReadOnlyMode) {
             console.log('?? Configuring read-only mode...');
+            const readOnlyMetadata = getStore().galleryProjectData?.metadata;
+            const isSharedReadOnlyView = readOnlyMetadata?.viewerType === 'share';
+            document.body.classList.add('editor-readonly-view');
+            document.body.classList.toggle('shared-readonly-view', isSharedReadOnlyView);
             
             // Show read-only bar (contains both label and copy button)
             const readonlyBar = document.getElementById('readonlyIndicator');
@@ -583,10 +706,17 @@ Object.assign(getStore().appData, projectData);
             
             // Set project title from gallery data
             if (getStore().galleryProjectData && getStore().galleryProjectData.metadata) {
-                const title = getStore().galleryProjectData.metadata.title;
-                document.getElementById('projectTitle').value = title;
-                document.getElementById('projectTitle').disabled = true;
-                document.title = `${title} - Papergraph Gallery`;
+                const metadata = getStore().galleryProjectData.metadata;
+                const title = metadata.title;
+                const projectTitleInput = document.getElementById('projectTitle');
+                projectTitleInput.value = title;
+                projectTitleInput.disabled = true;
+                resizeProjectTitleInput(projectTitleInput, {
+                    minWidth: 120,
+                    maxWidth: window.innerWidth <= 800 ? 150 : 280,
+                    extraPadding: 34
+                });
+                document.title = `${title} - ${getReadOnlyViewerSuffix(metadata)}`;
             }
             
             // Hide "Import" and "New Project" menu items

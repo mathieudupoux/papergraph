@@ -1,0 +1,53 @@
+<div id="shareProjectModal" class="modal">
+    <div class="share-settings-frame">
+        <div class="modal-content preferences-modal share-settings-modal">
+            <div class="preferences-shell share-settings-shell">
+                <div class="preferences-modal-header share-settings-header">
+                    <div class="preferences-modal-heading">
+                        <p class="preferences-modal-kicker">Workspace</p>
+                        <h2>Share Project</h2>
+                        <p class="preferences-modal-subtitle">Enable sharing, copy the link, or create a new one.</p>
+                    </div>
+                    <button type="button" class="close-modal share-settings-close-btn" id="closeShareProjectModal" aria-label="Close share modal">
+                        <svg class="ui-icon ui-icon--md" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#x"></use></svg>
+                    </button>
+                </div>
+
+                <div class="share-settings-stack">
+                    <div class="preferences-section share-settings-section share-settings-section--single">
+                        <div class="share-settings-toggle-row">
+                            <label class="preferences-toggle share-settings-switch" for="shareEnabledToggle">
+                                <input type="checkbox" id="shareEnabledToggle">
+                                <span class="preferences-toggle-slider"></span>
+                            </label>
+                            <div class="share-settings-toggle-copy">
+                                <div class="share-settings-toggle-title">Read-only sharing</div>
+                                <p id="shareStatusText" class="preferences-hint share-settings-status">Link disabled.</p>
+                            </div>
+                        </div>
+
+                        <div id="shareSettingsActions" class="share-settings-actions is-hidden" aria-hidden="true">
+                            <div class="preferences-input-group share-settings-link-row">
+                                <div class="preferences-input-shell share-settings-link-shell">
+                                    <input
+                                        id="shareLinkInput"
+                                        class="preferences-input share-settings-link-input"
+                                        type="text"
+                                        readonly
+                                        placeholder="Enable sharing to generate a link"
+                                    >
+                                </div>
+                                <button id="copyShareLinkBtn" class="btn-primary btn-pill btn-small share-settings-copy-btn" type="button" title="Copy link" aria-label="Copy share link" disabled>
+                                    Copy Link
+                                </button>
+                                <button id="regenerateShareLinkBtn" class="btn-secondary btn-pill btn-small share-settings-regenerate-btn" type="button" disabled>
+                                    New Link
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

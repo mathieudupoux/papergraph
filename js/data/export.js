@@ -5,7 +5,6 @@ import { getStore, getNetwork } from '../store/appStore.js';
 import { darkenColor, showNotification, getContrastColor } from '../utils/helpers.js';
 import { save } from './persistence.js';
 import { articleToBibTeX } from './bibtex-parser.js';
-import { updateCategoryFilters } from '../ui/filters.js';
 import { updateGraph } from '../graph/render.js';
 import { closeArticlePreview } from '../ui/preview.js';
 
@@ -50,7 +49,6 @@ export function newProject() {
             nextConnectionId: 1
         });
         getStore().setTagZones([]);
-        getStore().currentCategoryFilter = '';
         getStore().setSelectedNodeId(null);
         selectedEdgeIndex = -1;
         
@@ -83,7 +81,6 @@ export function newProject() {
         getStore().setSavedNodePositions({});
         
         save();
-        updateCategoryFilters();
         updateGraph();
         closeArticlePreview();
         
@@ -752,7 +749,6 @@ export function importProject(e) {
                 getStore().setAppData(imported);
                 
                 updateGraph();
-                updateCategoryFilters();
                 
                 // Initialize zones if none were imported
                 if (getStore().tagZones.length === 0) {

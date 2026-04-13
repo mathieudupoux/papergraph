@@ -6,7 +6,6 @@ import { showNotification } from '../utils/helpers.js';
 import { isBibTeXFormat, parseBibTeXEntry, parseMultipleBibTeXEntries } from './bibtex-parser.js';
 import { save } from './persistence.js';
 import { updateGraph } from '../graph/render.js';
-import { updateCategoryFilters } from '../ui/filters.js';
 import { closeModal } from '../ui/modal.js';
 import { checkNodeZoneMembership } from '../graph/zones.js';
 
@@ -304,14 +303,6 @@ function addImportedArticlesToGraph(articles, position = null) {
         });
     });
 
-    const activeFilter = getStore().currentCategoryFilter;
-    if (activeFilter && !normalizedArticles.some((article) => article.categories.includes(activeFilter))) {
-        getStore().setCategoryFilter('');
-        const categoryFilter = document.getElementById('categoryFilter');
-        if (categoryFilter) categoryFilter.value = '';
-    }
-
-    updateCategoryFilters();
     updateGraph();
     save();
 

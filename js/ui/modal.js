@@ -6,7 +6,6 @@ import { showNotification } from '../utils/helpers.js';
 import { hideSelectionBox } from '../graph/selection.js';
 import { resetImportZone, setManualFormState } from '../data/import.js';
 import { generateBibtexId } from '../data/bibtex-parser.js';
-import { updateCategoryFilters } from './filters.js';
 import { updateGraph } from '../graph/render.js';
 import { save } from '../data/persistence.js';
 import { showArticlePreview, closeArticlePreview } from './preview.js';
@@ -209,15 +208,9 @@ export function saveArticle(e) {
         
         getStore().addArticle(newArticle);
         
-        // If category filter is active and new article doesn't match, reset filter
-        if (getStore().currentCategoryFilter && !categories.includes(getStore().currentCategoryFilter)) {
-            getStore().setCategoryFilter('');
-            document.getElementById('categoryFilter').value = '';
-        }
     }
     
     closeModal();
-    updateCategoryFilters();
     updateGraph();
     save(true);  // Silent save, notification already shown
     showNotification('Article saved!', 'success');
@@ -294,7 +287,6 @@ export function deleteArticleById(articleId) {
         c.from !== articleId && c.to !== articleId
     ));
     
-    updateCategoryFilters();
     updateGraph();
     save();
     showNotification('Article deleted', 'info');

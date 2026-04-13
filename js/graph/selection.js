@@ -3,7 +3,6 @@ import { showNotification, getThemeCssVar } from '../utils/helpers.js';
 import { checkNodeZoneMembership, hideZoneDeleteButton } from './zones.js';
 import { save } from '../data/persistence.js';
 import { showSelectionRadialMenu, showEmptyAreaMenu } from '../ui/radial-menu.js';
-import { updateCategoryFilters } from '../ui/filters.js';
 
 // ===== MULTI-SELECTION BOX =====
 
@@ -342,7 +341,6 @@ export function endSelectionBoxDrag() {
         tagZones: finalTagZones || getStore().tagZones,
         persistToStore: false,
         saveChanges: false,
-        refreshFilters: false,
     });
 
     const boxLeft = parseFloat(getStore().multiSelection.selectionBox.style.left);
@@ -363,7 +361,6 @@ export function endSelectionBoxDrag() {
         savedNodePositions: positions,
         ...(finalTagZones ? { tagZones: finalTagZones } : {}),
     });
-    updateCategoryFilters();
     save(true);
     
     getNetwork().setOptions({

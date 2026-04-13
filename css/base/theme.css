@@ -78,8 +78,8 @@
   --color-node-default-border: var(--color-primary);
   --color-node-default-background: #e3f2fd;
   --color-node-default-font: #333333;
-  --color-search-highlight-border: #ffd54f;
-  --color-search-highlight-border-strong: #ffb300;
+  --color-search-highlight-border: #6c8fe2;
+  --color-search-highlight-border-strong: #315fd4;
 
   /* ── Button surfaces ── */
   --button-primary-border: rgba(29, 64, 143, 0.18);

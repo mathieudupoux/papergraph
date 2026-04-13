@@ -14,6 +14,7 @@
     transition: all 0.2s ease;
     margin: 0;
     box-shadow: var(--shadow-sm);
+    color: var(--color-text-primary);
 }
 
 .share-btn-circle:hover {
@@ -21,6 +22,7 @@
     box-shadow: 0 4px 12px var(--backdrop-medium);
     transform: translateY(-1px);
     border-color: var(--backdrop-medium);
+    color: var(--color-primary);
 }
 
 .share-btn-circle:active {
@@ -28,8 +30,13 @@
     box-shadow: 0 2px 6px var(--backdrop-light);
 }
 
-.share-btn-circle svg {
-    stroke: var(--color-text-dark);
+.share-btn-icon {
+    width: 18px;
+    height: 18px;
+    display: block;
+    background-color: currentColor;
+    -webkit-mask: url('../../assets/icons/share-project.svg') no-repeat center / contain;
+    mask: url('../../assets/icons/share-project.svg') no-repeat center / contain;
 }
 
 /* Modal */
@@ -409,19 +416,18 @@
 
 /* ===== MINIMAL SHARE MODAL (Settings Style) ===== */
 .share-modal-container {
-    max-width: 680px;
-    width: 92%;
+    max-width: 560px;
+    width: min(92vw, 560px);
     padding: 0;
-    overflow: hidden;
     position: relative;
 }
 
 .share-modal-container .modal-content {
-    padding: 40px 40px 32px 40px;
-    border-radius: 12px;
-    border: 1px solid var(--backdrop-dim);
+    padding: 32px;
+    border-radius: 18px;
+    border: 1px solid var(--backdrop-separator);
     background: var(--color-bg);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-xl);
     max-height: 85vh;
     overflow-y: auto;
     position: relative;
@@ -429,106 +435,117 @@
 
 .share-modal-container .modal-close {
     position: absolute;
-    top: 16px;
-    right: 16px;
-    width: 32px;
-    height: 32px;
+    top: 18px;
+    right: 18px;
+    width: 36px;
+    height: 36px;
     padding: 0;
-    border: none;
-    background: var(--color-bg-secondary);
-    border-radius: 6px;
+    border: 1px solid var(--backdrop-separator);
+    background: transparent;
+    border-radius: 999px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
     z-index: 10;
+    color: var(--color-text-secondary);
 }
 
 .share-modal-container .modal-close:hover {
-    background: var(--color-border-card);
+    background: var(--color-bg-secondary);
+    border-color: var(--backdrop-dim);
 }
 
 .share-modal-container .modal-close svg {
     width: 18px;
     height: 18px;
-    stroke: var(--color-text-secondary);
+    stroke: currentColor;
 }
 
-.share-modal-header {
-    margin-bottom: 28px;
+.share-modal-container .share-modal-header {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--backdrop-separator);
 }
 
 .share-icon {
     display: none;
 }
 
-.share-modal-header h2 {
-    font-size: 22px;
+.share-modal-container .share-modal-header h2 {
+    font-size: 20px;
     font-weight: 600;
-    margin: 0 0 6px 0;
+    margin: 0 0 4px 0;
     color: var(--color-text-dark);
 }
 
-.share-subtitle {
-    font-size: 14px;
+.share-modal-container .share-subtitle {
+    font-size: 13px;
     color: var(--color-text-secondary);
     margin: 0;
+    line-height: 1.5;
 }
 
-.share-section {
-    margin-bottom: 24px;
+.share-modal-container .share-section {
+    margin-bottom: 18px;
+    padding: 0 0 18px 0;
+    border-bottom: 1px solid var(--backdrop-separator);
 }
 
-.share-section:last-child {
+.share-modal-container .share-section:last-child {
     margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
 }
 
-.share-section-label {
+.share-modal-container .share-section-label {
     font-size: 13px;
     font-weight: 600;
     color: var(--color-text-primary);
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     display: block;
+    letter-spacing: 0.01em;
 }
 
-.share-link-group {
+.share-modal-container .share-link-group {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
-.share-link-wrapper {
+.share-modal-container .share-link-wrapper {
     display: flex;
     gap: 8px;
-    align-items: center;
+    align-items: stretch;
 }
 
-.share-link-wrapper .share-link-input {
+.share-modal-container .share-link-wrapper .share-link-input {
     flex: 1;
+    min-height: 42px;
     padding: 10px 12px;
     border: 1px solid var(--color-border-medium);
-    border-radius: 6px;
+    border-radius: 10px;
     font-size: 13px;
-    background: var(--color-bg-secondary);
+    background: transparent;
     color: var(--color-text-dark);
     font-family: 'SF Mono', Monaco, monospace;
     transition: all 0.2s ease;
 }
 
-.share-link-wrapper .share-link-input:focus {
+.share-modal-container .share-link-wrapper .share-link-input:focus {
     outline: none;
     border-color: var(--color-primary);
-    background: var(--color-bg);
+    background: var(--color-bg-secondary);
 }
 
-.copy-link-btn {
-    width: 36px;
-    height: 36px;
+.share-modal-container .copy-link-btn {
+    width: 42px;
+    height: 42px;
     padding: 0;
     border: 1px solid var(--color-border-medium);
-    border-radius: 6px;
-    background: var(--color-bg);
+    border-radius: 10px;
+    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -536,42 +553,43 @@
     transition: all 0.2s ease;
 }
 
-.copy-link-btn:hover:not(:disabled) {
-    background: var(--color-primary);
-    border-color: var(--color-primary);
+.share-modal-container .copy-link-btn:hover:not(:disabled) {
+    background: var(--color-bg-secondary);
+    border-color: var(--color-primary-border);
 }
 
-.copy-link-btn:hover:not(:disabled) svg {
-    stroke: var(--color-text-on-color);
+.share-modal-container .copy-link-btn:hover:not(:disabled) svg {
+    stroke: var(--color-primary);
 }
 
-.copy-link-btn.copied {
-    background: var(--color-success-alt);
-    border-color: var(--color-success-alt);
+.share-modal-container .copy-link-btn.copied {
+    background: var(--color-primary-light);
+    border-color: var(--color-primary-border);
 }
 
-.copy-link-btn.copied svg {
-    stroke: var(--color-text-on-color);
+.share-modal-container .copy-link-btn.copied svg {
+    stroke: var(--color-primary);
 }
 
-.copy-link-btn:disabled {
+.share-modal-container .copy-link-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
 }
 
-.copy-link-btn svg {
+.share-modal-container .copy-link-btn svg {
     stroke: var(--color-text-secondary);
     width: 16px;
     height: 16px;
     transition: stroke 0.2s ease;
 }
 
-.generate-link-btn {
-    padding: 9px 16px;
-    background: var(--color-primary);
-    color: var(--color-text-on-color);
-    border: none;
-    border-radius: 6px;
+.share-modal-container .generate-link-btn {
+    min-height: 42px;
+    padding: 0 16px;
+    background: transparent;
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-medium);
+    border-radius: 999px;
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
@@ -582,46 +600,76 @@
     gap: 6px;
 }
 
-.generate-link-btn:hover {
-    background: var(--color-primary-hover);
+.share-modal-container .generate-link-btn:hover {
+    background: var(--color-bg-secondary);
+    border-color: var(--color-primary-border);
+    color: var(--color-primary);
 }
 
-.generate-link-btn:disabled {
-    opacity: 0.6;
+.share-modal-container .generate-link-btn:disabled {
+    opacity: 0.45;
     cursor: not-allowed;
 }
 
-.generate-link-btn svg {
-    stroke: var(--color-text-on-color);
+.share-modal-container .generate-link-btn svg {
+    stroke: currentColor;
     width: 16px;
     height: 16px;
 }
 
-.share-toggle {
+.share-modal-container .share-toggle {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 10px;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 6px;
     cursor: pointer;
-    padding: 8px;
-    border-radius: 4px;
-    transition: background 0.2s ease;
+    padding: 0;
+    border-radius: 0;
+    transition: color 0.2s ease;
 }
 
-.share-toggle:hover {
-    background: var(--color-bg-secondary);
+.share-modal-container .share-toggle:hover {
+    background: transparent;
 }
 
-.share-toggle input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
+.share-modal-container .share-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
     cursor: pointer;
     accent-color: var(--color-primary);
+    margin-top: 1px;
 }
 
-.share-toggle .toggle-text {
+.share-modal-container .share-toggle .toggle-text {
     font-size: 13px;
     color: var(--color-text-primary);
+    line-height: 1.5;
+}
+
+.share-modal-container #shareStatusText {
+    margin-top: 10px;
+}
+
+.share-modal-container .share-section .generate-link-btn + .share-info {
+    margin-top: 12px;
+}
+
+.share-modal-container .share-info {
+    padding: 0;
+    background: transparent;
+    border-left: none;
+    border-radius: 0;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    margin-top: 12px;
+    line-height: 1.5;
+}
+
+.share-modal-container .share-info-icon {
+    display: inline;
+    margin-right: 6px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
 }
 
 .share-divider {
@@ -820,7 +868,7 @@
 }
 
 .member-item .remove-member-btn:hover {
-    background: var(--color-bg-error-light)
+    background: var(--color-bg-error-light);
     border-color: var(--color-error);
 }
 
@@ -837,11 +885,9 @@
         max-width: 95%;
         max-height: 95vh;
     }
-    
-    .share-modal-header,
-    .share-section {
-        padding-left: 20px;
-        padding-right: 20px;
+
+    .share-modal-container .modal-content {
+        padding: 24px 20px 20px;
     }
     
     .invite-input-group {
@@ -856,7 +902,7 @@
     .share-btn-circle {
         width: 40px;
         height: 40px;
-        margin-right: 12px;
+        margin-right: 0;
     }
 }
 
@@ -2269,6 +2315,127 @@
     transform: translateY(-1px);
 }
 
+/* Share settings modal */
+.share-settings-frame {
+    width: min(760px, calc(100% - 28px));
+}
+
+.share-settings-modal {
+    max-width: 760px;
+    width: min(760px, calc(100% - 28px));
+    height: auto;
+    min-height: 0;
+}
+
+.share-settings-shell {
+    gap: 14px;
+}
+
+.share-settings-header {
+    padding-right: 72px;
+}
+
+.share-settings-close-btn svg {
+    stroke: currentColor;
+}
+
+.share-settings-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.share-settings-section {
+    margin-bottom: 0;
+}
+
+.share-settings-section--single {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.share-settings-section--expanded {
+    gap: 18px;
+}
+
+.share-settings-toggle-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    min-width: 0;
+}
+
+.share-settings-toggle-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.share-settings-toggle-title {
+    color: var(--color-text-primary);
+    font-size: 0.98rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.share-settings-status {
+    margin-top: 0;
+}
+
+.share-settings-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 180px;
+    opacity: 1;
+    overflow: hidden;
+    transform: translateY(0);
+    transition: max-height 0.24s ease, opacity 0.2s ease, transform 0.2s ease;
+}
+
+.share-settings-actions.is-hidden {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-6px);
+}
+
+.share-settings-link-row {
+    align-items: stretch;
+    flex-wrap: nowrap;
+}
+
+.share-settings-link-shell {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.share-settings-link-input {
+    min-height: 48px;
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.share-settings-link-input::placeholder {
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+
+.share-settings-copy-btn {
+    align-self: stretch;
+    white-space: nowrap;
+    min-width: 120px;
+}
+
+.share-settings-regenerate-btn {
+    align-self: stretch;
+    white-space: nowrap;
+    min-width: 116px;
+}
+
 /* Toggle Switch */
 .preferences-toggle-container {
     display: flex;
@@ -2393,6 +2560,27 @@
     .preferences-panel h2 {
         font-size: 1.5rem;
         margin-bottom: 24px;
+    }
+
+    .share-settings-modal {
+        height: auto;
+    }
+
+    .share-settings-header {
+        padding-right: 56px;
+    }
+
+    .share-settings-copy-btn,
+    .share-settings-regenerate-btn {
+        width: 100%;
+    }
+
+    .share-settings-toggle-row {
+        gap: 14px;
+    }
+
+    .share-settings-link-row {
+        flex-wrap: wrap;
     }
 }
 

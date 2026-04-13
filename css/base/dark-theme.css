@@ -68,8 +68,8 @@ body.dark-theme {
     --color-node-default-border: var(--dark-accent);
     --color-node-default-background: var(--dark-bg-surface);
     --color-node-default-font: var(--dark-text-primary);
-    --color-search-highlight-border: var(--color-warning);
-    --color-search-highlight-border-strong: color-mix(in srgb, var(--color-warning) 82%, var(--dark-accent));
+    --color-search-highlight-border: color-mix(in srgb, var(--dark-accent) 72%, white);
+    --color-search-highlight-border-strong: var(--dark-accent);
     --color-success-hover: color-mix(in srgb, var(--color-success) 86%, var(--dark-bg-surface));
     --color-success-text: rgb(176 234 196 / 1);
     --color-warning-text: rgb(255 222 153 / 1);
@@ -940,17 +940,6 @@ body.dark-theme .toolbar-view-toggle .toggle-input:checked + .toggle-label .togg
     box-shadow: 0 1px 3px var(--dark-shadow-sm) !important;
 }
 
-body.dark-theme .toolbar-select {
-    background: var(--dark-bg-surface) !important;
-    color: var(--dark-text-primary) !important;
-    border: 1px solid var(--dark-border) !important;
-}
-
-body.dark-theme .toolbar-select:hover {
-    background: var(--dark-bg-surface-hover) !important;
-    border-color: var(--dark-text-soft) !important;
-}
-
 body.dark-theme .toolbar-search {
     background: var(--dark-bg-surface) !important;
     border: 1px solid var(--dark-border) !important;
@@ -999,29 +988,6 @@ body.dark-theme .toolbar-view-toggle .toggle-input:checked + .toggle-label .togg
 body.dark-theme .toolbar-view-toggle .toggle-graph,
 body.dark-theme .toolbar-view-toggle .toggle-list {
     background: transparent !important;
-}
-
-/* Filters */
-body.dark-theme .filter-panel {
-    background: var(--dark-surface-glass);
-    border: 1px solid var(--dark-border);
-}
-
-body.dark-theme .filter-section h4 {
-    color: var(--dark-text-primary);
-    border-bottom-color: var(--dark-border);
-}
-
-body.dark-theme .tag-filter-item {
-    background: var(--dark-bg-surface-hover);
-    color: var(--dark-text-primary);
-    border-color: var(--dark-border);
-}
-
-body.dark-theme .tag-filter-item.active {
-    background: color-mix(in srgb, var(--scrollbar-thumb) 50%, transparent);
-    border-color: var(--dark-text-soft);
-    color: var(--dark-text-strong);
 }
 
 /* List View */

@@ -28,7 +28,6 @@ function applyUndoRedo() {
         positions,
         persistToStore: false,
         saveChanges: false,
-        refreshFilters: true,
     });
 }
 

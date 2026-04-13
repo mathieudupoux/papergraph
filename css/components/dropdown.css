@@ -97,6 +97,26 @@
     opacity: 0.6;
 }
 
+body.shared-readonly-view .project-title-input {
+    width: auto !important;
+    max-width: 280px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.96rem;
+    font-weight: 500;
+}
+
+body.editor-readonly-view .project-title-input {
+    width: auto !important;
+    max-width: 280px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.96rem;
+    font-weight: 500;
+}
+
 @media (max-width: 800px) {
     .logo-menu-btn-extended {
         left: 12px;
@@ -124,6 +144,16 @@
         max-width: min(44vw, 180px);
         padding: 10px 12px 10px 10px;
         font-size: 1rem;
+    }
+
+    body.shared-readonly-view .project-title-input {
+        width: auto !important;
+        max-width: 150px;
+    }
+
+    body.editor-readonly-view .project-title-input {
+        width: auto !important;
+        max-width: 150px;
     }
 }
 
@@ -282,41 +312,6 @@
 .dropdown-menu-item:active {
     background: var(--backdrop-dim);
     transform: scale(0.98);
-}
-
-/* Dropdown panel - positioned above toolbar */
-.dropdown-panel {
-    position: fixed;
-    bottom: 90px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--color-glass);
-    backdrop-filter: blur(10px);
-    border-radius: 12px;
-    box-shadow: 0 4px 20px var(--backdrop-heavy);
-    padding: 20px;
-    z-index: 950;
-    display: none;
-    min-width: 250px;
-}
-
-.dropdown-panel.active {
-    display: block;
-}
-
-.dropdown-panel h3 {
-    margin: 0 0 12px 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-text-primary);
-}
-
-.dropdown-panel select {
-    width: 100%;
-    padding: 8px 12px;
-    border: 2px solid var(--color-border-medium);
-    border-radius: var(--dropdown-item-radius);
-    font-size: var(--dropdown-font-size);
 }
 
 /* Soon Badge */

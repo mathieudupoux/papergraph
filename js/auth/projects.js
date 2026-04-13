@@ -62,6 +62,33 @@ export async function loadProject(projectId) {
 }
 
 /**
+ * Load a project through its public share token.
+ * Shared links are always read-only, even for signed-in users.
+ */
+export async function loadSharedProject(shareToken) {
+    if (!shareToken) {
+        throw new Error('Missing share token');
+    }
+
+    const { data, error } = await supabase
+        .rpc('get_project_by_share_token', {
+            token: shareToken
+        })
+        .single();
+
+    if (error) {
+        console.error('Load shared project error:', error);
+        throw error;
+    }
+
+    if (!data) {
+        throw new Error('Shared project not found');
+    }
+
+    return data;
+}
+
+/**
  * Create a new project
  */
 export async function createProject(name, initialData = null) {
@@ -203,10 +230,62 @@ export async function getProjectStats(projectId) {
     if (!project) return null;
 
     const data = project.data || { nodes: [], edges: [] };
-    
+
     return {
         nodeCount: data.nodes?.length || 0,
         edgeCount: data.edges?.length || 0,
         lastUpdated: project.updated_at || project.created_at
     };
+}
+
+/**
+ * Load current public share settings for a project.
+ * Owner-only RPC.
+ */
+export async function getProjectShareSettings(projectId) {
+    const user = await getCurrentUser();
+
+    if (!user) {
+        throw new Error('User not authenticated');
+    }
+
+    const { data, error } = await supabase
+        .rpc('get_project_share_settings', {
+            proj_id: projectId
+        })
+        .single();
+
+    if (error) {
+        console.error('Get project share settings error:', error);
+        throw error;
+    }
+
+    return data;
+}
+
+/**
+ * Enable, disable, or regenerate the public share link for a project.
+ * Owner-only RPC.
+ */
+export async function updateProjectShareSettings(projectId, { enabled, regenerate = false }) {
+    const user = await getCurrentUser();
+
+    if (!user) {
+        throw new Error('User not authenticated');
+    }
+
+    const { data, error } = await supabase
+        .rpc('set_project_share_settings', {
+            proj_id: projectId,
+            enabled,
+            regenerate
+        })
+        .single();
+
+    if (error) {
+        console.error('Update project share settings error:', error);
+        throw error;
+    }
+
+    return data;
 }

@@ -4,7 +4,6 @@
 import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { getNodeAppearanceForZones } from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
-import { updateCategoryFilters } from '../ui/filters.js';
 import { showArticlePreview, closeArticlePreview } from '../ui/preview.js';
 import { showRadialMenu, hideRadialMenu, updateRadialMenuPosition, updateRadialMenuIfActive, hideSelectionRadialMenu, hideEmptyAreaMenu } from '../ui/radial-menu.js';
 import { showContextMenu, hideContextMenu } from '../ui/context-menu.js';
@@ -326,11 +325,29 @@ function openContextMenuAtClientPosition(clientX, clientY) {
     });
 }
 
+function activateZoneSelection(zoneIndex) {
+    clearHoveredNodeState(true);
+    hideRadialMenu();
+    hideEdgeMenu();
+    hideSelectionRadialMenu();
+    closeArticlePreview();
+
+    hideSelectionBox();
+    getStore().updateMultiSelection({ selectedNodes: [] });
+    getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+    getNetwork().unselectAll();
+
+    getStore().setSelectedNodeId(null);
+    getStore().setSelectedEdgeId(null);
+    getStore().setSelectedZoneIndex(zoneIndex);
+    showZoneDeleteButton(zoneIndex);
+    getNetwork().redraw();
+}
+
 function queueZoneMove(event, zoneIndex) {
     const { canvasPosition } = getCanvasPointer(event);
 
-    getStore().setSelectedZoneIndex(zoneIndex);
-    showZoneDeleteButton(zoneIndex);
+    activateZoneSelection(zoneIndex);
     getStore().updateZoneMoving({ startX: canvasPosition.x });
     getStore().updateZoneMoving({ startY: canvasPosition.y });
     getStore().updateZoneMoving({ zoneIndex });
@@ -671,9 +688,7 @@ export function setupCanvasEvents() {
     canvas.addEventListener('mouseup', (event) => {
         if (event.button === 0 && pendingSelectionStart) {
             if (pendingZoneSelectionIndex !== -1) {
-                getStore().setSelectedZoneIndex(pendingZoneSelectionIndex);
-                showZoneDeleteButton(pendingZoneSelectionIndex);
-                getNetwork().redraw();
+                activateZoneSelection(pendingZoneSelectionIndex);
             }
             pendingSelectionStart = null;
             pendingZoneSelectionIndex = -1;
@@ -770,9 +785,7 @@ export function setupCanvasEvents() {
                 return;
             }
 
-            getStore().setSelectedZoneIndex(hitState.zoneClick.zoneIndex);
-            showZoneDeleteButton(hitState.zoneClick.zoneIndex);
-            getNetwork().redraw();
+            activateZoneSelection(hitState.zoneClick.zoneIndex);
             suppressNextNetworkClick = true;
             resetTouchState();
             return;
@@ -968,7 +981,7 @@ export function setupNetworkEvents() {
                     if (typeof checkNodeZoneMembership === 'function' && getStore().tagZones.length > 0) {
                         console.log('🎨 Checking zone membership after project load...');
                         checkNodeZoneMembership();
-                        pruneStaleAutoNumberedZones({ saveChanges: false, refreshFilters: true });
+                        pruneStaleAutoNumberedZones({ saveChanges: false });
                     }
                 }, 100);
             }
@@ -1283,7 +1296,6 @@ export function setupNetworkEvents() {
                 tagZones: finalTagZones || getStore().tagZones,
                 persistToStore: false,
                 saveChanges: false,
-                refreshFilters: false,
             });
 
             // Resume history and record ONE snapshot for the whole drag
@@ -1316,7 +1328,6 @@ export function setupNetworkEvents() {
                 });
             }
             
-            updateCategoryFilters();
             save(true);
             
             getStore().updateMultiSelection({ wasDragging: false });

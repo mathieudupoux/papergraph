@@ -511,6 +511,25 @@ textarea.form-input {
     opacity: 1;
 }
 
+body.shared-readonly-view .readonly-bar {
+    background: color-mix(in srgb, var(--color-bg) 94%, transparent);
+    border: 1px solid var(--backdrop-separator);
+    box-shadow: var(--shadow-sm);
+}
+
+body.shared-readonly-view .readonly-btn {
+    color: var(--color-text-primary);
+}
+
+body.shared-readonly-view .readonly-btn:hover {
+    background: var(--backdrop-faint);
+    color: var(--color-primary);
+}
+
+body.shared-readonly-view .readonly-btn svg {
+    opacity: 0.8;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .gallery-main {
