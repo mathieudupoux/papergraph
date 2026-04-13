@@ -68,8 +68,8 @@ body.dark-theme {
     --color-node-default-border: var(--dark-accent);
     --color-node-default-background: var(--dark-bg-surface);
     --color-node-default-font: var(--dark-text-primary);
-    --color-search-highlight-border: var(--color-warning);
-    --color-search-highlight-border-strong: color-mix(in srgb, var(--color-warning) 82%, var(--dark-accent));
+    --color-search-highlight-border: color-mix(in srgb, var(--dark-accent) 72%, white);
+    --color-search-highlight-border-strong: var(--dark-accent);
     --color-success-hover: color-mix(in srgb, var(--color-success) 86%, var(--dark-bg-surface));
     --color-success-text: rgb(176 234 196 / 1);
     --color-warning-text: rgb(255 222 153 / 1);
