@@ -4,7 +4,6 @@ import { showNotification } from '../utils/helpers.js';
 import { load } from '../data/persistence.js';
 import { scheduleBibliographyRebuild } from '../data/bibliography.js';
 import { initializeEventListeners } from '../core/init.js';
-import { updateCategoryFilters } from '../ui/filters.js';
 import { initializeGraph } from '../graph/init.js';
 import { initCloudStorage } from '../data/cloud-storage.js';
 import { includesReady } from '../utils/load-footer.js';
@@ -230,7 +229,6 @@ Object.assign(getStore().appData, projectData);
             
             initializeEventListeners();
             initShortcuts();
-            updateCategoryFilters();
             // Clear any history entries created during loading so undo starts clean
             clearHistory();
 

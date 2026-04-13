@@ -4,7 +4,6 @@
 import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { getNodeAppearanceForZones } from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
-import { updateCategoryFilters } from '../ui/filters.js';
 import { showArticlePreview, closeArticlePreview } from '../ui/preview.js';
 import { showRadialMenu, hideRadialMenu, updateRadialMenuPosition, updateRadialMenuIfActive, hideSelectionRadialMenu, hideEmptyAreaMenu } from '../ui/radial-menu.js';
 import { showContextMenu, hideContextMenu } from '../ui/context-menu.js';
@@ -982,7 +981,7 @@ export function setupNetworkEvents() {
                     if (typeof checkNodeZoneMembership === 'function' && getStore().tagZones.length > 0) {
                         console.log('🎨 Checking zone membership after project load...');
                         checkNodeZoneMembership();
-                        pruneStaleAutoNumberedZones({ saveChanges: false, refreshFilters: true });
+                        pruneStaleAutoNumberedZones({ saveChanges: false });
                     }
                 }, 100);
             }
@@ -1297,7 +1296,6 @@ export function setupNetworkEvents() {
                 tagZones: finalTagZones || getStore().tagZones,
                 persistToStore: false,
                 saveChanges: false,
-                refreshFilters: false,
             });
 
             // Resume history and record ONE snapshot for the whole drag
@@ -1330,7 +1328,6 @@ export function setupNetworkEvents() {
                 });
             }
             
-            updateCategoryFilters();
             save(true);
             
             getStore().updateMultiSelection({ wasDragging: false });

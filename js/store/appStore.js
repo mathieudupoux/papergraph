@@ -50,8 +50,6 @@ const storeDefinition = (set, get) => ({
     isEditingEdgeLabel: false,
     currentEditingArticleId: null,
     pendingImportArticle: null,
-    currentCategoryFilter: '',
-    activeFilters: { category: null },
 
     connectionMode: {
         active: false,
@@ -357,12 +355,6 @@ const storeDefinition = (set, get) => ({
 
     setGridEnabled: (gridEnabled) => set({ gridEnabled }),
     toggleGrid: () => set((s) => ({ gridEnabled: !s.gridEnabled })),
-
-    setCategoryFilter: (filter) => set({
-        currentCategoryFilter: filter,
-        activeFilters: { category: filter || null },
-    }),
-    setActiveFilters: (activeFilters) => set({ activeFilters }),
 
     setSelectedNodeId: (selectedNodeId) => set({ selectedNodeId }),
     setSelectedEdgeId: (selectedEdgeId) => set({ selectedEdgeId }),

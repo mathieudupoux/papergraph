@@ -26,7 +26,6 @@ import '../graph/init.js';
 
 // UI
 import '../ui/modal-manager.js';
-import '../ui/filters.js';
 import '../ui/modal.js';
 import '../ui/preview.js';
 import '../ui/radial-menu.js';

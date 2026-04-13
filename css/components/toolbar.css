@@ -29,36 +29,6 @@
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Toolbar filter select (list mode) */
-.toolbar-filter {
-    display: flex;
-    align-items: center;
-}
-
-.toolbar-select {
-    padding: var(--dropdown-item-padding);
-    border: 1px solid var(--color-border);
-    border-radius: var(--dropdown-menu-radius);
-    background: var(--color-bg-secondary);
-    color: var(--color-text-primary);
-    font-size: var(--dropdown-font-size);
-    cursor: pointer;
-    transition: all 0.2s;
-    min-width: 140px;
-    white-space: nowrap;
-}
-
-.toolbar-select:hover {
-    background: var(--color-bg-primary-light);
-    border-color: var(--color-primary);
-}
-
-.toolbar-select:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    background: var(--color-bg);
-}
-
 /* Search toggle button */
 .search-toggle-btn {
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);

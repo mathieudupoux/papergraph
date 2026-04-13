@@ -11,13 +11,9 @@ import { icon } from '../ui/icons.js';
 let searchHighlightedNodes = [];
 
 export function getGraphData() {
-    const { appData, tagZones, savedNodePositions, edgeControlPoints, currentCategoryFilter } = getStore();
+    const { appData, tagZones, savedNodePositions, edgeControlPoints } = getStore();
 
-    const filteredArticles = currentCategoryFilter
-        ? appData.articles.filter((a) => a.categories && a.categories.includes(currentCategoryFilter))
-        : appData.articles;
-
-    const nodes = new vis.DataSet(filteredArticles.map((article) => {
+    const nodes = new vis.DataSet(appData.articles.map((article) => {
         const { color: nodeColor, font } = getNodeAppearanceForZones(getArticleZones(article, tagZones));
 
         const labelFormat = localStorage.getItem('nodeLabelFormat') || 'bibtexId';
@@ -43,7 +39,7 @@ export function getGraphData() {
         return nodeData;
     }));
 
-    const articleIds = new Set(filteredArticles.map((a) => a.id));
+    const articleIds = new Set(appData.articles.map((article) => article.id));
 
     const edges = new vis.DataSet(appData.connections
         .filter((conn) => {

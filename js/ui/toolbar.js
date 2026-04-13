@@ -1,7 +1,6 @@
 import { getStore, getNetwork } from '../store/appStore.js';
 import { getUniqueName, showNotification } from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
-import { updateCategoryFilters } from './filters.js';
 import { updateGraph } from '../graph/render.js';
 import { hideSelectionRadialMenu, hideEmptyAreaMenu } from './radial-menu.js';
 import { icon } from './icons.js';
@@ -9,11 +8,6 @@ import { getZoneNamesForConflicts } from '../graph/zones.js';
 
 // ===== TOOLBAR & MULTI-SELECTION =====
 // Toolbar actions, multi-tag dialog, and multi-selection operations
-
-export function toggleCategoryDropdown() {
-    const dropdown = document.getElementById('categoryDropdown');
-    dropdown.classList.toggle('active');
-}
 
 export function toggleGrid() {
     if (!getNetwork()) return;
@@ -45,7 +39,6 @@ export function openQuickTagModal(articleId) {
         if (!article.categories.includes(newTag.trim())) {
             getStore().addArticleCategory(articleId, newTag.trim());
             updateGraph();
-            updateCategoryFilters();
             save();
             showNotification('Catégorie ajoutée!', 'success');
         }
@@ -365,7 +358,6 @@ export function applyMultiTagFromDialog(tagColor) {
     });
     
     save();
-    updateCategoryFilters();
     updateGraph();
     
     if (getStore().multiSelection.selectionBox) {
@@ -427,7 +419,6 @@ export function applyEmptyAreaZoneFromDialog(zoneColor) {
     const currentScale = getNetwork().getScale();
     
     save();
-    updateCategoryFilters();
     updateGraph();
     
     // Restore view position to avoid camera movement
@@ -479,7 +470,6 @@ export function deleteSelectedNodes() {
     getStore().updateMultiSelection({ selectedZonesForDrag: [] });
     
     updateGraph();
-    updateCategoryFilters();
     save();
     
     const summaryParts = [];

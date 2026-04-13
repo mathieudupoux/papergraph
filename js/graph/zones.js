@@ -8,7 +8,6 @@ import {
     showNotification,
 } from '../utils/helpers.js';
 import { save } from '../data/persistence.js';
-import { updateCategoryFilters } from '../ui/filters.js';
 import { icon } from '../ui/icons.js';
 
 // ===== TAG ZONES =====
@@ -231,7 +230,7 @@ export function getZoneNamesForConflicts(
     ];
 }
 
-export function pruneStaleAutoNumberedZones({ saveChanges = false, refreshFilters = true } = {}) {
+export function pruneStaleAutoNumberedZones({ saveChanges = false } = {}) {
     const staleTags = getStaleAutoNumberedZoneTags();
     if (staleTags.size === 0) {
         return [];
@@ -247,7 +246,6 @@ export function pruneStaleAutoNumberedZones({ saveChanges = false, refreshFilter
         checkNodeZoneMembership({
             persistToStore: true,
             saveChanges: false,
-            refreshFilters,
         });
         if (saveChanges) {
             save(true);
@@ -879,7 +877,6 @@ export function checkNodeZoneMembership(options = {}) {
         articles = getStore().appData.articles,
         persistToStore = true,
         saveChanges = !isHistoryPaused(),
-        refreshFilters = true,
     } = options;
 
     console.log('🎨 checkNodeZoneMembership called');
@@ -916,9 +913,6 @@ export function checkNodeZoneMembership(options = {}) {
 
     if (saveChanges && !isHistoryPaused()) {
         save();
-    }
-    if (refreshFilters) {
-        updateCategoryFilters();
     }
 
     return { articles: updatedArticles, changed, positions: resolvedPositions };
@@ -1240,7 +1234,6 @@ export function endZoneMove() {
         tagZones: finalTagZones,
         persistToStore: false,
         saveChanges: false,
-        refreshFilters: false,
     });
 
     getStore().setTagZones(revertedTagZones);
@@ -1267,7 +1260,6 @@ export function endZoneMove() {
         }
     });
     
-    updateCategoryFilters();
     save(true);
     getNetwork().redraw();
 }
@@ -1414,7 +1406,6 @@ export function startEditZoneTitle(event, zoneIndex) {
                 savedNodePositions: positions,
             });
 
-            updateCategoryFilters();
             save();
 
             if (uniqueTag !== newTag) {
@@ -1644,7 +1635,6 @@ export function endZoneResize() {
         tagZones: finalTagZones,
         persistToStore: false,
         saveChanges: false,
-        refreshFilters: false,
     });
 
     getStore().setTagZones(revertedTagZones);
@@ -1668,7 +1658,6 @@ export function endZoneResize() {
         }
     });
     
-    updateCategoryFilters();
     save(true);
     getNetwork().redraw();
 }

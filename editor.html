@@ -19,7 +19,6 @@
     <link rel="stylesheet" href="css/components/dropdown.css">
     <link rel="stylesheet" href="css/components/modals.css">
     <link rel="stylesheet" href="css/components/toolbar.css">
-    <link rel="stylesheet" href="css/components/filters.css">
     <link rel="stylesheet" href="css/components/radial-menu.css">
     <link rel="stylesheet" href="css/components/footer.css">
     <link rel="stylesheet" href="css/components/user-dropdown.css">
@@ -77,11 +76,6 @@
         <!-- Logo Dropdown (shared partial) -->
         <div class="logo-dropdown-container" data-include="logo-dropdown"></div>
         
-        <!-- Active Filters Display -->
-        <div id="activeFilters" class="active-filters-container">
-            <!-- Filters will be added here dynamically -->
-        </div>
-
         <!-- Graph View -->
         <div id="graphView" class="view active">
             <!-- Article Preview Panel on the left -->
@@ -156,29 +150,11 @@
             </div>
         </div>
 
-        <!-- Category filter dropdown (shared between both views, above toolbar) -->
-        <div id="categoryDropdown" class="dropdown-panel">
-            <h3>Filters</h3>
-            
-            <div class="filter-section-dropdown">
-                <label>Category</label>
-                <select id="categoryFilter">
-                    <option value="">Toutes les catégories</option>
-                </select>
-            </div>
-        </div>
-
         <!-- Main Action Toolbar - Bottom horizontal (outside views to be always visible) -->
         <div class="main-toolbar">
             <button id="addArticleBtn" class="main-tool-btn" title="Add an article">
                 <svg class="ui-icon ui-icon--xl" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#add"></use></svg>
                 <span class="btn-label">Add</span>
-            </button>
-            
-            <!-- Category filter icon (both modes) -->
-            <button id="categoryFilterBtn" class="main-tool-btn">
-                <svg class="ui-icon ui-icon--xl" aria-hidden="true"><use href="assets/icons/ui-sprite.svg#filter"></use></svg>
-                <span class="btn-label">Filter</span>
             </button>
             
             <!-- Search icon/box -->

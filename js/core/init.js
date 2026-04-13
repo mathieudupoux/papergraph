@@ -4,7 +4,6 @@ import { exportProject, exportToBibtex, exportToImage, exportToSVG } from '../da
 import { importBibtexFile, importTextToGraph, isSupportedImportText, setupImportZone, toggleManualForm } from '../data/import.js';
 import { importProjectFileAsNewProject } from '../data/project-import.js';
 import { openArticleModal, closeModal, saveArticle, deleteArticle, deleteArticleById, setPendingArticlePosition } from '../ui/modal.js';
-import { toggleCategoryDropdown, updateCategoryFilters, updateActiveFiltersDisplay } from '../ui/filters.js';
 import { toggleGrid, closeMultiTagDialog, deleteSelectedNodes } from '../ui/toolbar.js';
 import { searchInGraph } from '../graph/search.js';
 import { hideSelectionBox, applyNodeLabelFormat } from '../graph/selection.js';
@@ -248,7 +247,6 @@ export function initializeEventListeners() {
         setPendingArticlePosition(null);
         openArticleModal();
     });
-    document.getElementById('categoryFilterBtn').addEventListener('click', toggleCategoryDropdown);
 
     // Expose globally for use in import/export
     window.fitGraphView = fitGraphView;
@@ -313,19 +311,6 @@ export function initializeEventListeners() {
         if (e.key === 'Escape') {
             document.getElementById('searchCloseBtn').click();
         }
-    });
-    
-    // Category filter
-    document.getElementById('categoryFilter').addEventListener('change', (e) => {
-        getStore().setCategoryFilter(e.target.value);
-        
-        const graphView = document.getElementById('graphView');
-        if (graphView.classList.contains('active')) {
-            updateGraph();
-        }
-        document.getElementById('categoryDropdown').classList.remove('active');
-        
-        updateActiveFiltersDisplay();
     });
     
     // Global keyboard shortcuts
