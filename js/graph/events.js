@@ -326,11 +326,29 @@ function openContextMenuAtClientPosition(clientX, clientY) {
     });
 }
 
+function activateZoneSelection(zoneIndex) {
+    clearHoveredNodeState(true);
+    hideRadialMenu();
+    hideEdgeMenu();
+    hideSelectionRadialMenu();
+    closeArticlePreview();
+
+    hideSelectionBox();
+    getStore().updateMultiSelection({ selectedNodes: [] });
+    getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+    getNetwork().unselectAll();
+
+    getStore().setSelectedNodeId(null);
+    getStore().setSelectedEdgeId(null);
+    getStore().setSelectedZoneIndex(zoneIndex);
+    showZoneDeleteButton(zoneIndex);
+    getNetwork().redraw();
+}
+
 function queueZoneMove(event, zoneIndex) {
     const { canvasPosition } = getCanvasPointer(event);
 
-    getStore().setSelectedZoneIndex(zoneIndex);
-    showZoneDeleteButton(zoneIndex);
+    activateZoneSelection(zoneIndex);
     getStore().updateZoneMoving({ startX: canvasPosition.x });
     getStore().updateZoneMoving({ startY: canvasPosition.y });
     getStore().updateZoneMoving({ zoneIndex });
@@ -671,9 +689,7 @@ export function setupCanvasEvents() {
     canvas.addEventListener('mouseup', (event) => {
         if (event.button === 0 && pendingSelectionStart) {
             if (pendingZoneSelectionIndex !== -1) {
-                getStore().setSelectedZoneIndex(pendingZoneSelectionIndex);
-                showZoneDeleteButton(pendingZoneSelectionIndex);
-                getNetwork().redraw();
+                activateZoneSelection(pendingZoneSelectionIndex);
             }
             pendingSelectionStart = null;
             pendingZoneSelectionIndex = -1;
@@ -770,9 +786,7 @@ export function setupCanvasEvents() {
                 return;
             }
 
-            getStore().setSelectedZoneIndex(hitState.zoneClick.zoneIndex);
-            showZoneDeleteButton(hitState.zoneClick.zoneIndex);
-            getNetwork().redraw();
+            activateZoneSelection(hitState.zoneClick.zoneIndex);
             suppressNextNetworkClick = true;
             resetTouchState();
             return;

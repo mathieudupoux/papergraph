@@ -1498,25 +1498,39 @@ export function startEditZoneTitle(event, zoneIndex) {
 
 export function deleteZone(zoneIndex) {
     const zone = getStore().tagZones[zoneIndex];
+    if (!zone) {
+        hideZoneDeleteButton();
+        getStore().setSelectedZoneIndex(-1);
+        return false;
+    }
+
     const tagToRemove = zone.tag;
-    
+
+    hideZoneDeleteButton();
+
     // Remove tag from all articles
     getStore().removeArticleCategoryGlobal(tagToRemove);
-    
+
     // Remove zone
     getStore().deleteTagZone(zoneIndex);
     getStore().setSelectedZoneIndex(-1);
-    
+    getStore().updateMultiSelection({
+        selectedZonesForDrag: getStore().multiSelection.selectedZonesForDrag
+            .filter((idx) => idx !== zoneIndex)
+            .map((idx) => (idx > zoneIndex ? idx - 1 : idx))
+    });
+
     // Recalculate all node colors using the same logic as position updates
     // This ensures colors match the actual zone membership
     checkNodeZoneMembership();
-    
+
     const canvas = getNetwork().canvas.frame.canvas;
     if (canvas) {
         canvas.style.cursor = "default";
     }
 
     showNotification(`Zone "${tagToRemove}" deleted`, 'success');
+    return true;
 }
 
 export function startZoneResize(event, zoneIndex, handle) {

@@ -472,7 +472,11 @@ export function deleteSelectedNodes() {
     getStore().setArticles(remainingArticles);
     getStore().setConnections(remainingConnections);
     getStore().setTagZones(remainingZones);
+    getStore().setSelectedNodeId(null);
+    getStore().setSelectedEdgeId(null);
     getStore().setSelectedZoneIndex(-1);
+    getStore().updateMultiSelection({ selectedNodes: [] });
+    getStore().updateMultiSelection({ selectedZonesForDrag: [] });
     
     updateGraph();
     updateCategoryFilters();

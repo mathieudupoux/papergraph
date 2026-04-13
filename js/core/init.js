@@ -352,6 +352,11 @@ export function initializeEventListeners() {
             
             if (getStore().multiSelection.selectedNodes.length > 1 || getStore().multiSelection.selectedZonesForDrag.length > 0) {
                 deleteSelectedNodes();
+                hideRadialMenu();
+                hideEdgeMenu();
+                hideZoneDeleteButton();
+                hideSelectionRadialMenu();
+                hideContextMenu();
             } else if (getStore().selectedNodeId !== null) {
                 deleteArticleById(getStore().selectedNodeId);
                 getStore().setSelectedNodeId(null);
@@ -361,6 +366,11 @@ export function initializeEventListeners() {
                 hideEdgeMenu();
             } else if (getStore().selectedZoneIndex !== -1) {
                 deleteZone(getStore().selectedZoneIndex);
+                hideRadialMenu();
+                hideEdgeMenu();
+                hideZoneDeleteButton();
+                hideSelectionRadialMenu();
+                hideContextMenu();
             }
         }
     });
