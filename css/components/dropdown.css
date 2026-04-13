@@ -97,6 +97,26 @@
     opacity: 0.6;
 }
 
+body.shared-readonly-view .project-title-input {
+    width: auto !important;
+    max-width: 280px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.96rem;
+    font-weight: 500;
+}
+
+body.editor-readonly-view .project-title-input {
+    width: auto !important;
+    max-width: 280px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.96rem;
+    font-weight: 500;
+}
+
 @media (max-width: 800px) {
     .logo-menu-btn-extended {
         left: 12px;
@@ -124,6 +144,16 @@
         max-width: min(44vw, 180px);
         padding: 10px 12px 10px 10px;
         font-size: 1rem;
+    }
+
+    body.shared-readonly-view .project-title-input {
+        width: auto !important;
+        max-width: 150px;
+    }
+
+    body.editor-readonly-view .project-title-input {
+        width: auto !important;
+        max-width: 150px;
     }
 }
 

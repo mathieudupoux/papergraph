@@ -71,8 +71,13 @@
             />
         </div>
         
-        <!-- User Profile Button (top-right) -->
-        <div class="user-dropdown-container editor-user-dropdown" data-include="user-dropdown"></div>
+        <!-- Header Actions (top-right) -->
+        <div class="editor-header-actions">
+            <button id="projectShareBtn" class="share-btn-circle" type="button" title="Share project" aria-label="Share project" style="display: none;">
+                <span class="share-btn-icon" aria-hidden="true"></span>
+            </button>
+            <div class="user-dropdown-container editor-user-dropdown" data-include="user-dropdown"></div>
+        </div>
         
         <!-- Logo Dropdown (shared partial) -->
         <div class="logo-dropdown-container" data-include="logo-dropdown"></div>
@@ -333,6 +338,8 @@
         </div>
 
         <!-- Share Project Modal -->
+        <div data-include="share-project-modal"></div>
+
         <!-- Hidden file input for import -->
         <input type="file" id="fileInput" accept=".papergraph,.json" style="display: none;">
         <input type="file" id="bibtexFileInput" accept=".bib,.bibtex" style="display: none;">

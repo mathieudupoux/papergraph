@@ -3,7 +3,7 @@
  * Handles synchronization between localStorage and Supabase
  */
 
-import { loadProject, updateProject, autoSaveProject } from '../auth/projects.js';
+import { loadProject, loadSharedProject, updateProject, autoSaveProject } from '../auth/projects.js';
 import { getCurrentUser } from '../auth/auth.js';
 import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
@@ -12,6 +12,65 @@ import { showNotification } from '../utils/helpers.js';
 let currentProjectId = null;
 let isCloudEnabled = false;
 
+function clearCachedProjectState() {
+    localStorage.removeItem('papermap_data');
+    localStorage.removeItem('papermap_positions');
+    localStorage.removeItem('papermap_zones');
+    localStorage.removeItem('papermap_edge_control_points');
+    localStorage.removeItem('papermap_next_control_point_id');
+}
+
+function resetStoreState() {
+    pauseHistory();
+    try {
+        getStore().setArticles([]);
+        getStore().setConnections([]);
+        getStore().setNextArticleId(1);
+        getStore().setNextConnectionId(1);
+        getStore().setTagZones([]);
+        getStore().setSavedNodePositions({});
+        getStore().setCurrentProjectId(null);
+        getStore().setGalleryProjectData(null);
+        getStore().setGalleryProjectMetadata(null);
+        getStore().setCurrentUserRole(null);
+        getStore().setIsReadOnly(false);
+        getStore().setIsReadOnlyMode(false);
+        getStore().setIsGalleryViewer(false);
+    } finally {
+        resumeHistory();
+    }
+}
+
+function loadProjectDataIntoStore(projectData) {
+    getStore().setArticles((projectData.nodes || []).map((article) => ({
+        ...article,
+        categories: Array.isArray(article.categories) ? article.categories : []
+    })));
+    getStore().setConnections(projectData.edges || []);
+
+    if (getStore().appData.articles.length > 0) {
+        const maxId = Math.max(...getStore().appData.articles.map((article) => parseInt(article.id, 10) || 0));
+        getStore().setNextArticleId(maxId + 1);
+    } else {
+        getStore().setNextArticleId(1);
+    }
+
+    if (getStore().appData.connections.length > 0) {
+        const maxId = Math.max(...getStore().appData.connections.map((connection) => parseInt(connection.id, 10) || 0));
+        getStore().setNextConnectionId(maxId + 1);
+    } else {
+        getStore().setNextConnectionId(1);
+    }
+
+    const zones = projectData.zones || projectData.tagZones || [];
+    getStore().setTagZones(zones);
+
+    const positions = projectData.positions || projectData.nodePositions || {};
+    getStore().setSavedNodePositions(positions);
+
+    return { zones, positions };
+}
+
 /**
  * Initialize cloud storage
  * Checks URL parameters and loads project if ID or share token is present
@@ -19,32 +78,31 @@ let isCloudEnabled = false;
 export async function initCloudStorage() {
     const urlParams = new URLSearchParams(window.location.search);
     currentProjectId = urlParams.get('id');
+    const shareToken = urlParams.get('share');
     
     // Check if user is authenticated
     const user = await getCurrentUser();
     isCloudEnabled = user !== null;
+
+    if (shareToken) {
+        clearCachedProjectState();
+        resetStoreState();
+
+        try {
+            await loadSharedProjectFromCloud(shareToken);
+            return true;
+        } catch (error) {
+            console.error('Failed to load shared project from cloud:', error);
+            showNotification('This shared link is unavailable or has been disabled.', 'error');
+            return false;
+        }
+    }
     
     // Handle normal project ID (requires authentication)
     if (currentProjectId && isCloudEnabled) {
         console.log('Cloud storage enabled for project:', currentProjectId);
-        
-        // Clear any existing localStorage data from previous sessions
-        // This prevents mixing data between projects
-        localStorage.removeItem('papermap_data');
-        localStorage.removeItem('papermap_positions');
-        localStorage.removeItem('papermap_zones');
-        localStorage.removeItem('papermap_edge_control_points');
-        localStorage.removeItem('papermap_next_control_point_id');
-        
-        // Clear global variables
-        pauseHistory();
-        getStore().setArticles([]);
-        getStore().setConnections([]);
-        getStore().setNextArticleId(1);
-        getStore().setNextConnectionId(1);
-        getStore().setTagZones([]);
-        getStore().setSavedNodePositions({});
-        resumeHistory();
+        clearCachedProjectState();
+        resetStoreState();
         
         // Try to load project from cloud
         try {
@@ -80,6 +138,11 @@ async function loadProjectFromCloud() {
     
     // Update page title
     document.title = `${project.name} - Papergraph`;
+    getStore().setCurrentProjectId(project.id);
+    getStore().setCurrentUserRole('owner');
+    getStore().setIsReadOnly(false);
+    getStore().setIsReadOnlyMode(false);
+    getStore().setIsGalleryViewer(false);
     
     // Store project name for title input
     localStorage.setItem('currentProjectTitle', project.name);
@@ -88,50 +151,22 @@ async function loadProjectFromCloud() {
     if (project.data) {
         pauseHistory();
         try {
-        // Load nodes and edges
-        getStore().setArticles((project.data.nodes || []).map(a => ({
-            ...a,
-            categories: Array.isArray(a.categories) ? a.categories : []
-        })));
-        getStore().setConnections(project.data.edges || []);
-        
-        // Update next IDs based on existing data
-        if (getStore().appData.articles.length > 0) {
-            const maxId = Math.max(...getStore().appData.articles.map(a => parseInt(a.id) || 0));
-            getStore().setNextArticleId(maxId + 1);
-        } else {
-            getStore().setNextArticleId(1);
-        }
-        
-        if (getStore().appData.connections.length > 0) {
-            const maxId = Math.max(...getStore().appData.connections.map(c => parseInt(c.id) || 0));
-            getStore().setNextConnectionId(maxId + 1);
-        } else {
-            getStore().setNextConnectionId(1);
-        }
+        const { zones, positions } = loadProjectDataIntoStore(project.data);
         
         // For cloud projects, use project-specific localStorage keys
         const projectKey = `papermap_project_${currentProjectId}`;
         localStorage.setItem(`${projectKey}_data`, JSON.stringify(getStore().appData));
         
         // Load tag zones if available
-        const zones = project.data.zones || project.data.tagZones || [];
         if (zones.length > 0) {
-            getStore().setTagZones(zones);
             localStorage.setItem(`${projectKey}_zones`, JSON.stringify(zones));
             console.log('🏷️ Loaded', zones.length, 'tag zones from cloud');
-        } else {
-            getStore().setTagZones([]);
         }
         
         // Load positions if available
-        const positions = project.data.positions || project.data.nodePositions || {};
         if (Object.keys(positions).length > 0) {
             localStorage.setItem(`${projectKey}_positions`, JSON.stringify(positions));
-            getStore().setSavedNodePositions(positions);
             console.log('📍 Loaded', Object.keys(positions).length, 'node positions from cloud');
-        } else {
-            getStore().setSavedNodePositions({});
         }
         
         console.log('✓ Project loaded from cloud:', project.name, 
@@ -142,6 +177,48 @@ async function loadProjectFromCloud() {
         }
     }
     
+    return project;
+}
+
+async function loadSharedProjectFromCloud(shareToken) {
+    const project = await loadSharedProject(shareToken);
+
+    if (!project) {
+        throw new Error('Shared project not found');
+    }
+
+    currentProjectId = project.id;
+
+    document.title = `${project.name} - Papergraph Shared`;
+
+    pauseHistory();
+    try {
+        loadProjectDataIntoStore(project.data || {});
+        getStore().setCurrentProjectId(project.id);
+        getStore().setCurrentUserRole('viewer');
+        getStore().setIsReadOnly(true);
+        getStore().setIsReadOnlyMode(true);
+        getStore().setIsGalleryViewer(true);
+
+        const metadata = {
+            id: project.id,
+            title: project.name,
+            shareToken,
+            viewerType: 'share'
+        };
+
+        getStore().setGalleryProjectMetadata(metadata);
+        getStore().setGalleryProjectData({
+            data: project.data || {},
+            metadata
+        });
+    } finally {
+        resumeHistory();
+    }
+
+    console.log('✓ Shared project loaded from cloud:', project.name);
+    showNotification(`Opened shared project: ${project.name}`, 'success');
+
     return project;
 }
 

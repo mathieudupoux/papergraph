@@ -15,11 +15,11 @@ export function save(silent = false) {
     // Saving must never create undo history entries
     pauseHistory();
     try {
-        // Gallery projects are read-only
+        // Shared/gallery viewer sessions are read-only
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('source') === 'gallery') {
+        if (urlParams.get('source') === 'gallery' || getStore().isReadOnlyMode) {
             if (!silent) {
-                showNotification('Gallery projects are read-only. Use Export to save your own copy.', 'info');
+                showNotification('This project is read-only. Import it to your workspace to edit your own copy.', 'info');
             }
             return;
         }

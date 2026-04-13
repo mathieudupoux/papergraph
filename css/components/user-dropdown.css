@@ -157,8 +157,8 @@
     align-items: center;
 }
 
-/* Editor User Dropdown (top-right) */
-.editor-user-dropdown {
+/* Editor header actions (top-right) */
+.editor-header-actions {
     position: fixed;
     top: 32px;
     right: 32px;
@@ -168,8 +168,15 @@
     gap: 12px;
 }
 
+.editor-user-dropdown {
+    position: relative;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+}
+
 @media (max-width: 800px) {
-    .editor-user-dropdown {
+    .editor-header-actions {
         top: 18px;
         right: 12px;
     }

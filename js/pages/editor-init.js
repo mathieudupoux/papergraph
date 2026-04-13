@@ -3,6 +3,7 @@ import { getStore, getNetwork } from '../store/appStore.js';
 import { initCloudStorage, isCloudStorageEnabled } from '../data/cloud-storage.js';
 import { showNotification } from '../utils/helpers.js';
 import { initUserDropdown } from '../ui/user-dropdown.js';
+import { initProjectShare } from '../ui/project-share.js';
 import { includesReady } from '../utils/load-footer.js';
 import { closeModal } from '../ui/modal-manager.js';
 import { 
@@ -36,6 +37,7 @@ window.showNotification = showNotification;
 document.addEventListener('DOMContentLoaded', async () => {
     await includesReady;
     await initUserDropdown();
+    await initProjectShare();
 });
 
 // Preferences modal handled by js/ui/preferences.js (loadPreferencesData removed)
@@ -131,4 +133,3 @@ window.handleSubmitToGallery = async function(e) {
         submitBtn.textContent = 'Submit Project';
     }
 };
-

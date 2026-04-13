@@ -7,6 +7,7 @@ import { initializeEventListeners } from '../core/init.js';
 import { initializeGraph } from '../graph/init.js';
 import { initCloudStorage } from '../data/cloud-storage.js';
 import { icon } from '../ui/icons.js';
+import { refreshProjectShareButton } from '../ui/project-share.js';
 import { includesReady } from '../utils/load-footer.js';
 import { getUrl } from '../utils/base-path.js';
 import { getSession } from '../auth/auth.js';
@@ -79,7 +80,32 @@ function redirectToProjects() {
     window.location.replace('projects.html');
 }
 
+function getReadOnlyViewerSuffix(metadata = {}) {
+    return metadata.viewerType === 'share' ? 'Papergraph Shared' : 'Papergraph Gallery';
+}
+
+function resizeProjectTitleInput(input, { minWidth = 120, maxWidth = 600, extraPadding = 40 } = {}) {
+    if (!input) return;
+
+    const span = document.createElement('span');
+    span.style.visibility = 'hidden';
+    span.style.position = 'absolute';
+    span.style.whiteSpace = 'nowrap';
+    span.style.fontFamily = window.getComputedStyle(input).fontFamily;
+    span.style.fontSize = window.getComputedStyle(input).fontSize;
+    span.style.fontWeight = window.getComputedStyle(input).fontWeight;
+    span.textContent = input.value || input.placeholder;
+    document.body.appendChild(span);
+
+    const width = Math.max(minWidth, Math.min(maxWidth, span.offsetWidth + extraPadding));
+
+    document.body.removeChild(span);
+    input.style.width = `${width}px`;
+}
+
 async function initApp() {
+            document.body.classList.remove('shared-readonly-view');
+            document.body.classList.remove('editor-readonly-view');
             // Check if importing from gallery
             const urlParams = new URLSearchParams(window.location.search);
             const importFromGallery = urlParams.get('source') === 'gallery';
@@ -116,9 +142,10 @@ async function initApp() {
                 return;
             }
 
-            // On the hosted app, unauthenticated users should not access the
-            // editor directly unless they are viewing a gallery project.
-            if (!config.isDevelopment && !isGalleryAccess && !session) {
+            // Unauthenticated visitors should only reach the editor through a
+            // public shared-project URL. Every other editor entry point
+            // requires a session.
+            if (!shareToken && !session) {
                 redirectToLanding();
                 return;
             }
@@ -194,7 +221,7 @@ async function initApp() {
                     
                     // Store metadata for display
                     getStore().setGalleryProjectMetadata(metadata);
-                    getStore().galleryProjectData = { data: projectData, metadata: metadata };
+                    getStore().setGalleryProjectData({ data: projectData, metadata });
                     getStore().setCurrentProjectId(metadata.id);
                     
                     // Set project title and make it readonly
@@ -203,7 +230,7 @@ async function initApp() {
                         titleInput.value = metadata.title;
                         titleInput.disabled = true;
                         titleInput.style.cursor = 'default';
-                        document.title = `${metadata.title} - Papergraph Gallery`;
+                        document.title = `${metadata.title} - ${getReadOnlyViewerSuffix(metadata)}`;
                     }
                     
                 } catch (error) {
@@ -287,6 +314,7 @@ Object.assign(getStore().appData, projectData);
             
             // Wait for HTML partials (logo-dropdown, user-dropdown, etc.) to load
             await includesReady;
+            refreshProjectShareButton();
             
             initializeEventListeners();
             initShortcuts();
@@ -374,27 +402,11 @@ Object.assign(getStore().appData, projectData);
             
             // Set initial title from localStorage or default
             if (projectTitleInput && !getStore().isGalleryViewer) {
-                // Helper function to resize input based on content
-                const resizeInput = (input) => {
-                    const span = document.createElement('span');
-                    span.style.visibility = 'hidden';
-                    span.style.position = 'absolute';
-                    span.style.whiteSpace = 'nowrap';
-                    span.style.fontFamily = window.getComputedStyle(input).fontFamily;
-                    span.style.fontSize = window.getComputedStyle(input).fontSize;
-                    span.style.fontWeight = window.getComputedStyle(input).fontWeight;
-                    span.textContent = input.value || input.placeholder;
-                    document.body.appendChild(span);
-                    const width = Math.max(120, Math.min(600, span.offsetWidth + 40)); // +40 for padding
-                    document.body.removeChild(span);
-                    input.style.width = width + 'px';
-                };
-                
                 const savedTitle = localStorage.getItem('currentProjectTitle');
                 if (savedTitle) {
                     console.log('? Setting saved title:', savedTitle);
                     projectTitleInput.value = savedTitle;
-                    resizeInput(projectTitleInput);
+                    resizeProjectTitleInput(projectTitleInput);
                 } else {
                     console.log('? Setting default title');
                     // Default title for new projects
@@ -417,7 +429,7 @@ Object.assign(getStore().appData, projectData);
                         }
                         
                         // Auto-adjust input width
-                        resizeInput(projectTitleInput);
+                        resizeProjectTitleInput(projectTitleInput);
                         
                         // Save to localStorage
                         localStorage.setItem('currentProjectTitle', newTitle);
@@ -437,7 +449,7 @@ Object.assign(getStore().appData, projectData);
                     
                     // Debounced save on input
                     projectTitleInput.addEventListener('input', () => {
-                        resizeInput(projectTitleInput);
+                        resizeProjectTitleInput(projectTitleInput);
                         clearTimeout(saveTimeout);
                         saveTimeout = setTimeout(saveTitle, 1000);
                     });
@@ -672,6 +684,10 @@ Object.assign(getStore().appData, projectData);
         // ===== READ-ONLY MODE SETUP =====
         if (getStore().isReadOnlyMode) {
             console.log('?? Configuring read-only mode...');
+            const readOnlyMetadata = getStore().galleryProjectData?.metadata;
+            const isSharedReadOnlyView = readOnlyMetadata?.viewerType === 'share';
+            document.body.classList.add('editor-readonly-view');
+            document.body.classList.toggle('shared-readonly-view', isSharedReadOnlyView);
             
             // Show read-only bar (contains both label and copy button)
             const readonlyBar = document.getElementById('readonlyIndicator');
@@ -690,10 +706,17 @@ Object.assign(getStore().appData, projectData);
             
             // Set project title from gallery data
             if (getStore().galleryProjectData && getStore().galleryProjectData.metadata) {
-                const title = getStore().galleryProjectData.metadata.title;
-                document.getElementById('projectTitle').value = title;
-                document.getElementById('projectTitle').disabled = true;
-                document.title = `${title} - Papergraph Gallery`;
+                const metadata = getStore().galleryProjectData.metadata;
+                const title = metadata.title;
+                const projectTitleInput = document.getElementById('projectTitle');
+                projectTitleInput.value = title;
+                projectTitleInput.disabled = true;
+                resizeProjectTitleInput(projectTitleInput, {
+                    minWidth: 120,
+                    maxWidth: window.innerWidth <= 800 ? 150 : 280,
+                    extraPadding: 34
+                });
+                document.title = `${title} - ${getReadOnlyViewerSuffix(metadata)}`;
             }
             
             // Hide "Import" and "New Project" menu items

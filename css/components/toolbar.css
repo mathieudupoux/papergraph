@@ -505,6 +505,10 @@
     flex-shrink: 0;
 }
 
+body.editor-readonly-view .read-only-indicator {
+    display: none !important;
+}
+
 /* Disabled button state for read-only mode */
 .main-tool-btn:disabled,
 .main-tool-btn.disabled {

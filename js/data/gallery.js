@@ -243,7 +243,8 @@ export async function copyProjectToWorkspace(projectData, metadata) {
         }
         
         // Create a copy of the project
-        const projectName = `${metadata.title} (from gallery)`;
+        const sourceLabel = metadata.viewerType === 'share' ? 'shared link' : 'gallery';
+        const projectName = `${metadata.title} (from ${sourceLabel})`;
         const newProject = await createProject(projectName, projectData);
         
         // Show success message
