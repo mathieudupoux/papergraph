@@ -1018,14 +1018,37 @@
 
 @media (max-width: 480px) {
     .pg-header {
-        flex-direction: column;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
         gap: 12px;
-        align-items: flex-start;
+        padding: 12px 16px;
     }
 
     .pg-header-nav {
-        margin: 0;
-        gap: 16px;
+        display: none;
+    }
+
+    .pg-header-logo {
+        gap: 10px;
+        min-width: 0;
+        flex-shrink: 1;
+    }
+
+    .logo-text {
+        font-size: 1.1rem;
+    }
+
+    .pg-header-actions {
+        margin-left: auto;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .pg-header-actions .pg-cta-btn--sm {
+        min-height: 40px;
+        padding: 0 0.85rem;
+        font-size: 0.85rem;
     }
 
     .pg-header--workspace .pg-header-logo-shell ~ .logo-dropdown-container .logo-dropdown {
