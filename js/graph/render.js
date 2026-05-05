@@ -1,7 +1,7 @@
 import { getStore, getNetwork, appStore } from '../store/appStore.js';
-import { getArticleZones, getNodeAppearanceForZones } from '../utils/helpers.js';
+import { getArticleZones, getDefaultEdgeFont, getNodeAppearanceForZones } from '../utils/helpers.js';
 import { getNodeLabel } from './selection.js';
-import { rebuildEdgeWithControlPoints } from './connections.js';
+import { rebuildEdgeWithControlPoints, syncControlPointNodes } from './connections.js';
 import { initializeGraph } from './init.js';
 import { icon } from '../ui/icons.js';
 
@@ -9,6 +9,67 @@ import { icon } from '../ui/icons.js';
 // Graph data preparation, update logic, and permissions
 
 let searchHighlightedNodes = [];
+let pendingControlPointRebuildFrame = null;
+
+function samePosition(a, b) {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return a.x === b.x && a.y === b.y;
+}
+
+function sameColorValue(a, b) {
+    if (typeof a === 'string' || typeof b === 'string') {
+        return a === b;
+    }
+
+    return (a?.background || null) === (b?.background || null)
+        && (a?.border || null) === (b?.border || null);
+}
+
+function sameFontValue(a, b) {
+    return (a?.color || null) === (b?.color || null)
+        && (a?.strokeWidth || 0) === (b?.strokeWidth || 0)
+        && (a?.strokeColor || null) === (b?.strokeColor || null)
+        && (a?.align || null) === (b?.align || null);
+}
+
+function sameSmoothValue(a, b) {
+    return Boolean(a?.enabled) === Boolean(b?.enabled)
+        && (a?.type || null) === (b?.type || null)
+        && (a?.roundness || 0) === (b?.roundness || 0);
+}
+
+function hasManagedControlPoints(edgeControlPoints, edgeId) {
+    const controlPoints = edgeControlPoints?.[edgeId];
+    return Array.isArray(controlPoints) && controlPoints.length > 0;
+}
+
+function scheduleDeferredControlPointRebuild(edgeIds) {
+    const managedEdgeIds = [...new Set(
+        (edgeIds || []).filter((edgeId) => Number.isFinite(edgeId))
+    )];
+
+    if (pendingControlPointRebuildFrame !== null) {
+        window.cancelAnimationFrame(pendingControlPointRebuildFrame);
+        pendingControlPointRebuildFrame = null;
+    }
+
+    if (managedEdgeIds.length === 0) return;
+
+    pendingControlPointRebuildFrame = window.requestAnimationFrame(() => {
+        pendingControlPointRebuildFrame = null;
+
+        const network = getNetwork();
+        if (!network) return;
+
+        managedEdgeIds.forEach((edgeId) => {
+            if (hasManagedControlPoints(getStore().edgeControlPoints, edgeId)) {
+                rebuildEdgeWithControlPoints(edgeId);
+            }
+        });
+        network.redraw();
+    });
+}
 
 export function getGraphData() {
     const { appData, tagZones, savedNodePositions, edgeControlPoints } = getStore();
@@ -44,15 +105,15 @@ export function getGraphData() {
     const edges = new vis.DataSet(appData.connections
         .filter((conn) => {
             if (!articleIds.has(conn.from) || !articleIds.has(conn.to)) return false;
-            if (edgeControlPoints && edgeControlPoints[conn.id]) return false;
+            if (hasManagedControlPoints(edgeControlPoints, conn.id)) return false;
             return true;
         })
         .map((conn) => ({
             id: conn.id,
             from: conn.from,
             to: conn.to,
-            label: conn.label || '',
-            smooth: { enabled: true, type: 'continuous', roundness: 0.15 },
+            font: getDefaultEdgeFont(),
+            smooth: { enabled: true, type: 'continuous', roundness: 0.3 },
         })));
 
     return { nodes, edges };
@@ -67,24 +128,44 @@ export function getGraphData() {
 function _calcNodeDiffs(network, savedPositions, newNodesData) {
     const currentPositions = network.getPositions();
     const existingNodes = network.body.data.nodes.get();
+    const existingArticleNodeMap = new Map(
+        existingNodes
+            .filter((node) => node.id > 0)
+            .map((node) => [node.id, node])
+    );
     const existingArticleNodeIds = existingNodes.filter((n) => n.id > 0).map((n) => n.id);
     const newNodeIds = new Set(newNodesData.map((n) => n.id));
 
     const toRemove = existingArticleNodeIds.filter((id) => !newNodeIds.has(id));
 
-    const toAdd = newNodesData.filter((node) => !network.body.data.nodes.get(node.id));
+    const toAdd = newNodesData.filter((node) => !existingArticleNodeMap.has(node.id));
 
     const toUpdate = [];
     newNodesData.forEach((node) => {
-        if (!network.body.data.nodes.get(node.id)) return;
+        const existingNode = existingArticleNodeMap.get(node.id);
+        if (!existingNode) return;
+
+        const targetPosition = (savedPositions[node.id] && isFinite(savedPositions[node.id].x) && isFinite(savedPositions[node.id].y))
+            ? { x: savedPositions[node.id].x, y: savedPositions[node.id].y }
+            : (currentPositions[node.id] && isFinite(currentPositions[node.id].x) && isFinite(currentPositions[node.id].y))
+                ? { x: currentPositions[node.id].x, y: currentPositions[node.id].y }
+                : null;
+
+        const currentPosition = currentPositions[node.id] && isFinite(currentPositions[node.id].x) && isFinite(currentPositions[node.id].y)
+            ? { x: currentPositions[node.id].x, y: currentPositions[node.id].y }
+            : null;
+
+        const needsUpdate = existingNode.label !== node.label
+            || !sameColorValue(existingNode.color, node.color)
+            || !sameFontValue(existingNode.font, node.font)
+            || !samePosition(currentPosition, targetPosition);
+
+        if (!needsUpdate) return;
+
         const update = { id: node.id, label: node.label, color: node.color, font: node.font, title: null };
-        if (savedPositions[node.id] && isFinite(savedPositions[node.id].x) && isFinite(savedPositions[node.id].y)) {
-            update.x = savedPositions[node.id].x;
-            update.y = savedPositions[node.id].y;
-            update.fixed = { x: false, y: false };
-        } else if (currentPositions[node.id] && isFinite(currentPositions[node.id].x) && isFinite(currentPositions[node.id].y)) {
-            update.x = currentPositions[node.id].x;
-            update.y = currentPositions[node.id].y;
+        if (targetPosition) {
+            update.x = targetPosition.x;
+            update.y = targetPosition.y;
             update.fixed = { x: false, y: false };
         }
         toUpdate.push(update);
@@ -99,6 +180,11 @@ function _calcNodeDiffs(network, savedPositions, newNodesData) {
  */
 function _calcEdgeDiffs(network, newEdgesData, edgeControlPoints) {
     const existingEdges = network.body.data.edges.get();
+    const existingEdgeMap = new Map(
+        existingEdges
+            .filter((edge) => !edge.id.toString().includes('_seg_'))
+            .map((edge) => [edge.id, edge])
+    );
     const existingEdgeIds = new Set(existingEdges.map((e) => e.id));
     const newEdgeIds = new Set(newEdgesData.map((e) => e.id));
 
@@ -109,8 +195,18 @@ function _calcEdgeDiffs(network, newEdgesData, edgeControlPoints) {
     const toAdd = [];
     const toUpdate = [];
     newEdgesData.forEach((edge) => {
-        if (edgeControlPoints[edge.id]) return; // managed separately
+        if (hasManagedControlPoints(edgeControlPoints, edge.id)) return; // managed separately
         if (existingEdgeIds.has(edge.id)) {
+            const existingEdge = existingEdgeMap.get(edge.id);
+            if (
+                existingEdge
+                && existingEdge.from === edge.from
+                && existingEdge.to === edge.to
+                && sameFontValue(existingEdge.font, edge.font)
+                && sameSmoothValue(existingEdge.smooth, edge.smooth)
+            ) {
+                return;
+            }
             toUpdate.push(edge);
         } else {
             toAdd.push(edge);
@@ -125,9 +221,13 @@ function _calcEdgeDiffs(network, newEdgesData, edgeControlPoints) {
  * for every edge that still has control points in the store.
  */
 function _manageControlPoints(network, connections, edgeControlPoints) {
+    syncControlPointNodes();
+    const managedEdgeIds = [];
+
     Object.keys(edgeControlPoints).forEach((edgeId) => {
-        const edgeIdNum = parseInt(edgeId);
+        const edgeIdNum = parseInt(edgeId, 10);
         const connectionExists = connections.find((c) => c.id === edgeIdNum);
+        const controlPointIds = edgeControlPoints[edgeId] || [];
 
         if (!connectionExists) {
             const cpsToDelete = edgeControlPoints[edgeIdNum];
@@ -140,11 +240,19 @@ function _manageControlPoints(network, connections, edgeControlPoints) {
             return;
         }
 
+        if (!Array.isArray(controlPointIds) || controlPointIds.length === 0) {
+            getStore().deleteEdgeControlPoints(edgeIdNum);
+            return;
+        }
+
         if (network.body.data.edges.get(edgeIdNum)) {
             network.body.data.edges.remove(edgeIdNum);
         }
         rebuildEdgeWithControlPoints(edgeIdNum);
+        managedEdgeIds.push(edgeIdNum);
     });
+
+    scheduleDeferredControlPointRebuild(managedEdgeIds);
 }
 
 export function updateGraph() {
@@ -182,6 +290,11 @@ export function updateGraph() {
 
             // Clean up control points belonging to removed edges
             edgesToRemove.forEach((edgeId) => {
+                const connectionStillExists = appData.connections.some((connection) => connection.id === edgeId);
+                if (connectionStillExists) {
+                    return;
+                }
+
                 if (edgeControlPoints[edgeId]) {
                     edgeControlPoints[edgeId].forEach((cpId) => {
                         try { network.body.data.nodes.remove(cpId); } catch (_) {}
@@ -190,7 +303,7 @@ export function updateGraph() {
                         filter: (e) => {
                             const s = e.id.toString();
                             if (!s.includes('_seg_')) return false;
-                            return parseInt(s.split('_seg_')[0]) === edgeId;
+                            return parseInt(s.split('_seg_')[0], 10) === edgeId;
                         },
                     });
                     if (segmentEdges.length > 0) {

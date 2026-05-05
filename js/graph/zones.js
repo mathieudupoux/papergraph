@@ -18,6 +18,10 @@ const ZONE_MENU_OFFSET_Y = 44;
 const ZONE_MENU_GAP = 8;
 const ZONE_MENU_BUTTON_SIZE = 40;
 
+function isZoneInteractionBlocked() {
+    return getStore().isReadOnlyMode || getStore().isGalleryViewer;
+}
+
 function getContainingZonesForNode(nodePos) {
     return getStore().tagZones.filter((zone) => isNodeInZone(nodePos, zone));
 }
@@ -920,7 +924,7 @@ export function checkNodeZoneMembership(options = {}) {
 
 export function getZoneResizeHandle(event) {
     // Don't allow zone resizing in gallery viewer mode
-    if (getStore().isGalleryViewer || getStore().selectedZoneIndex === -1) {
+    if (isZoneInteractionBlocked() || getStore().selectedZoneIndex === -1) {
         return { zone: null, zoneIndex: -1, handle: null };
     }
     
@@ -1017,6 +1021,10 @@ export function updateZoneCursor(event) {
 }
 
 export function getZoneAtPosition(event) {
+    if (isZoneInteractionBlocked()) {
+        return { zoneIndex: -1, zone: null };
+    }
+
     const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
@@ -1069,6 +1077,10 @@ export function getZoneAtPosition(event) {
 }
 
 export function getZoneTitleClick(event) {
+    if (isZoneInteractionBlocked()) {
+        return { zoneIndex: -1, zone: null };
+    }
+
     const canvas = getNetwork().canvas.frame.canvas;
     const rect = canvas.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
@@ -1102,6 +1114,8 @@ export function getZoneTitleClick(event) {
 }
 
 export function startZoneMove(event, zoneIndex) {
+    if (isZoneInteractionBlocked()) return;
+
     pauseHistory();
     getStore().updateZoneMoving({ active: true });
     getStore().updateZoneMoving({ zoneIndex: zoneIndex });
@@ -1253,7 +1267,7 @@ export function endZoneMove() {
     // Re-enable getNetwork() interactions
     getNetwork().setOptions({
         interaction: {
-            dragNodes: true,
+            dragNodes: !isZoneInteractionBlocked(),
             dragView: false,
             zoomView: false,
             hover: true
@@ -1265,6 +1279,7 @@ export function endZoneMove() {
 }
 
 export function startEditZoneTitle(event, zoneIndex) {
+    if (isZoneInteractionBlocked()) return;
     if (getStore().zoneEditing.active) return;
 
     hideZoneDeleteButton();
@@ -1428,13 +1443,13 @@ export function startEditZoneTitle(event, zoneIndex) {
         // Re-enable interactions
         getNetwork().setOptions({
             interaction: {
-                dragNodes: true,
+                dragNodes: !isZoneInteractionBlocked(),
                 dragView: false,
                 zoomView: false,
                 hover: true,
                 hoverConnectedEdges: true,
                 selectConnectedEdges: true,
-                multiselect: true,
+                multiselect: !isZoneInteractionBlocked(),
                 selectable: true
             }
         });
@@ -1471,13 +1486,13 @@ export function startEditZoneTitle(event, zoneIndex) {
             
             getNetwork().setOptions({
                 interaction: {
-                    dragNodes: true,
+                    dragNodes: !isZoneInteractionBlocked(),
                     dragView: false,
                     zoomView: false,
                     hover: true,
                     hoverConnectedEdges: true,
                     selectConnectedEdges: true,
-                    multiselect: true,
+                    multiselect: !isZoneInteractionBlocked(),
                     selectable: true
                 }
             });
@@ -1525,6 +1540,8 @@ export function deleteZone(zoneIndex) {
 }
 
 export function startZoneResize(event, zoneIndex, handle) {
+    if (isZoneInteractionBlocked()) return;
+
     pauseHistory();
     getStore().updateZoneResizing({ active: true });
     getStore().updateZoneResizing({ zoneIndex: zoneIndex });
@@ -1651,7 +1668,7 @@ export function endZoneResize() {
     // Re-enable getNetwork() interactions
     getNetwork().setOptions({
         interaction: {
-            dragNodes: true,
+            dragNodes: !isZoneInteractionBlocked(),
             dragView: false,
             zoomView: false,
             hover: true

@@ -6,6 +6,7 @@ import { darkenColor, showNotification, getContrastColor } from '../utils/helper
 import { save } from './persistence.js';
 import { articleToBibTeX } from './bibtex-parser.js';
 import { updateGraph } from '../graph/render.js';
+import { getEdgeLabelGeometry } from '../graph/edge-labels.js';
 import { closeArticlePreview } from '../ui/preview.js';
 
 // Helper function to generate filename with project title and author
@@ -93,7 +94,9 @@ export function exportProject() {
     const exportData = {
         ...getStore().appData,
         tagZones: getStore().tagZones,
-        nodePositions: getStore().savedNodePositions || {}
+        nodePositions: getStore().savedNodePositions || {},
+        edgeControlPoints: getStore().edgeControlPoints || {},
+        nextControlPointId: getStore().nextControlPointId,
     };
     const dataStr = JSON.stringify(exportData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
@@ -402,32 +405,46 @@ export function exportToSVG() {
                     svgElements.push(`<path d="M ${tipX} ${tipY} L ${wing1X} ${wing1Y} L ${wing2X} ${wing2Y} Z" fill="${color}"/>`);
                 }
                 
-                // Draw edge label if present
-                if (edge.label) {
-                    // Use original positions for label placement on the curve
-                    const midX = (origX1 + origX2) / 2;
-                    const midY = (origY1 + origY2) / 2;
-                    
-                    // Get label font properties (scaled by zoom)
-                    const labelFontSize = (edge.font?.size || 11) * scale;
-                    const labelFontColor = edge.font?.color || '#666666';
-                    const labelFontFace = (edge.font?.face || 'Arial, sans-serif').replace(/["']/g, '');
-                    
-                    // White background for label readability
-                    const labelWidth = String(edge.label).length * labelFontSize * 0.6;
-                    const labelHeight = labelFontSize + 4;
-                    
-                    svgElements.push(`<rect x="${midX - labelWidth/2}" y="${midY - labelHeight/2}" 
-                        width="${labelWidth}" height="${labelHeight}" 
-                        fill="white" fill-opacity="0.8"/>`);
-                    
-                    svgElements.push(`<text x="${midX}" y="${midY}" 
-                        font-family="${labelFontFace}" font-size="${labelFontSize}" 
-                        fill="${labelFontColor}" text-anchor="middle" 
-                        dominant-baseline="middle">${escapeXml(edge.label)}</text>`);
-                }
             }
         });
+
+        getStore().appData.connections
+            .filter((connection) => connection.label)
+            .forEach((connection) => {
+                const geometry = getEdgeLabelGeometry(connection, { positions, edgeControlPoints: getStore().edgeControlPoints });
+                if (!geometry) return;
+
+                const topLeft = getNetwork().canvasToDOM({
+                    x: geometry.centerX - (geometry.width / 2),
+                    y: geometry.centerY - (geometry.height / 2),
+                });
+                const bottomRight = getNetwork().canvasToDOM({
+                    x: geometry.centerX + (geometry.width / 2),
+                    y: geometry.centerY + (geometry.height / 2),
+                });
+                const center = getNetwork().canvasToDOM({
+                    x: geometry.centerX,
+                    y: geometry.centerY,
+                });
+
+                const labelWidth = bottomRight.x - topLeft.x;
+                const labelHeight = bottomRight.y - topLeft.y;
+                const labelFontSize = geometry.fontSize * scale;
+                const lineHeight = geometry.lineHeight * scale;
+                const startY = center.y - (((geometry.lines.length - 1) * lineHeight) / 2);
+                const labelText = geometry.lines
+                    .map((line, index) => `<tspan x="${center.x}" y="${startY + (index * lineHeight)}">${escapeXml(line)}</tspan>`)
+                    .join('');
+
+                svgElements.push(`<rect x="${topLeft.x}" y="${topLeft.y}" 
+                    width="${labelWidth}" height="${labelHeight}" 
+                    fill="white" fill-opacity="0.001"/>`);
+
+                svgElements.push(`<text x="${center.x}" y="${center.y}" 
+                    font-family="Arial, sans-serif" font-size="${labelFontSize}" 
+                    fill="#666666" text-anchor="middle" 
+                    dominant-baseline="middle">${labelText}</text>`);
+            });
         
         // Draw nodes (already retrieved at the beginning)
         nodes.forEach(node => {
@@ -745,6 +762,21 @@ export function importProject(e) {
                 } else {
                     getStore().setSavedNodePositions({});
                 }
+
+                if (imported.edgeControlPoints) {
+                    getStore().setEdgeControlPoints(imported.edgeControlPoints);
+                    delete imported.edgeControlPoints;
+                } else {
+                    getStore().setEdgeControlPoints({});
+                }
+
+                const importedNextControlPointId = Number.isFinite(imported.nextControlPointId)
+                    ? imported.nextControlPointId
+                    : Number.parseInt(imported.nextControlPointId, 10);
+                getStore().setNextControlPointId(
+                    Number.isFinite(importedNextControlPointId) ? importedNextControlPointId : -1
+                );
+                delete imported.nextControlPointId;
                 
                 getStore().setAppData(imported);
                 

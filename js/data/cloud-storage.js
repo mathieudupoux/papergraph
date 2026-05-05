@@ -12,12 +12,50 @@ import { showNotification } from '../utils/helpers.js';
 let currentProjectId = null;
 let isCloudEnabled = false;
 
+function getMergedPersistedPositions() {
+    const network = getNetwork();
+    if (!network) {
+        return { ...(getStore().savedNodePositions || {}) };
+    }
+
+    return {
+        ...(getStore().savedNodePositions || {}),
+        ...network.getPositions(),
+    };
+}
+
 function clearCachedProjectState() {
     localStorage.removeItem('papermap_data');
     localStorage.removeItem('papermap_positions');
     localStorage.removeItem('papermap_zones');
     localStorage.removeItem('papermap_edge_control_points');
     localStorage.removeItem('papermap_next_control_point_id');
+}
+
+function applyProjectScopedLocalCache(projectId) {
+    if (!projectId) return;
+
+    const projectKey = `papermap_project_${projectId}`;
+
+    try {
+        const cachedPositions = localStorage.getItem(`${projectKey}_positions`);
+        if (cachedPositions) {
+            getStore().setSavedNodePositions(JSON.parse(cachedPositions));
+        }
+
+        const cachedControlPoints = localStorage.getItem(`${projectKey}_edge_control_points`);
+        if (cachedControlPoints) {
+            getStore().setEdgeControlPoints(JSON.parse(cachedControlPoints));
+        }
+
+        const cachedNextControlPointId = localStorage.getItem(`${projectKey}_next_control_point_id`);
+        if (cachedNextControlPointId !== null) {
+            const parsedId = Number.parseInt(cachedNextControlPointId, 10);
+            getStore().setNextControlPointId(Number.isFinite(parsedId) ? parsedId : -1);
+        }
+    } catch (error) {
+        console.warn('Failed to apply project-scoped local cache:', error);
+    }
 }
 
 function resetStoreState() {
@@ -29,6 +67,8 @@ function resetStoreState() {
         getStore().setNextConnectionId(1);
         getStore().setTagZones([]);
         getStore().setSavedNodePositions({});
+        getStore().setEdgeControlPoints({});
+        getStore().setNextControlPointId(-1);
         getStore().setCurrentProjectId(null);
         getStore().setGalleryProjectData(null);
         getStore().setGalleryProjectMetadata(null);
@@ -68,7 +108,15 @@ function loadProjectDataIntoStore(projectData) {
     const positions = projectData.positions || projectData.nodePositions || {};
     getStore().setSavedNodePositions(positions);
 
-    return { zones, positions };
+    const edgeControlPoints = projectData.edgeControlPoints || {};
+    getStore().setEdgeControlPoints(edgeControlPoints);
+
+    const nextControlPointId = Number.isFinite(projectData.nextControlPointId)
+        ? projectData.nextControlPointId
+        : Number.parseInt(projectData.nextControlPointId, 10);
+    getStore().setNextControlPointId(Number.isFinite(nextControlPointId) ? nextControlPointId : -1);
+
+    return { zones, positions, edgeControlPoints };
 }
 
 /**
@@ -151,7 +199,8 @@ async function loadProjectFromCloud() {
     if (project.data) {
         pauseHistory();
         try {
-        const { zones, positions } = loadProjectDataIntoStore(project.data);
+        const { zones, positions, edgeControlPoints } = loadProjectDataIntoStore(project.data);
+        applyProjectScopedLocalCache(currentProjectId);
         
         // For cloud projects, use project-specific localStorage keys
         const projectKey = `papermap_project_${currentProjectId}`;
@@ -164,11 +213,20 @@ async function loadProjectFromCloud() {
         }
         
         // Load positions if available
-        if (Object.keys(positions).length > 0) {
-            localStorage.setItem(`${projectKey}_positions`, JSON.stringify(positions));
-            console.log('📍 Loaded', Object.keys(positions).length, 'node positions from cloud');
+        const effectivePositions = getStore().savedNodePositions || {};
+        if (Object.keys(effectivePositions).length > 0) {
+            localStorage.setItem(`${projectKey}_positions`, JSON.stringify(effectivePositions));
+            console.log('📍 Loaded', Object.keys(effectivePositions).length, 'node positions from cloud/local cache');
         }
-        
+
+        const effectiveEdgeControlPoints = getStore().edgeControlPoints || {};
+        if (Object.keys(effectiveEdgeControlPoints).length > 0) {
+            localStorage.setItem('papermap_edge_control_points', JSON.stringify(effectiveEdgeControlPoints));
+            localStorage.setItem(`${projectKey}_edge_control_points`, JSON.stringify(effectiveEdgeControlPoints));
+        }
+
+        localStorage.setItem(`${projectKey}_next_control_point_id`, String(getStore().nextControlPointId));
+
         console.log('✓ Project loaded from cloud:', project.name, 
                    `(${getStore().appData.articles.length} nodes, ${getStore().appData.connections.length} edges)`);
         showNotification(`Loaded: ${project.name}`, 'success');
@@ -194,6 +252,7 @@ async function loadSharedProjectFromCloud(shareToken) {
     pauseHistory();
     try {
         loadProjectDataIntoStore(project.data || {});
+        applyProjectScopedLocalCache(project.id);
         getStore().setCurrentProjectId(project.id);
         getStore().setCurrentUserRole('viewer');
         getStore().setIsReadOnly(true);
@@ -282,7 +341,7 @@ export async function saveToCloud(silent = false) {
         let positions = {};
         const network = getNetwork();
         if (network) {
-            positions = network.getPositions();
+            positions = getMergedPersistedPositions();
         } else {
             // Fallback to project-specific localStorage if network not available
             const projectKey = `papermap_project_${currentProjectId}`;
@@ -298,6 +357,8 @@ export async function saveToCloud(silent = false) {
             edges: getStore().appData?.connections || [],
             zones: getStore().tagZones || [],
             positions: positions,
+            edgeControlPoints: getStore().edgeControlPoints || {},
+            nextControlPointId: getStore().nextControlPointId,
         };
         
         // Save to cloud with auto-save (throttled)
@@ -330,7 +391,7 @@ export async function saveToCloudWithPreview(silent = false) {
         let positions = {};
         const network = getNetwork();
         if (network) {
-            positions = network.getPositions();
+            positions = getMergedPersistedPositions();
         } else {
             const projectKey = `papermap_project_${currentProjectId}`;
             const savedPositions = localStorage.getItem(`${projectKey}_positions`);
@@ -348,6 +409,8 @@ export async function saveToCloudWithPreview(silent = false) {
             edges: getStore().appData?.connections || [],
             zones: getStore().tagZones || [],
             positions: positions,
+            edgeControlPoints: getStore().edgeControlPoints || {},
+            nextControlPointId: getStore().nextControlPointId,
             previewImage: previewImage
         };
         
@@ -389,7 +452,7 @@ export async function forceSaveToCloud() {
         let positions = {};
         const network = getNetwork();
         if (network) {
-            positions = network.getPositions();
+            positions = getMergedPersistedPositions();
         } else {
             // Fallback to project-specific localStorage if network not available
             const projectKey = `papermap_project_${currentProjectId}`;
@@ -405,6 +468,8 @@ export async function forceSaveToCloud() {
             edges: getStore().appData?.connections || [],
             zones: getStore().tagZones || [],
             positions: positions,
+            edgeControlPoints: getStore().edgeControlPoints || {},
+            nextControlPointId: getStore().nextControlPointId,
         };
         
         await updateProject(currentProjectId, projectData);

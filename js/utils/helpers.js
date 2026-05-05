@@ -79,15 +79,30 @@ export function getThemeCssVar(name, fallback = '') {
     return value || fallback;
 }
 
+export function getDefaultNodeFont(color = getThemeCssVar('--color-node-default-font', isDarkThemeActive() ? '#ffffff' : '#333333')) {
+    return {
+        color: isDarkThemeActive() ? '#ffffff' : color,
+        strokeWidth: 0,
+        strokeColor: 'transparent',
+    };
+}
+
+export function getDefaultEdgeFont() {
+    return {
+        color: isDarkThemeActive() ? '#ffffff' : '#666666',
+        align: 'horizontal',
+        strokeWidth: 0,
+        strokeColor: 'transparent',
+    };
+}
+
 export function getDefaultNodeAppearance() {
     return {
         color: {
             border: getThemeCssVar('--color-node-default-border', '#4a90e2'),
             background: getThemeCssVar('--color-node-default-background', '#e3f2fd'),
         },
-        font: {
-            color: getThemeCssVar('--color-node-default-font', isDarkThemeActive() ? '#e8eaf0' : '#333333'),
-        },
+        font: getDefaultNodeFont(),
     };
 }
 
@@ -113,9 +128,7 @@ export function getNodeAppearanceForZones(zones = []) {
             background: smallestZone.color,
             border: darkenColor(smallestZone.color, 20),
         },
-        font: {
-            color: getContrastColor(smallestZone.color),
-        },
+        font: getDefaultNodeFont(isDarkThemeActive() ? '#ffffff' : getContrastColor(smallestZone.color)),
     };
 }
 
