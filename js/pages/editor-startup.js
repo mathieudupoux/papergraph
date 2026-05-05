@@ -5,6 +5,7 @@ import { load } from '../data/persistence.js';
 import { scheduleBibliographyRebuild } from '../data/bibliography.js';
 import { initializeEventListeners } from '../core/init.js';
 import { initializeGraph } from '../graph/init.js';
+import { updateGraph } from '../graph/render.js';
 import { initCloudStorage } from '../data/cloud-storage.js';
 import { icon } from '../ui/icons.js';
 import { refreshProjectShareButton } from '../ui/project-share.js';
@@ -142,10 +143,10 @@ async function initApp() {
                 return;
             }
 
-            // Unauthenticated visitors should only reach the editor through a
-            // public shared-project URL. Every other editor entry point
-            // requires a session.
-            if (!shareToken && !session) {
+            // Unauthenticated visitors may reach the editor through a public
+            // shared-project URL or a public gallery project. Every other
+            // editor entry point requires a session.
+            if (!shareToken && !isGalleryAccess && !session) {
                 redirectToLanding();
                 return;
             }
@@ -209,6 +210,12 @@ async function initApp() {
                     } else {
                         getStore().setSavedNodePositions({});
                     }
+
+                    getStore().setEdgeControlPoints(projectData.edgeControlPoints || {});
+                    const nextControlPointId = Number.isFinite(projectData.nextControlPointId)
+                        ? projectData.nextControlPointId
+                        : Number.parseInt(projectData.nextControlPointId, 10);
+                    getStore().setNextControlPointId(Number.isFinite(nextControlPointId) ? nextControlPointId : -1);
                     
                     // Update getStore().appData properties (don't replace the whole object)
                     getStore().setArticles((projectData.nodes || projectData.articles || []).map(a => ({
@@ -269,6 +276,19 @@ async function initApp() {
                                 getStore().setSavedNodePositions(projectData.nodePositions);
                                 delete projectData.nodePositions;
                             }
+                            if (projectData.edgeControlPoints) {
+                                getStore().setEdgeControlPoints(projectData.edgeControlPoints);
+                                delete projectData.edgeControlPoints;
+                            } else {
+                                getStore().setEdgeControlPoints({});
+                            }
+                            const importedNextControlPointId = Number.isFinite(projectData.nextControlPointId)
+                                ? projectData.nextControlPointId
+                                : Number.parseInt(projectData.nextControlPointId, 10);
+                            getStore().setNextControlPointId(
+                                Number.isFinite(importedNextControlPointId) ? importedNextControlPointId : -1
+                            );
+                            delete projectData.nextControlPointId;
                             
                             
 Object.assign(getStore().appData, projectData);
@@ -342,20 +362,7 @@ Object.assign(getStore().appData, projectData);
             // Initialize graph after a short delay to ensure DOM is ready
             setTimeout(() => {
                 initializeGraph();
-                
-                // Restore control point nodes after graph is initialized
-                setTimeout(() => {
-                    if (typeof restoreControlPointNodes === 'function') {
-                        restoreControlPointNodes();
-                        
-                        // Rebuild edges with control points
-                        Object.keys(getStore().edgeControlPoints || {}).forEach(edgeId => {
-                            if (typeof rebuildEdgeWithControlPoints === 'function') {
-                                rebuildEdgeWithControlPoints(parseInt(edgeId));
-                            }
-                        });
-                    }
-                }, 200);
+                updateGraph();
                 
                 // Note: Node positioning is handled in stabilizationIterationsDone event
                 // in graph.js, which checks for savedNodePositions first
@@ -484,7 +491,10 @@ Object.assign(getStore().appData, projectData);
         window.addEventListener('beforeunload', () => {
             console.log('=== BEFORE UNLOAD - Saving positions ===');
             if (getNetwork()) {
-                const positions = getNetwork().getPositions();
+                const positions = {
+                    ...(getStore().savedNodePositions || {}),
+                    ...getNetwork().getPositions(),
+                };
                 console.log('Positions to save:', Object.keys(positions).length, 'nodes');
                 console.log('Sample positions:', Object.entries(positions).slice(0, 3));
                 localStorage.setItem('papermap_positions', JSON.stringify(positions));
@@ -692,12 +702,18 @@ Object.assign(getStore().appData, projectData);
             // Show read-only bar (contains both label and copy button)
             const readonlyBar = document.getElementById('readonlyIndicator');
             readonlyBar.style.display = 'flex';
+            ['pointerdown', 'mousedown', 'touchstart', 'dblclick', 'click'].forEach((eventName) => {
+                readonlyBar.addEventListener(eventName, (event) => {
+                    event.stopPropagation();
+                });
+            });
             
             // Position readonly bar right next to the logo menu
             const logoBar = document.querySelector('.logo-menu-btn-extended');
             if (logoBar) {
                 const positionReadonlyBar = () => {
                     const rect = logoBar.getBoundingClientRect();
+                    readonlyBar.style.right = 'auto';
                     readonlyBar.style.left = (rect.right + 10) + 'px';
                 };
                 positionReadonlyBar();
@@ -728,7 +744,9 @@ Object.assign(getStore().appData, projectData);
             // Disable node dragging - will be handled in graph.js
             
             // Setup Copy to Dashboard button
-            document.getElementById('copyToDashboardBtn').addEventListener('click', async () => {
+            document.getElementById('copyToDashboardBtn').addEventListener('click', async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
                 try {
                     const { copyProjectToWorkspace } = await import('../data/gallery.js');
                     await copyProjectToWorkspace(

@@ -8,6 +8,8 @@ import { icon } from './icons.js';
 import { getMobileBottomDeadzonePx, isPhoneViewport } from './touch-zone-mode.js';
 
 let activePulseNodeId = null;
+const RADIAL_BUTTON_SIZE = 44;
+const RADIAL_MENU_GAP = 12;
 
 function toRgba(color, alpha) {
     if (!color) return `rgba(74, 144, 226, ${alpha})`;
@@ -106,19 +108,7 @@ export function showRadialMenu(x, y, nodeId, nodeWidth = 100, nodeHeight = 50) {
         resetPulseNode(activePulseNodeId);
     }
     
-    // Position buttons AROUND the box
-    const padding = isPhoneViewport() ? 2 : 15;
-    
-    const connectBtn = document.querySelector('.radial-connect');
-    const deleteBtn = document.querySelector('.radial-delete');
-    
-    // Right center (connect)
-    connectBtn.style.left = (x + nodeWidth/2 + padding) + 'px';
-    connectBtn.style.top = (y - 22) + 'px';
-    
-    // Left center (delete)
-    deleteBtn.style.left = (x - nodeWidth/2 - padding - 44) + 'px';
-    deleteBtn.style.top = (y - 22) + 'px';
+    updateRadialMenuPosition(x, y, nodeWidth, nodeHeight, nodeId);
     
     // Force reflow to restart animation
     menu.classList.remove('active');
@@ -167,19 +157,53 @@ export function showRadialMenu(x, y, nodeId, nodeWidth = 100, nodeHeight = 50) {
     }
 }
 
-export function updateRadialMenuPosition(x, y, nodeWidth, nodeHeight) {
-    const padding = isPhoneViewport() ? 2 : 15;
-    
+function getNodeScreenBounds(nodeId, fallbackX, fallbackY) {
+    if (!nodeId || !getNetwork()) {
+        return {
+            left: fallbackX - RADIAL_BUTTON_SIZE,
+            right: fallbackX + RADIAL_BUTTON_SIZE,
+            top: fallbackY - RADIAL_BUTTON_SIZE,
+            bottom: fallbackY + RADIAL_BUTTON_SIZE,
+            centerX: fallbackX,
+            centerY: fallbackY,
+        };
+    }
+
+    const bounds = getNetwork().getBoundingBox(nodeId);
+    const topLeft = getNetwork().canvasToDOM({ x: bounds.left, y: bounds.top });
+    const bottomRight = getNetwork().canvasToDOM({ x: bounds.right, y: bounds.bottom });
+    const container = document.getElementById('graphContainer');
+    const rect = container.getBoundingClientRect();
+
+    const left = rect.left + topLeft.x;
+    const right = rect.left + bottomRight.x;
+    const top = rect.top + topLeft.y;
+    const bottom = rect.top + bottomRight.y;
+
+    return {
+        left,
+        right,
+        top,
+        bottom,
+        centerX: (left + right) / 2,
+        centerY: (top + bottom) / 2,
+    };
+}
+
+export function updateRadialMenuPosition(x, y, nodeWidth, nodeHeight, nodeId = getStore().selectedNodeId) {
     const connectBtn = document.querySelector('.radial-connect');
     const deleteBtn = document.querySelector('.radial-delete');
+    const gap = isPhoneViewport() ? 8 : RADIAL_MENU_GAP;
+    const bounds = getNodeScreenBounds(nodeId, x, y);
+    const top = Math.max(72, Math.min(window.innerHeight - RADIAL_BUTTON_SIZE - 12, bounds.centerY - (RADIAL_BUTTON_SIZE / 2)));
     
     // Right center (connect)
-    connectBtn.style.left = (x + nodeWidth/2 + padding) + 'px';
-    connectBtn.style.top = (y - 22) + 'px';
+    connectBtn.style.left = Math.max(12, Math.min(window.innerWidth - RADIAL_BUTTON_SIZE - 12, bounds.right + gap)) + 'px';
+    connectBtn.style.top = top + 'px';
     
     // Left center (delete)
-    deleteBtn.style.left = (x - nodeWidth/2 - padding - 44) + 'px';
-    deleteBtn.style.top = (y - 22) + 'px';
+    deleteBtn.style.left = Math.max(12, Math.min(window.innerWidth - RADIAL_BUTTON_SIZE - 12, bounds.left - gap - RADIAL_BUTTON_SIZE)) + 'px';
+    deleteBtn.style.top = top + 'px';
 }
 
 export function updateRadialMenuIfActive() {
@@ -204,7 +228,7 @@ export function updateRadialMenuIfActive() {
     const nodeWidth = node.shape.width || 100;
     const nodeHeight = node.shape.height || 50;
     
-    updateRadialMenuPosition(screenX, screenY, nodeWidth, nodeHeight);
+    updateRadialMenuPosition(screenX, screenY, nodeWidth, nodeHeight, getStore().selectedNodeId);
 }
 
 export function hideRadialMenu() {

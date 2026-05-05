@@ -365,13 +365,13 @@ export function endSelectionBoxDrag() {
     
     getNetwork().setOptions({
         interaction: {
-            dragNodes: true,
+            dragNodes: !(getStore().isReadOnlyMode || getStore().isGalleryViewer),
             dragView: false,
             zoomView: false,
             hover: true,
             hoverConnectedEdges: true,
             selectConnectedEdges: true,
-            multiselect: true,
+            multiselect: !(getStore().isReadOnlyMode || getStore().isGalleryViewer),
             selectable: true
         }
     });

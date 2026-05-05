@@ -8,13 +8,15 @@ import { toggleGrid, closeMultiTagDialog, deleteSelectedNodes } from '../ui/tool
 import { searchInGraph } from '../graph/search.js';
 import { hideSelectionBox, applyNodeLabelFormat } from '../graph/selection.js';
 import { hideRadialMenu, hideSelectionRadialMenu } from '../ui/radial-menu.js';
-import { hideEdgeMenu, startConnectionMode, cancelConnectionMode, deleteConnection } from '../graph/connections.js';
+import { hideEdgeMenu, startConnectionMode, cancelConnectionMode, deleteConnection, deleteEdgeLabel } from '../graph/connections.js';
 import { hideZoneDeleteButton, deleteZone } from '../graph/zones.js';
 import { updateGraph } from '../graph/render.js';
 import { fitGraphView } from '../graph/view.js';
 import { setupLogoDropdown } from '../ui/logo-dropdown.js';
 import { hideContextMenu } from '../ui/context-menu.js';
 import { disableTouchZoneCreationMode, syncTouchZoneModeIndicator } from '../ui/touch-zone-mode.js';
+import { getDefaultEdgeFont, getDefaultNodeFont } from '../utils/helpers.js';
+import { getLastCanvasPointerPosition } from '../graph/events.js';
 
 // ===== INITIALIZATION & EVENT LISTENERS =====
 // Application initialization and all event bindings
@@ -35,6 +37,27 @@ if (urlParams.get('mode') === 'readonly') {
 export function initializeEventListeners() {
     syncTouchZoneModeIndicator();
 
+    const preventEditorPageZoom = (event) => {
+        if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+        }
+    };
+
+    const preventEditorZoomShortcuts = (event) => {
+        const isMac = navigator.platform?.startsWith('Mac') ?? false;
+        const modifierPressed = isMac ? event.metaKey : event.ctrlKey;
+        if (!modifierPressed) return;
+
+        if (event.key === '+' || event.key === '=' || event.key === '-' || event.key === '_' || event.key === '0') {
+            event.preventDefault();
+        }
+    };
+
+    document.addEventListener('wheel', preventEditorPageZoom, { passive: false });
+    document.addEventListener('keydown', preventEditorZoomShortcuts);
+    document.addEventListener('gesturestart', (event) => event.preventDefault());
+    document.addEventListener('gesturechange', (event) => event.preventDefault());
+
     const refreshGraphTheme = (event) => {
         const isDark = event?.detail?.isDark ?? document.body.classList.contains('dark-theme');
         const themeToggleText = document.getElementById('themeToggleText');
@@ -44,6 +67,30 @@ export function initializeEventListeners() {
 
         if (!getNetwork()) return;
         requestAnimationFrame(() => {
+            const nodeFont = getDefaultNodeFont();
+            getNetwork()?.setOptions({
+                nodes: {
+                    font: {
+                        size: 14,
+                        ...nodeFont,
+                        bold: {
+                            color: nodeFont.color,
+                            size: 14,
+                            face: 'arial',
+                            vadjust: 0,
+                            mod: '',
+                            strokeWidth: 0,
+                            strokeColor: 'transparent',
+                        },
+                    },
+                },
+                edges: {
+                    font: {
+                        size: 12,
+                        ...getDefaultEdgeFont(),
+                    },
+                },
+            });
             updateGraph();
             getNetwork()?.redraw();
         });
@@ -342,6 +389,9 @@ export function initializeEventListeners() {
                 hideZoneDeleteButton();
                 hideSelectionRadialMenu();
                 hideContextMenu();
+            } else if (getStore().selectedEdgeLabelId !== null) {
+                deleteEdgeLabel(getStore().selectedEdgeLabelId);
+                hideEdgeMenu();
             } else if (getStore().selectedNodeId !== null) {
                 deleteArticleById(getStore().selectedNodeId);
                 getStore().setSelectedNodeId(null);
@@ -392,7 +442,7 @@ export function initializeEventListeners() {
         e.preventDefault();
         await importTextToGraph(
             text,
-            getStore().lastCanvasPointerPosition || getNetwork()?.getViewPosition() || null
+            getLastCanvasPointerPosition() || getNetwork()?.getViewPosition() || null
         );
     });
     

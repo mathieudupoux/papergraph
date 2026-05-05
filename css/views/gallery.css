@@ -465,6 +465,7 @@ textarea.form-input {
     box-shadow: var(--shadow-sm);
     transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
+    touch-action: manipulation;
 }
 
 .readonly-bar:hover {
@@ -476,6 +477,7 @@ textarea.form-input {
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
+    height: 56px;
     min-height: 56px;
     box-sizing: border-box;
     border: none;
@@ -486,6 +488,9 @@ textarea.form-input {
     cursor: pointer;
     white-space: nowrap;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .readonly-btn:hover {
@@ -528,6 +533,27 @@ body.shared-readonly-view .readonly-btn:hover {
 
 body.shared-readonly-view .readonly-btn svg {
     opacity: 0.8;
+}
+
+@media (max-width: 800px) {
+    .readonly-bar {
+        top: 12px;
+        right: auto;
+    }
+
+    .readonly-btn {
+        width: 56px;
+        min-width: 56px;
+        height: 56px;
+        min-height: 56px;
+        justify-content: center;
+        padding: 0;
+        gap: 0;
+    }
+
+    .readonly-btn span {
+        display: none;
+    }
 }
 
 /* Responsive */

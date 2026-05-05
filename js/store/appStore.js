@@ -48,6 +48,8 @@ const storeDefinition = (set, get) => ({
 
     // ── UI State ──────────────────────────────────────────────────────
     isEditingEdgeLabel: false,
+    currentEditingEdgeLabelId: null,
+    currentEditingEdgeLabelText: '',
     currentEditingArticleId: null,
     pendingImportArticle: null,
 
@@ -65,6 +67,7 @@ const storeDefinition = (set, get) => ({
 
     selectedNodeId: null,
     selectedEdgeId: null,
+    selectedEdgeLabelId: null,
     gridEnabled: false,
     currentPulseInterval: null,
 
@@ -96,6 +99,24 @@ const storeDefinition = (set, get) => ({
         startX: 0,
         startY: 0,
         originalZone: null,
+    },
+
+    edgeLabelMoving: {
+        active: false,
+        readyToMove: false,
+        edgeId: null,
+        startX: 0,
+        startY: 0,
+        originalGeometry: null,
+    },
+
+    edgeLabelResizing: {
+        active: false,
+        edgeId: null,
+        handle: null,
+        startX: 0,
+        startY: 0,
+        originalGeometry: null,
     },
 
     zoneMoving: {
@@ -247,6 +268,13 @@ const storeDefinition = (set, get) => ({
         },
     })),
 
+    updateConnection: (id, updates) => set((s) => ({
+        appData: {
+            ...s.appData,
+            connections: s.appData.connections.map((c) => c.id === id ? { ...c, ...updates } : c),
+        },
+    })),
+
     deleteConnection: (id) => set((s) => ({
         appData: {
             ...s.appData,
@@ -281,16 +309,21 @@ const storeDefinition = (set, get) => ({
 
     setSavedNodePositions: (savedNodePositions) => set({ savedNodePositions }),
 
-    commitTrackedGraphState: ({ articles, tagZones, savedNodePositions }) => set((s) => ({
-        appData: articles ? {
+    commitTrackedGraphState: ({ articles, connections, tagZones, savedNodePositions, edgeControlPoints, nextControlPointId }) => set((s) => ({
+        appData: (articles || connections) ? {
             ...s.appData,
-            articles: articles.map((article) => ({
-                ...article,
-                categories: Array.isArray(article.categories) ? article.categories : [],
-            })),
+            ...(articles ? {
+                articles: articles.map((article) => ({
+                    ...article,
+                    categories: Array.isArray(article.categories) ? article.categories : [],
+                })),
+            } : {}),
+            ...(connections ? { connections } : {}),
         } : s.appData,
         tagZones: tagZones ?? s.tagZones,
         savedNodePositions: savedNodePositions ?? s.savedNodePositions,
+        edgeControlPoints: edgeControlPoints ?? s.edgeControlPoints,
+        nextControlPointId: nextControlPointId ?? s.nextControlPointId,
     })),
 
     mergeNodePositions: (positions) => set((s) => ({
@@ -337,9 +370,16 @@ const storeDefinition = (set, get) => ({
 
     // ── nextControlPointId Actions ────────────────────────────────────
 
-    decrementNextControlPointId: () => set((s) => ({
-        nextControlPointId: s.nextControlPointId - 1,
-    })),
+    allocateNextControlPointId: () => {
+        let assignedId;
+        set((s) => {
+            assignedId = s.nextControlPointId;
+            return {
+                nextControlPointId: s.nextControlPointId - 1,
+            };
+        });
+        return assignedId;
+    },
 
     setNextControlPointId: (id) => set({ nextControlPointId: id }),
 
@@ -358,9 +398,12 @@ const storeDefinition = (set, get) => ({
 
     setSelectedNodeId: (selectedNodeId) => set({ selectedNodeId }),
     setSelectedEdgeId: (selectedEdgeId) => set({ selectedEdgeId }),
+    setSelectedEdgeLabelId: (selectedEdgeLabelId) => set({ selectedEdgeLabelId }),
     setSelectedZoneIndex: (selectedZoneIndex) => set({ selectedZoneIndex }),
     setIsDraggingView: (isDraggingView) => set({ isDraggingView }),
     setIsEditingEdgeLabel: (isEditingEdgeLabel) => set({ isEditingEdgeLabel }),
+    setCurrentEditingEdgeLabelId: (currentEditingEdgeLabelId) => set({ currentEditingEdgeLabelId }),
+    setCurrentEditingEdgeLabelText: (currentEditingEdgeLabelText) => set({ currentEditingEdgeLabelText }),
     setCurrentEditingArticleId: (currentEditingArticleId) => set({ currentEditingArticleId }),
     setPendingImportArticle: (pendingImportArticle) => set({ pendingImportArticle }),
     setCurrentPulseInterval: (currentPulseInterval) => set({ currentPulseInterval }),
@@ -420,6 +463,34 @@ const storeDefinition = (set, get) => ({
         },
     }),
 
+    updateEdgeLabelMoving: (updates) => set((s) => ({
+        edgeLabelMoving: { ...s.edgeLabelMoving, ...updates },
+    })),
+    resetEdgeLabelMoving: () => set({
+        edgeLabelMoving: {
+            active: false,
+            readyToMove: false,
+            edgeId: null,
+            startX: 0,
+            startY: 0,
+            originalGeometry: null,
+        },
+    }),
+
+    updateEdgeLabelResizing: (updates) => set((s) => ({
+        edgeLabelResizing: { ...s.edgeLabelResizing, ...updates },
+    })),
+    resetEdgeLabelResizing: () => set({
+        edgeLabelResizing: {
+            active: false,
+            edgeId: null,
+            handle: null,
+            startX: 0,
+            startY: 0,
+            originalGeometry: null,
+        },
+    }),
+
     updateZoneEditing: (updates) => set((s) => ({
         zoneEditing: { ...s.zoneEditing, ...updates },
     })),
@@ -442,7 +513,13 @@ export const appStore = createStore(
         }),
         // Only record a snapshot when the tracked data actually changed.
         // Without this, every set() call (including UI-only state) creates an entry.
-        equality: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+        equality: (a, b) => (
+            a.appData === b.appData
+            && a.tagZones === b.tagZones
+            && a.savedNodePositions === b.savedNodePositions
+            && a.edgeControlPoints === b.edgeControlPoints
+            && a.nextControlPointId === b.nextControlPointId
+        ),
     })
 );
 

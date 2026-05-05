@@ -4,6 +4,7 @@
 import { getStore, getNetwork, setNetwork } from '../store/appStore.js';
 import { getGraphData } from './render.js';
 import { setupCanvasEvents, setupNetworkEvents } from './events.js';
+import { getDefaultEdgeFont, getDefaultNodeFont } from '../utils/helpers.js';
 
 function toRgba(color, alpha) {
     if (!color) return `rgba(74, 144, 226, ${alpha})`;
@@ -48,6 +49,7 @@ function getLiveNodeBaseColor(nodeId, fallbackColor) {
 export function initializeGraph() {
     const container = document.getElementById('graphContainer');
     const graphData = getGraphData();
+    const defaultNodeFont = getDefaultNodeFont();
     
     const isReadOnly = getStore().isReadOnlyMode || getStore().isGalleryViewer;
     const options = {
@@ -65,13 +67,15 @@ export function initializeGraph() {
             },
             font: {
                 size: 14,
-                color: '#333333',
+                ...defaultNodeFont,
                 bold: {
-                    color: '#333333',
+                    color: defaultNodeFont.color,
                     size: 14,
                     face: 'arial',
                     vadjust: 0,
-                    mod: ''
+                    mod: '',
+                    strokeWidth: 0,
+                    strokeColor: 'transparent',
                 }
             },
             color: {
@@ -111,12 +115,12 @@ export function initializeGraph() {
             },
             font: {
                 size: 12,
-                align: 'middle'
+                ...getDefaultEdgeFont()
             },
             smooth: {
                 enabled: true,
                 type: 'continuous',
-                roundness: 0.15
+                roundness: 0.3
             },
             hoverWidth: 0,
             selectionWidth: 2,

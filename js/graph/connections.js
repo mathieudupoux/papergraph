@@ -1,11 +1,94 @@
 import { getStore, getNetwork } from '../store/appStore.js';
-import { showNotification } from '../utils/helpers.js';
+import { getDefaultEdgeFont, getThemeCssVar, showNotification } from '../utils/helpers.js';
 import { updateGraph } from './render.js';
 import { save } from '../data/persistence.js';
+import { getEdgeLabelGeometry, getEdgeLabelTextStyle, normalizeEdgeId } from './edge-labels.js';
 import { icon } from '../ui/icons.js';
 
 // ===== CONNECTIONS =====
 // Connection/edge management and creation
+
+function cloneConnections(connections = getStore().appData.connections) {
+    return connections.map((connection) => ({
+        ...connection,
+        ...(connection.labelLayout ? { labelLayout: { ...connection.labelLayout } } : {}),
+    }));
+}
+
+function updateConnectionGeometryPreview(element, geometry) {
+    const graphContainer = document.getElementById('graphContainer');
+    if (!graphContainer || !geometry) return;
+
+    const scale = Math.max(getNetwork()?.getScale?.() || 1, 0.15);
+    const rect = graphContainer.getBoundingClientRect();
+    const topLeft = getNetwork().canvasToDOM({
+        x: geometry.centerX - (geometry.width / 2),
+        y: geometry.centerY - (geometry.height / 2)
+    });
+    const bottomRight = getNetwork().canvasToDOM({
+        x: geometry.centerX + (geometry.width / 2),
+        y: geometry.centerY + (geometry.height / 2)
+    });
+
+    element.style.left = `${rect.left + topLeft.x}px`;
+    element.style.top = `${rect.top + topLeft.y}px`;
+    element.style.width = `${Math.max(40, bottomRight.x - topLeft.x)}px`;
+    element.style.height = `${Math.max(24, bottomRight.y - topLeft.y)}px`;
+    element.style.minHeight = `${Math.max(24, bottomRight.y - topLeft.y)}px`;
+    element.style.padding = `${geometry.paddingY * scale}px ${geometry.paddingX * scale}px`;
+}
+
+function applyInlineEdgeEditorScale(element, textStyle) {
+    const scale = Math.max(getNetwork()?.getScale?.() || 1, 0.15);
+    element.style.fontSize = `${textStyle.fontSize * scale}px`;
+    element.style.lineHeight = `${textStyle.fontSize * textStyle.lineHeight * scale}px`;
+}
+
+function buildInlineEditingConnection(connection, pointerDOM) {
+    if (!connection) return null;
+
+    const hasExistingLabel = Boolean((connection.label || '').trim());
+    if (hasExistingLabel || connection.labelLayout || !pointerDOM || !getNetwork()) {
+        return {
+            ...connection,
+            ...(connection.labelLayout ? { labelLayout: { ...connection.labelLayout } } : {}),
+        };
+    }
+
+    const baseGeometry = getEdgeLabelGeometry(connection, { allowEmptyLabel: true });
+    if (!baseGeometry) {
+        return { ...connection };
+    }
+
+    const pointerCanvas = getNetwork().DOMtoCanvas(pointerDOM);
+
+    return {
+        ...connection,
+        labelLayout: {
+            offsetX: pointerCanvas.x - baseGeometry.anchorX,
+            offsetY: pointerCanvas.y - baseGeometry.anchorY,
+            width: baseGeometry.width,
+            height: baseGeometry.height,
+        },
+    };
+}
+
+function getInlineEdgeEditorText(editor) {
+    return String(editor.innerText || '')
+        .replace(/\r\n/g, '\n')
+        .replace(/\u00A0/g, ' ');
+}
+
+function placeCaretAtEnd(element) {
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
 
 export function createConnection(label) {
     if (!getStore().connectionMode.fromNodeId || !getStore().connectionMode.toNodeId) return;
@@ -31,7 +114,11 @@ export function editConnectionLabel(edgeId) {
     const newLabel = prompt('Label de la connexion (optionnel):', currentLabel);
     
     if (newLabel !== null) {
-        getStore().updateConnectionLabel(edgeId, newLabel.trim());
+        const nextLabel = newLabel.trim();
+        const nextConnections = cloneConnections().map((item) => (
+            item.id === edgeId ? { ...item, label: nextLabel } : item
+        ));
+        getStore().commitTrackedGraphState({ connections: nextConnections });
         updateGraph();
         save();
         showNotification('Label mis à jour!', 'success');
@@ -40,7 +127,7 @@ export function editConnectionLabel(edgeId) {
 
 export function editEdgeLabelInline(edgeId, edge, pointerDOM) {
     // Don't allow editing in gallery viewer mode
-    if (getStore().isGalleryViewer) {
+    if (getStore().isReadOnlyMode || getStore().isGalleryViewer) {
         return;
     }
     
@@ -49,80 +136,184 @@ export function editEdgeLabelInline(edgeId, edge, pointerDOM) {
         console.log('Connection not found:', edgeId);
         return;
     }
-    
-    // Use the pointer position directly (where user clicked)
-    const container = document.getElementById('graphContainer');
-    const rect = container.getBoundingClientRect();
-    const screenPos = {
-        x: rect.left + pointerDOM.x,
-        y: rect.top + pointerDOM.y
-    };
-    
-    // Create inline input
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = connection.label || '';
-    input.placeholder = 'Label';
-    input.style.position = 'fixed';
-    input.style.left = screenPos.x + 'px';
-    input.style.top = screenPos.y + 'px';
-    input.style.transform = 'translate(-50%, -50%)';
-    input.style.padding = '4px 8px';
-    input.style.border = '1px solid #e0e0e0';
-    input.style.borderRadius = '4px';
-    input.style.fontSize = '11px';
-    input.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    input.style.zIndex = '10000';
-    input.style.background = 'rgba(255, 255, 255, 0.95)';
-    input.style.backdropFilter = 'blur(8px)';
-    input.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-    input.style.minWidth = '80px';
+
+    getStore().setSelectedEdgeId(null);
+    getStore().setSelectedEdgeLabelId(edgeId);
+
+    let editingConnection = buildInlineEditingConnection(connection, pointerDOM);
+    const geometry = getEdgeLabelGeometry(editingConnection, { allowEmptyLabel: true });
+    if (!geometry) return;
+    const textStyle = getEdgeLabelTextStyle();
+
+    const initialLabel = connection.label || '';
+    const isCreatingNewLabel = !initialLabel.trim();
+
+    // Create inline editor with the same visual language as the rendered label
+    const editorShell = document.createElement('div');
+    editorShell.style.position = 'fixed';
+    editorShell.style.boxSizing = 'border-box';
+    editorShell.style.border = isCreatingNewLabel ? '1px dashed rgba(74, 144, 226, 0.8)' : 'none';
+    editorShell.style.borderRadius = '0';
+    editorShell.style.zIndex = '10000';
+    editorShell.style.background = isCreatingNewLabel
+        ? (document.body.classList.contains('dark-theme')
+            ? 'rgba(74, 144, 226, 0.14)'
+            : 'rgba(49, 95, 212, 0.08)')
+        : 'transparent';
+    editorShell.style.boxShadow = 'none';
+    editorShell.style.display = 'flex';
+    editorShell.style.alignItems = 'center';
+    editorShell.style.justifyContent = 'center';
+    editorShell.style.transform = 'translateZ(0)';
+    editorShell.style.pointerEvents = 'auto';
+    updateConnectionGeometryPreview(editorShell, geometry);
+
+    const input = document.createElement('div');
+    input.contentEditable = 'true';
+    input.spellcheck = false;
+    input.textContent = initialLabel;
+    input.style.width = '100%';
+    input.style.maxWidth = '100%';
+    input.style.boxSizing = 'border-box';
+    input.style.border = 'none';
+    input.style.padding = '0';
+    input.style.margin = '0';
+    input.style.fontFamily = textStyle.fontFamily;
+    input.style.background = 'transparent';
     input.style.textAlign = 'center';
     input.style.outline = 'none';
-    input.style.color = '#666';
-    
-    document.body.appendChild(input);
+    input.style.color = getDefaultEdgeFont().color;
+    input.style.caretColor = getDefaultEdgeFont().color;
+    input.style.whiteSpace = 'pre-wrap';
+    input.style.wordBreak = 'break-word';
+    input.style.overflowWrap = 'break-word';
+    input.style.cursor = 'text';
+    applyInlineEdgeEditorScale(input, textStyle);
+
+    editorShell.appendChild(input);
+    document.body.appendChild(editorShell);
     input.focus();
-    input.select();
+    placeCaretAtEnd(input);
     
     getStore().setIsEditingEdgeLabel(true);
+    getStore().setCurrentEditingEdgeLabelId(edgeId);
+    if (getNetwork()) {
+        getNetwork().redraw();
+    }
     
     const persist = save;
+    let editFinalized = false;
+    const removeClickHandler = () => {
+        document.removeEventListener('click', clickHandler);
+    };
+    const syncEditorPreview = () => {
+        const nextLabel = getInlineEdgeEditorText(input);
+        editingConnection = {
+            ...editingConnection,
+            label: nextLabel,
+        };
+        const previewGeometry = getEdgeLabelGeometry(editingConnection, { allowEmptyLabel: true });
+        if (previewGeometry) {
+            updateConnectionGeometryPreview(editorShell, previewGeometry);
+        }
+        applyInlineEdgeEditorScale(input, textStyle);
+    };
+    const network = getNetwork();
+    const syncEditorToViewport = () => {
+        if (editFinalized) return;
+        syncEditorPreview();
+    };
+    syncEditorPreview();
+    network?.on?.('zoom', syncEditorToViewport);
+    network?.on?.('dragging', syncEditorToViewport);
+
     const finishEdit = () => {
-        const newLabel = input.value.trim();
-        getStore().updateConnectionLabel(edgeId, newLabel);
+        if (editFinalized) return;
+        editFinalized = true;
+
+        const newLabel = getInlineEdgeEditorText(input).trim();
         getStore().setIsEditingEdgeLabel(false);
-        
-        // Just rebuild this specific edge instead of calling updateGraph
-        rebuildEdgeWithControlPoints(edgeId);
-        
-        persist();
-        input.remove();
-        if (newLabel) {
-            showNotification('Label mis à jour!', 'success');
+        getStore().setCurrentEditingEdgeLabelId(null);
+        removeClickHandler();
+        network?.off?.('zoom', syncEditorToViewport);
+        network?.off?.('dragging', syncEditorToViewport);
+
+        if (newLabel !== initialLabel) {
+            const nextConnections = cloneConnections().map((item) => (
+                item.id === edgeId
+                    ? {
+                        ...item,
+                        label: newLabel,
+                        ...(editingConnection.labelLayout
+                            ? { labelLayout: { ...editingConnection.labelLayout } }
+                            : {}),
+                    }
+                    : item
+            ));
+            getStore().commitTrackedGraphState({ connections: nextConnections });
+            if (getNetwork()) getNetwork().redraw();
+            persist();
+            if (newLabel) {
+                showNotification('Label mis à jour!', 'success');
+            }
+        }
+
+        if (editorShell.isConnected) editorShell.remove();
+        if (getNetwork()) {
+            getNetwork().redraw();
         }
     };
     
     input.addEventListener('blur', finishEdit);
+    input.addEventListener('input', syncEditorPreview);
     input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
             finishEdit();
         } else if (e.key === 'Escape') {
+            editFinalized = true;
             getStore().setIsEditingEdgeLabel(false);
-            input.remove();
+            getStore().setCurrentEditingEdgeLabelId(null);
+            removeClickHandler();
+            network?.off?.('zoom', syncEditorToViewport);
+            network?.off?.('dragging', syncEditorToViewport);
+            if (editorShell.isConnected) editorShell.remove();
+            if (getNetwork()) {
+                getNetwork().redraw();
+            }
         }
     });
     
     // Close when clicking outside
     const clickHandler = (e) => {
-        if (e.target !== input && input.parentElement) {
+        if (editorShell.parentElement && !editorShell.contains(e.target)) {
             finishEdit();
-            document.removeEventListener('click', clickHandler);
         }
     };
     setTimeout(() => {
         document.addEventListener('click', clickHandler);
     }, 100);
+}
+
+export function deleteEdgeLabel(edgeId) {
+    const connection = getStore().appData.connections.find((item) => item.id === edgeId);
+    if (!connection || !connection.label) {
+        return;
+    }
+
+    const nextConnections = cloneConnections().map((item) => (
+        item.id === edgeId
+            ? { ...item, label: '', labelLayout: null }
+            : item
+    ));
+    getStore().commitTrackedGraphState({ connections: nextConnections });
+    getStore().setSelectedEdgeLabelId(null);
+    getStore().setSelectedEdgeId(null);
+    if (getNetwork()) {
+        getNetwork().redraw();
+    }
+    save();
+    showNotification('Label supprimé', 'info');
 }
 
 export function deleteConnection(edgeId) {
@@ -193,7 +384,7 @@ export function deleteConnection(edgeId) {
 
 export function showEdgeMenu(x, y, edgeId) {
     // Don't show edge menu in gallery viewer mode
-    if (getStore().isGalleryViewer) {
+    if (getStore().isReadOnlyMode || getStore().isGalleryViewer) {
         return;
     }
     
@@ -227,10 +418,12 @@ export function showEdgeMenu(x, y, edgeId) {
     const radius = 60;
     const startAngle = -Math.PI / 2; // Start at top
     const angleStep = (2 * Math.PI) / buttons.length;
+    const actualEdgeId = normalizeEdgeId(edgeId);
 
     // Store edgeId for the menu actions
     menu.dataset.edgeId = edgeId;
-    getStore().setSelectedEdgeId(edgeId);
+    menu.dataset.actualEdgeId = actualEdgeId;
+    getStore().setSelectedEdgeId(actualEdgeId);
     console.log('✓ Edge menu shown, selectedEdgeId:', getStore().selectedEdgeId);
 
     buttons.forEach((button, index) => {
@@ -263,18 +456,18 @@ export function showEdgeMenu(x, y, edgeId) {
                     addControlPointToEdge(edgeId, clickCanvasPos);
                 }
             } else if (action === 'edit-label') {
-                console.log('Editing label for edge:', edgeId);
+                console.log('Editing label for edge:', actualEdgeId);
                 const clickPointerDom = getEdgeMenuAnchorPointerDOM();
                 hideEdgeMenu();
                 
                 if (clickPointerDom) {
                     console.log('Opening edit at anchor position:', clickPointerDom);
-                    editEdgeLabelInline(edgeId, null, clickPointerDom);
+                    editEdgeLabelInline(actualEdgeId, null, clickPointerDom);
                 }
             } else if (action === 'delete') {
-                console.log('Deleting edge:', edgeId);
+                console.log('Deleting edge:', actualEdgeId);
                 hideEdgeMenu();
-                deleteConnection(edgeId);
+                deleteConnection(actualEdgeId);
             }
         });
         
@@ -594,6 +787,184 @@ export function cancelConnectionMode() {
 // System for adding/removing control points on edges to route them around nodes
 // Variables edgeControlPoints and nextControlPointId are declared in getStore().js
 
+const CONTROL_POINT_BASE_SIZE = 7;
+const CONTROL_POINT_HOVER_SIZE = 10;
+const CONTROL_POINT_BORDER_WIDTH = 3;
+const CONTROL_POINT_HOVER_BORDER_WIDTH = 4;
+
+function getControlPointPalette() {
+    return {
+        fill: getThemeCssVar('--color-bg', '#ffffff'),
+        border: getThemeCssVar('--color-primary', '#315fd4'),
+        hoverFill: getThemeCssVar('--color-bg-primary-hover', '#f5f8ff'),
+        hoverBorder: getThemeCssVar('--color-primary-hover', '#284fb5'),
+        shadow: getThemeCssVar('--color-primary-shadow', 'rgba(49, 95, 212, 0.28)'),
+    };
+}
+
+function getEdgeSegmentPalette() {
+    return {
+        color: getThemeCssVar('--color-text-secondary', '#666666'),
+        highlight: getThemeCssVar('--color-primary', '#315fd4'),
+    };
+}
+
+function projectPointOntoSegment(point, from, to) {
+    if (!point || !from || !to) return point;
+
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const lengthSquared = (dx * dx) + (dy * dy);
+
+    if (lengthSquared === 0) {
+        return { x: from.x, y: from.y };
+    }
+
+    const t = Math.max(0, Math.min(1, (((point.x - from.x) * dx) + ((point.y - from.y) * dy)) / lengthSquared));
+    return {
+        x: from.x + (dx * t),
+        y: from.y + (dy * t),
+    };
+}
+
+function cloneEdgeControlPoints(edgeControlPoints = getStore().edgeControlPoints) {
+    return Object.fromEntries(
+        Object.entries(edgeControlPoints || {}).map(([edgeId, pointIds]) => [edgeId, [...pointIds]])
+    );
+}
+
+function commitControlPointGraphState({
+    edgeControlPoints,
+    nextControlPointId = getStore().nextControlPointId,
+    savedNodePositions = getStore().savedNodePositions,
+}) {
+    getStore().commitTrackedGraphState({
+        edgeControlPoints,
+        nextControlPointId,
+        savedNodePositions,
+    });
+    updateGraph();
+    save(true);
+    import('../data/cloud-storage.js')
+        .then(({ isCloudStorageEnabled, forceSaveToCloud }) => {
+            if (isCloudStorageEnabled()) {
+                forceSaveToCloud();
+            }
+        })
+        .catch(() => {});
+}
+
+function getStoredControlPointPosition(controlPointId) {
+    return getStore().savedNodePositions?.[controlPointId] || null;
+}
+
+function buildControlPointNode(controlPointId, position) {
+    const palette = getControlPointPalette();
+
+    return {
+        id: controlPointId,
+        x: position.x,
+        y: position.y,
+        shape: 'dot',
+        size: CONTROL_POINT_BASE_SIZE,
+        color: {
+            background: palette.fill,
+            border: palette.border,
+            highlight: {
+                background: palette.hoverFill,
+                border: palette.hoverBorder
+            },
+            hover: {
+                background: palette.hoverFill,
+                border: palette.hoverBorder
+            }
+        },
+        borderWidth: CONTROL_POINT_BORDER_WIDTH,
+        shadow: {
+            enabled: true,
+            color: palette.shadow,
+            size: 16,
+            x: 0,
+            y: 0,
+        },
+        physics: false,
+        fixed: false,
+        label: '',
+        group: 'controlPoint',
+        chosen: {
+            node(values, id, selected, hovering) {
+                if (hovering || selected) {
+                    values.size = CONTROL_POINT_HOVER_SIZE;
+                    values.borderWidth = CONTROL_POINT_HOVER_BORDER_WIDTH;
+                    values.borderColor = palette.hoverBorder;
+                    values.color = palette.hoverFill;
+                } else {
+                    values.size = CONTROL_POINT_BASE_SIZE;
+                    values.borderWidth = CONTROL_POINT_BORDER_WIDTH;
+                    values.borderColor = palette.border;
+                    values.color = palette.fill;
+                }
+            }
+        }
+    };
+}
+
+function getDefaultControlPointPosition(connection, index, totalControlPoints) {
+    const fromPos = getStoredControlPointPosition(connection.from)
+        || getNetwork().getPositions([connection.from])[connection.from];
+    const toPos = getStoredControlPointPosition(connection.to)
+        || getNetwork().getPositions([connection.to])[connection.to];
+
+    if (!fromPos || !toPos) return null;
+
+    const ratio = (index + 1) / (totalControlPoints + 1);
+    return {
+        x: fromPos.x + ((toPos.x - fromPos.x) * ratio),
+        y: fromPos.y + ((toPos.y - fromPos.y) * ratio)
+    };
+}
+
+export function syncControlPointNodes() {
+    if (!getNetwork()) return;
+
+    const referencedControlPointIds = new Set(
+        Object.values(getStore().edgeControlPoints || {}).flat()
+    );
+    const existingControlPointNodes = getNetwork().body.data.nodes.get().filter((node) => node.id < 0);
+    const staleControlPointIds = existingControlPointNodes
+        .map((node) => node.id)
+        .filter((nodeId) => !referencedControlPointIds.has(nodeId));
+
+    if (staleControlPointIds.length > 0) {
+        getNetwork().body.data.nodes.remove(staleControlPointIds);
+    }
+
+    Object.entries(getStore().edgeControlPoints || {}).forEach(([edgeId, controlPointIds]) => {
+        const connection = getStore().appData.connections.find((item) => item.id === parseInt(edgeId, 10));
+        if (!connection) return;
+
+        controlPointIds.forEach((controlPointId, index) => {
+            const existingNode = getNetwork().body.data.nodes.get(controlPointId);
+            const savedPosition = getStoredControlPointPosition(controlPointId);
+            const existingPosition = existingNode
+                ? { x: existingNode.x, y: existingNode.y }
+                : null;
+            const position = savedPosition
+                || existingPosition
+                || getDefaultControlPointPosition(connection, index, controlPointIds.length);
+
+            if (!position) return;
+
+            const nodeData = buildControlPointNode(controlPointId, position);
+            if (existingNode) {
+                getNetwork().body.data.nodes.update(nodeData);
+            } else {
+                getNetwork().body.data.nodes.add(nodeData);
+            }
+        });
+    });
+}
+
 // Add control point to an edge
 export function addControlPointToEdge(edgeId, clickPosition = null) {
     console.log('🔵 ========== ADD CONTROL POINT TO EDGE ==========');
@@ -666,12 +1037,10 @@ export function addControlPointToEdge(edgeId, clickPosition = null) {
     }
     
     // Create control point node at click position or middle of the segment
-    const controlPointId = getStore().decrementNextControlPointId();
+    const controlPointId = getStore().nextControlPointId;
+    const nextControlPointId = controlPointId - 1;
     
-    const controlPoint = clickPosition ? {
-        x: clickPosition.x,
-        y: clickPosition.y
-    } : {
+    const controlPoint = clickPosition ? projectPointOntoSegment(clickPosition, fromPos, toPos) : {
         x: (fromPos.x + toPos.x) / 2,
         y: (fromPos.y + toPos.y) / 2
     };
@@ -679,89 +1048,50 @@ export function addControlPointToEdge(edgeId, clickPosition = null) {
     console.log('🎯 Creating control point node:', controlPointId, 'at:', controlPoint, clickPosition ? '(click position)' : '(center)');
     console.log('🎯 For edge', actualEdgeId, 'connecting', connection.from, '->', connection.to);
     
-    // Add control point node - small center with transparent border for larger interaction
-    try {
-        getNetwork().body.data.nodes.add({
-            id: controlPointId,
-            x: controlPoint.x,
-            y: controlPoint.y,
-            shape: 'dot',
-            size: 2, // Small visible center
-            color: {
-                background: '#848484', // Grey visible center
-                border: 'rgba(132, 132, 132, 0.01)', // Nearly transparent border for interaction
-                highlight: {
-                    background: '#4a90e2',
-                    border: '#3578ba'
-                }
-            },
-            borderWidth: 3, // Wide transparent border = larger click area
-            physics: false,
-            fixed: false,
-            label: '',
-            group: 'controlPoint',
-            chosen: {
-                node: function(values, id, selected, hovering) {
-                    if (hovering) {
-                        // On hover: larger visible size with visible border
-                        values.size = 5;
-                        values.borderWidth = 2;
-                        values.borderColor = '#666666';
-                    } else {
-                        // Not hovering: small visible center with transparent border
-                        values.size = 2;
-                        values.borderWidth = 3;
-                        values.borderColor = 'rgba(132, 132, 132, 0.01)';
-                    }
-                }
-            }
-        });
-        console.log('✅ Control point node added to network');
-    } catch (error) {
-        console.error('❌ Error adding control point node:', error);
-        return;
-    }
-    
-    // Store control point at the right position - ONLY for this specific edge
-    if (!getStore().edgeControlPoints[actualEdgeId]) {
-        getStore().initEdgeControlPoints(actualEdgeId);
-        console.log('📝 Created new control points array for edge', actualEdgeId);
-    }
-    
-    // Double-check that this control point doesn't already exist in ANY edge
-    for (const [existingEdgeId, existingPoints] of Object.entries(getStore().edgeControlPoints)) {
+    const nextEdgeControlPoints = cloneEdgeControlPoints();
+    const edgeControlPointIds = nextEdgeControlPoints[actualEdgeId] || [];
+
+    for (const [existingEdgeId, existingPoints] of Object.entries(nextEdgeControlPoints)) {
         if (existingPoints.includes(controlPointId)) {
             console.error('❌ Control point', controlPointId, 'already exists in edge', existingEdgeId);
             return;
         }
     }
-    
-    if (segmentIndex >= 0 && getStore().edgeControlPoints[actualEdgeId].length > 0) {
-        // We're clicking on a segment between existing control points
-        // segmentIndex corresponds to the position in the chain
-        // Chain is: from -> cp[0] -> cp[1] -> ... -> to
-        // Segment 0: from -> cp[0]
-        // Segment 1: cp[0] -> cp[1]
-        // Segment N: cp[N-1] -> to
-        // So clicking on segment i means we want to insert AFTER cp[i-1]
-        // which is at position i in the array
-        getStore().edgeControlPoints[actualEdgeId].splice(segmentIndex, 0, controlPointId);
-        console.log('✅ Control point', controlPointId, 'inserted at index', segmentIndex, 'in existing chain for edge', actualEdgeId);
+
+    if (segmentIndex >= 0 && edgeControlPointIds.length > 0) {
+        edgeControlPointIds.splice(segmentIndex, 0, controlPointId);
     } else {
-        // First control point or clicking on original edge
-        getStore().edgeControlPoints[actualEdgeId].push(controlPointId);
-        console.log('✅ Control point', controlPointId, 'added to edge', actualEdgeId, '(first or at end)');
+        edgeControlPointIds.push(controlPointId);
     }
-    
-    console.log('✅ Edge', actualEdgeId, 'now has points:', getStore().edgeControlPoints[actualEdgeId]);
-    console.log('📊 All edgeControlPoints:', getStore().edgeControlPoints);
-    
-    // Rebuild edges through control points
-    console.log('🔄 Calling rebuildEdgeWithControlPoints...');
-    rebuildEdgeWithControlPoints(actualEdgeId);
-    
-    console.log('💾 Saving to localStorage...');
-    save();
+
+    nextEdgeControlPoints[actualEdgeId] = edgeControlPointIds;
+
+    const nextSavedNodePositions = {
+        ...getStore().savedNodePositions,
+        [controlPointId]: controlPoint,
+    };
+
+    // Seed the live network immediately so the first save/redraw sees the node.
+    try {
+        const existingControlPointNode = getNetwork().body.data.nodes.get(controlPointId);
+        const nodeData = buildControlPointNode(controlPointId, controlPoint);
+        if (existingControlPointNode) {
+            getNetwork().body.data.nodes.update(nodeData);
+        } else {
+            getNetwork().body.data.nodes.add(nodeData);
+        }
+    } catch (error) {
+        console.warn('Unable to seed control point node before rebuild:', error);
+    }
+
+    commitControlPointGraphState({
+        edgeControlPoints: nextEdgeControlPoints,
+        nextControlPointId,
+        savedNodePositions: nextSavedNodePositions,
+    });
+
+    console.log('✅ Edge', actualEdgeId, 'now has points:', nextEdgeControlPoints[actualEdgeId]);
+    console.log('📊 All edgeControlPoints:', nextEdgeControlPoints);
     
     showNotification('Point de contrôle ajouté', 'success');
     console.log('✅ addControlPointToEdge complete');
@@ -789,26 +1119,29 @@ function removeControlPointFromEdge(controlPointId) {
         return;
     }
     
-    // Remove control point node
-    getNetwork().body.data.nodes.remove(controlPointId);
-    
-    // Remove from array
-    getStore().edgeControlPoints[edgeId].splice(pointIndex, 1);
-    
-    // Remove entry if no more control points
-    if (getStore().edgeControlPoints[edgeId].length === 0) {
-        getStore().deleteEdgeControlPoints(edgeId);
+    const nextEdgeControlPoints = cloneEdgeControlPoints();
+    const nextSavedNodePositions = { ...getStore().savedNodePositions };
+    delete nextSavedNodePositions[controlPointId];
+
+    const updatedControlPoints = (nextEdgeControlPoints[edgeId] || []).filter((id) => id !== controlPointId);
+    if (updatedControlPoints.length > 0) {
+        nextEdgeControlPoints[edgeId] = updatedControlPoints;
+    } else {
+        delete nextEdgeControlPoints[edgeId];
     }
-    
-    // Rebuild edges
-    rebuildEdgeWithControlPoints(edgeId);
-    save();
+
+    commitControlPointGraphState({
+        edgeControlPoints: nextEdgeControlPoints,
+        nextControlPointId: getStore().nextControlPointId,
+        savedNodePositions: nextSavedNodePositions,
+    });
     showNotification('Point de contrôle supprimé', 'success');
 }
 
 // Rebuild edge path through control points
 export function rebuildEdgeWithControlPoints(edgeId) {
     console.log('🔄 rebuildEdgeWithControlPoints called for edge:', edgeId);
+    const segmentPalette = getEdgeSegmentPalette();
     
     const connection = getStore().appData.connections.find(c => c.id === edgeId);
     if (!connection) {
@@ -843,11 +1176,11 @@ export function rebuildEdgeWithControlPoints(edgeId) {
                 id: edgeId,
                 from: connection.from,
                 to: connection.to,
-                label: connection.label || '', // Always show label
+                font: getDefaultEdgeFont(),
                 smooth: {
                     enabled: true,
-                    type: 'continuous', // Same as segments for consistency
-                    roundness: 0.15
+                    type: 'continuous',
+                    roundness: 0.3
                 }
             });
             console.log('✅ Original edge restored with label:', connection.label);
@@ -855,11 +1188,11 @@ export function rebuildEdgeWithControlPoints(edgeId) {
             // Edge exists, just update its label and smooth
             getNetwork().body.data.edges.update({
                 id: edgeId,
-                label: connection.label || '',
+                font: getDefaultEdgeFont(),
                 smooth: {
                     enabled: true,
                     type: 'continuous',
-                    roundness: 0.15
+                    roundness: 0.3
                 }
             });
             console.log('✅ Edge label updated:', connection.label);
@@ -877,47 +1210,27 @@ export function rebuildEdgeWithControlPoints(edgeId) {
         // Build chain: from -> cp1 -> cp2 -> ... -> to
         const chain = [connection.from, ...controlPoints, connection.to];
         console.log('📍 Chain:', chain);
-        
-        // Find the longest segment to place the label
-        let longestSegmentIndex = 0;
-        let maxDistance = 0;
-        
-        for (let i = 0; i < chain.length - 1; i++) {
-            const fromPos = getNetwork().getPositions([chain[i]])[chain[i]];
-            const toPos = getNetwork().getPositions([chain[i + 1]])[chain[i + 1]];
-            const distance = Math.sqrt(
-                Math.pow(toPos.x - fromPos.x, 2) + 
-                Math.pow(toPos.y - fromPos.y, 2)
-            );
-            
-            if (distance > maxDistance) {
-                maxDistance = distance;
-                longestSegmentIndex = i;
-            }
-        }
-        
-        console.log('📏 Longest segment is', longestSegmentIndex, 'with distance', maxDistance);
-        
+
         // Create segments
         for (let i = 0; i < chain.length - 1; i++) {
             const segmentId = `${edgeId}_seg_${i}`;
             const isLast = (i === chain.length - 2);
-            const isLongest = (i === longestSegmentIndex);
             
             const newEdge = {
                 id: segmentId,
                 from: chain[i],
                 to: chain[i + 1],
-                label: isLongest ? (connection.label || '') : '', // Label on longest segment
+                font: getDefaultEdgeFont(),
+                width: 2,
                 arrows: isLast ? { to: { enabled: true } } : { to: { enabled: false } }, // Arrow only on last segment
                 smooth: {
                     enabled: true,
-                    type: 'continuous', // Continuous for smoother transitions at control points
-                    roundness: 0.15 // Lower roundness to avoid sharp angles at control points
+                    type: 'continuous',
+                    roundness: 0.3
                 },
                 color: {
-                    color: '#848484',
-                    highlight: '#4a90e2'
+                    color: segmentPalette.color,
+                    highlight: segmentPalette.highlight
                 }
             };
             
@@ -947,13 +1260,17 @@ export function rebuildEdgeWithControlPoints(edgeId) {
             smooth: {
                 enabled: true,
                 type: 'continuous',
-                roundness: 0.15
+                roundness: 0.3
             }
         }
     });
     
     getNetwork().redraw();
     console.log('✅ rebuildEdgeWithControlPoints complete');
+}
+
+export function getActualEdgeId(edgeId) {
+    return normalizeEdgeId(edgeId);
 }
 
 // Update all edges with control points after node movement
@@ -967,7 +1284,7 @@ function updateAllEdgesWithControlPoints() {
 function restoreControlPointNodes() {
     console.log('🔄 Restoring control point nodes from storage...');
     
-    const savedPositions = savedNodePositions || {};
+    const savedPositions = getStore().savedNodePositions || {};
     const controlPointsToRestore = [];
     
     Object.entries(getStore().edgeControlPoints).forEach(([edgeId, controlPointIds]) => {
@@ -1009,41 +1326,7 @@ function restoreControlPointNodes() {
                 };
             }
             
-            controlPointsToRestore.push({
-                id: cpId,
-                x: position.x,
-                y: position.y,
-                shape: 'dot',
-                size: 2, // Small visible center
-                color: {
-                    background: '#848484',
-                    border: 'rgba(132, 132, 132, 0.01)', // Nearly transparent border for interaction
-                    highlight: {
-                        background: '#4a90e2',
-                        border: '#3578ba'
-                    }
-                },
-                borderWidth: 3, // Wide transparent border = larger click area
-                physics: false,
-                fixed: false,
-                label: '',
-                group: 'controlPoint',
-                chosen: {
-                    node: function(values, id, selected, hovering) {
-                        if (hovering) {
-                            // On hover: larger visible size with visible border
-                            values.size = 5;
-                            values.borderWidth = 2;
-                            values.borderColor = '#666666';
-                        } else {
-                            // Not hovering: small visible center with transparent border
-                            values.size = 2;
-                            values.borderWidth = 3;
-                            values.borderColor = 'rgba(132, 132, 132, 0.01)';
-                        }
-                    }
-                }
-            });
+            controlPointsToRestore.push(buildControlPointNode(cpId, position));
         });
     });
     

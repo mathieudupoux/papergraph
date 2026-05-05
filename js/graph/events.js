@@ -7,7 +7,7 @@ import { save } from '../data/persistence.js';
 import { showArticlePreview, closeArticlePreview } from '../ui/preview.js';
 import { showRadialMenu, hideRadialMenu, updateRadialMenuPosition, updateRadialMenuIfActive, hideSelectionRadialMenu, hideEmptyAreaMenu } from '../ui/radial-menu.js';
 import { showContextMenu, hideContextMenu } from '../ui/context-menu.js';
-import { disableTouchZoneCreationMode, isPhoneViewport } from '../ui/touch-zone-mode.js';
+import { disableTouchZoneCreationMode, getMobileBottomDeadzonePx, isPhoneViewport } from '../ui/touch-zone-mode.js';
 import {
     getZoneResizeHandle, startZoneResize, getZoneTitleClick, startEditZoneTitle,
     hideZoneDeleteButton, showZoneDeleteButton, getZoneAtPosition, findNestedZones,
@@ -22,8 +22,19 @@ import {
 } from './selection.js';
 import {
     handleConnectionModeClick, hideEdgeMenu, showEdgeMenu, editEdgeLabelInline, updateEdgeMenuPosition,
-    isControlPoint, showControlPointMenu
+    isControlPoint, showControlPointMenu, getActualEdgeId, rebuildEdgeWithControlPoints, syncControlPointNodes
 } from './connections.js';
+import {
+    clearLockedEdgeLabelCenters,
+    drawEdgeLabels,
+    getEdgeLabelAtPosition,
+    getEdgeLabelGeometry,
+    getEdgeLabelLayoutFromGeometry,
+    getEdgeLabelMoveThreshold,
+    getEdgeLabelResizeHandleAtPosition,
+    isEdgeLabelAtDefaultLocation,
+    setLockedEdgeLabelCenter,
+} from './edge-labels.js';
 import { positionNodesInZones, initializeZonesFromTags } from '../data/storage.js';
 
 let lastEdgeClickTime = 0;
@@ -34,6 +45,31 @@ let pendingZoneSelectionIndex = -1;
 let hoveredNodeId = null;
 let suppressNextNetworkBackgroundClick = false;
 let suppressNextNetworkClick = false;
+let suppressNextNetworkDoubleClick = false;
+let lastCanvasPointerPosition = null;
+let suppressNextNetworkClickTimer = null;
+let preservedDraggedEdgeLabelCenters = new Map();
+
+export function getLastCanvasPointerPosition() {
+    return lastCanvasPointerPosition;
+}
+
+function armSuppressNextNetworkClick(timeoutMs = 180) {
+    suppressNextNetworkClick = true;
+
+    if (suppressNextNetworkClickTimer !== null) {
+        window.clearTimeout(suppressNextNetworkClickTimer);
+    }
+
+    suppressNextNetworkClickTimer = window.setTimeout(() => {
+        suppressNextNetworkClick = false;
+        suppressNextNetworkClickTimer = null;
+    }, timeoutMs);
+}
+
+function isReadOnlyInteractionMode() {
+    return getStore().isReadOnlyMode || getStore().isGalleryViewer;
+}
 
 const TOUCH_LONG_PRESS_MS = 550;
 const TOUCH_MOVE_TOLERANCE = 10;
@@ -144,7 +180,7 @@ function getCanvasPointer(event) {
 
 function rememberCanvasPointer(event) {
     const { canvasPosition } = getCanvasPointer(event);
-    getStore().setLastCanvasPointerPosition(canvasPosition);
+    lastCanvasPointerPosition = canvasPosition;
     return canvasPosition;
 }
 
@@ -173,6 +209,37 @@ function resetTouchState() {
     touchState.panning = false;
     touchState.selection = false;
     touchState.longPressTriggered = false;
+}
+
+function keepPhoneNodeVisible(nodeId) {
+    if (!isPhoneViewport() || !getNetwork() || !nodeId) return;
+
+    const preview = document.getElementById('articlePreview');
+    const container = document.getElementById('graphContainer');
+    if (!preview || !container) return;
+
+    const nodeBounds = getNetwork().getBoundingBox(nodeId);
+    const bottomRight = getNetwork().canvasToDOM({ x: nodeBounds.right, y: nodeBounds.bottom });
+    const rect = container.getBoundingClientRect();
+    const previewRect = preview.getBoundingClientRect();
+    const bottomSheetTop = preview.classList.contains('active')
+        ? previewRect.top
+        : window.innerHeight - getMobileBottomDeadzonePx();
+    const maxNodeBottom = bottomSheetTop - 96;
+    const nodeBottom = rect.top + bottomRight.y;
+
+    if (nodeBottom <= maxNodeBottom) return;
+
+    const currentView = getNetwork().getViewPosition();
+    const scale = Math.max(getNetwork().getScale(), 0.15);
+    getNetwork().moveTo({
+        position: {
+            x: currentView.x,
+            y: currentView.y + ((nodeBottom - maxNodeBottom) / scale),
+        },
+        scale,
+        animation: false,
+    });
 }
 
 function getTouchDistance(firstTouch, secondTouch) {
@@ -256,25 +323,419 @@ function getSyntheticPointerEvent(clientX, clientY) {
     };
 }
 
+function cloneConnections(connections = getStore().appData.connections) {
+    return connections.map((connection) => ({
+        ...connection,
+        ...(connection.labelLayout ? { labelLayout: { ...connection.labelLayout } } : {}),
+    }));
+}
+
+function getDraggedEdgeIds(nodeIds = []) {
+    if (!Array.isArray(nodeIds) || nodeIds.length === 0) {
+        return [];
+    }
+
+    const draggedNodeIds = new Set(nodeIds);
+    return getStore().appData.connections
+        .filter((connection) => (
+            draggedNodeIds.has(connection.from)
+            || draggedNodeIds.has(connection.to)
+            || (getStore().edgeControlPoints[connection.id] || []).some((controlPointId) => draggedNodeIds.has(controlPointId))
+        ))
+        .map((connection) => connection.id);
+}
+
+function captureDraggedEdgeLabelCenters(nodeIds = []) {
+    preservedDraggedEdgeLabelCenters = new Map();
+    clearLockedEdgeLabelCenters();
+
+    getDraggedEdgeIds(nodeIds).forEach((edgeId) => {
+        const connection = getStore().appData.connections.find((item) => item.id === edgeId);
+        if (!connection?.label || isEdgeLabelAtDefaultLocation(connection)) {
+            return;
+        }
+
+        const geometry = getEdgeLabelGeometry(connection);
+        if (!geometry) {
+            return;
+        }
+
+        preservedDraggedEdgeLabelCenters.set(edgeId, {
+            centerX: geometry.centerX,
+            centerY: geometry.centerY,
+        });
+        setLockedEdgeLabelCenter(edgeId, {
+            centerX: geometry.centerX,
+            centerY: geometry.centerY,
+        });
+    });
+}
+
+function preserveDraggedEdgeLabelPositions(nodeIds = []) {
+    if (!preservedDraggedEdgeLabelCenters.size) {
+        return false;
+    }
+
+    const affectedEdgeIds = new Set(
+        getDraggedEdgeIds(nodeIds).filter((edgeId) => preservedDraggedEdgeLabelCenters.has(edgeId))
+    );
+
+    if (affectedEdgeIds.size === 0) {
+        return false;
+    }
+
+    let didChange = false;
+    const nextConnections = cloneConnections().map((connection) => {
+        if (!affectedEdgeIds.has(connection.id)) {
+            return connection;
+        }
+
+        const preservedCenter = preservedDraggedEdgeLabelCenters.get(connection.id);
+        if (!preservedCenter) {
+            return connection;
+        }
+
+        const geometry = getEdgeLabelGeometry(connection);
+        if (!geometry) {
+            return connection;
+        }
+
+        const nextLayout = getEdgeLabelLayoutFromGeometry({
+            ...geometry,
+            centerX: preservedCenter.centerX,
+            centerY: preservedCenter.centerY,
+        });
+
+        const currentLayout = connection.labelLayout || {};
+        const sameLayout = currentLayout
+            && currentLayout.offsetX === nextLayout.offsetX
+            && currentLayout.offsetY === nextLayout.offsetY
+            && currentLayout.width === nextLayout.width
+            && currentLayout.height === nextLayout.height;
+
+        if (sameLayout) {
+            return connection;
+        }
+
+        didChange = true;
+        return {
+            ...connection,
+            labelLayout: {
+                ...currentLayout,
+                ...nextLayout,
+            },
+        };
+    });
+
+    if (!didChange) {
+        return false;
+    }
+
+    getStore().setConnections(nextConnections);
+    clearLockedEdgeLabelCenters(Array.from(affectedEdgeIds));
+    return true;
+}
+
+function setConnectionLabelLayout(edgeId, nextLayout) {
+    const nextConnections = getStore().appData.connections.map((connection) => {
+        if (connection.id !== edgeId) return connection;
+        if (!nextLayout) {
+            const { labelLayout, ...rest } = connection;
+            return rest;
+        }
+        return {
+            ...connection,
+            labelLayout: { ...nextLayout },
+        };
+    });
+
+    getStore().setConnections(nextConnections);
+}
+
+function reenableGraphPointerInteractions() {
+    if (!getNetwork()) return;
+
+    getNetwork().setOptions({
+        interaction: {
+            dragNodes: !isReadOnlyInteractionMode(),
+            dragView: false,
+            zoomView: false,
+            hover: true,
+            hoverConnectedEdges: true,
+            selectConnectedEdges: true,
+            tooltipDelay: 200,
+            multiselect: !isReadOnlyInteractionMode(),
+            selectable: true
+        }
+    });
+}
+
+function activateEdgeLabelSelection(edgeId) {
+    clearHoveredNodeState(true);
+    hideRadialMenu();
+    hideEdgeMenu();
+    hideZoneDeleteButton();
+    hideSelectionRadialMenu();
+    closeArticlePreview();
+
+    hideSelectionBox();
+    getStore().updateMultiSelection({ selectedNodes: [] });
+    getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+    getNetwork().unselectAll();
+
+    getStore().setSelectedNodeId(null);
+    getStore().setSelectedZoneIndex(-1);
+    getStore().setSelectedEdgeId(null);
+    getStore().setSelectedEdgeLabelId(edgeId);
+    getNetwork().redraw();
+}
+
+function clearEdgeLabelSelection() {
+    if (getStore().selectedEdgeLabelId === null) {
+        return;
+    }
+
+    getStore().setSelectedEdgeLabelId(null);
+    if (!getStore().isEditingEdgeLabel) {
+        getStore().setSelectedEdgeId(null);
+    }
+    getNetwork().redraw();
+}
+
+function startEdgeLabelMove(event, edgeId, geometry) {
+    pauseHistory();
+    const { canvasPosition } = getCanvasPointer(event);
+
+    activateEdgeLabelSelection(edgeId);
+    getStore().updateEdgeLabelMoving({
+        active: false,
+        readyToMove: true,
+        edgeId,
+        startX: canvasPosition.x,
+        startY: canvasPosition.y,
+        originalGeometry: geometry,
+    });
+}
+
+function maybeStartEdgeLabelMove(event) {
+    if (!getStore().edgeLabelMoving.readyToMove) return false;
+    if ((event.buttons & 1) === 0) {
+        getStore().resetEdgeLabelMoving();
+        return false;
+    }
+
+    const { canvasPosition } = getCanvasPointer(event);
+    const dx = Math.abs(canvasPosition.x - getStore().edgeLabelMoving.startX);
+    const dy = Math.abs(canvasPosition.y - getStore().edgeLabelMoving.startY);
+
+    if (dx <= getEdgeLabelMoveThreshold() && dy <= getEdgeLabelMoveThreshold()) {
+        return false;
+    }
+
+    getStore().updateEdgeLabelMoving({ active: true, readyToMove: false });
+    getNetwork().setOptions({
+        interaction: {
+            dragNodes: false,
+            dragView: false,
+            zoomView: false
+        }
+    });
+    return true;
+}
+
+function updateEdgeLabelMove(event) {
+    if (!getStore().edgeLabelMoving.active) return;
+
+    const { canvasPosition } = getCanvasPointer(event);
+    const dx = canvasPosition.x - getStore().edgeLabelMoving.startX;
+    const dy = canvasPosition.y - getStore().edgeLabelMoving.startY;
+    const originalGeometry = getStore().edgeLabelMoving.originalGeometry;
+
+    const nextGeometry = {
+        ...originalGeometry,
+        centerX: originalGeometry.centerX + dx,
+        centerY: originalGeometry.centerY + dy,
+    };
+
+    setConnectionLabelLayout(
+        getStore().edgeLabelMoving.edgeId,
+        getEdgeLabelLayoutFromGeometry(nextGeometry)
+    );
+    getNetwork().redraw();
+}
+
+function endEdgeLabelMove() {
+    const edgeId = getStore().edgeLabelMoving.edgeId;
+    const originalGeometry = getStore().edgeLabelMoving.originalGeometry;
+    const finalConnections = cloneConnections();
+
+    setConnectionLabelLayout(edgeId, originalGeometry?.storedLayout || null);
+    resumeHistory();
+    getStore().commitTrackedGraphState({ connections: finalConnections });
+    getStore().resetEdgeLabelMoving();
+    reenableGraphPointerInteractions();
+    save(true);
+    getNetwork().redraw();
+}
+
+function startEdgeLabelResize(event, edgeId, handle, geometry) {
+    pauseHistory();
+    const { canvasPosition } = getCanvasPointer(event);
+
+    activateEdgeLabelSelection(edgeId);
+    getStore().updateEdgeLabelResizing({
+        active: true,
+        edgeId,
+        handle,
+        startX: canvasPosition.x,
+        startY: canvasPosition.y,
+        originalGeometry: geometry,
+    });
+
+    getNetwork().setOptions({
+        interaction: {
+            dragNodes: false,
+            dragView: false,
+            zoomView: false
+        }
+    });
+}
+
+function updateEdgeLabelResize(event) {
+    if (!getStore().edgeLabelResizing.active) return;
+
+    const { canvasPosition } = getCanvasPointer(event);
+    const dx = canvasPosition.x - getStore().edgeLabelResizing.startX;
+    const dy = canvasPosition.y - getStore().edgeLabelResizing.startY;
+    const geometry = getStore().edgeLabelResizing.originalGeometry;
+    const bounds = {
+        left: geometry.centerX - (geometry.width / 2),
+        right: geometry.centerX + (geometry.width / 2),
+        top: geometry.centerY - (geometry.height / 2),
+        bottom: geometry.centerY + (geometry.height / 2),
+    };
+
+    const minWidth = 72;
+    const minHeight = 28;
+    const clampLeft = (nextLeft) => Math.min(nextLeft, bounds.right - minWidth);
+    const clampRight = (nextRight) => Math.max(nextRight, bounds.left + minWidth);
+    const clampTop = (nextTop) => Math.min(nextTop, bounds.bottom - minHeight);
+    const clampBottom = (nextBottom) => Math.max(nextBottom, bounds.top + minHeight);
+
+    let { left, right, top, bottom } = bounds;
+    switch (getStore().edgeLabelResizing.handle) {
+        case 'nw':
+            left = clampLeft(bounds.left + dx);
+            top = clampTop(bounds.top + dy);
+            break;
+        case 'n':
+            top = clampTop(bounds.top + dy);
+            break;
+        case 'ne':
+            right = clampRight(bounds.right + dx);
+            top = clampTop(bounds.top + dy);
+            break;
+        case 'e':
+            right = clampRight(bounds.right + dx);
+            break;
+        case 'sw':
+            left = clampLeft(bounds.left + dx);
+            bottom = clampBottom(bounds.bottom + dy);
+            break;
+        case 's':
+            bottom = clampBottom(bounds.bottom + dy);
+            break;
+        case 'se':
+            right = clampRight(bounds.right + dx);
+            bottom = clampBottom(bounds.bottom + dy);
+            break;
+        case 'w':
+            left = clampLeft(bounds.left + dx);
+            break;
+    }
+
+    const nextGeometry = {
+        ...geometry,
+        centerX: (left + right) / 2,
+        centerY: (top + bottom) / 2,
+        width: right - left,
+        height: bottom - top,
+    };
+
+    setConnectionLabelLayout(
+        getStore().edgeLabelResizing.edgeId,
+        getEdgeLabelLayoutFromGeometry(nextGeometry)
+    );
+    getNetwork().redraw();
+}
+
+function endEdgeLabelResize() {
+    const edgeId = getStore().edgeLabelResizing.edgeId;
+    const originalGeometry = getStore().edgeLabelResizing.originalGeometry;
+    const finalConnections = cloneConnections();
+
+    setConnectionLabelLayout(edgeId, originalGeometry?.storedLayout || null);
+    resumeHistory();
+    getStore().commitTrackedGraphState({ connections: finalConnections });
+    getStore().resetEdgeLabelResizing();
+    reenableGraphPointerInteractions();
+    save(true);
+    getNetwork().redraw();
+}
+
+function updateEdgeLabelCursor(event) {
+    const canvas = getNetwork().canvas.frame.canvas;
+    const resizeHandle = getEdgeLabelResizeHandleAtPosition(event);
+
+    if (resizeHandle.edgeId !== null) {
+        const cursorMap = {
+            nw: 'nw-resize',
+            n: 'n-resize',
+            ne: 'ne-resize',
+            e: 'e-resize',
+            sw: 'sw-resize',
+            s: 's-resize',
+            se: 'se-resize',
+            w: 'w-resize',
+        };
+        canvas.style.cursor = cursorMap[resizeHandle.handle] || 'move';
+        return true;
+    }
+
+    const labelHit = getEdgeLabelAtPosition(event);
+    if (labelHit) {
+        canvas.style.cursor = 'move';
+        return true;
+    }
+
+    return false;
+}
+
 function getCanvasHitState(clientX, clientY) {
     const syntheticEvent = getSyntheticPointerEvent(clientX, clientY);
+    const edgeLabelResizeHandle = getEdgeLabelResizeHandleAtPosition(syntheticEvent);
+    const edgeLabel = edgeLabelResizeHandle.edgeId !== null
+        ? { edgeId: edgeLabelResizeHandle.edgeId, geometry: edgeLabelResizeHandle.geometry }
+        : getEdgeLabelAtPosition(syntheticEvent);
     const clickPos = { x: syntheticEvent.offsetX, y: syntheticEvent.offsetY };
-    const nodeId = getNetwork().getNodeAt(clickPos);
-    const edgeId = getNetwork().getEdgeAt(clickPos);
-    const zoneClick = !nodeId && !edgeId ? getZoneAtPosition(syntheticEvent) : { zoneIndex: -1, zone: null };
+    const nodeId = edgeLabel ? null : getNetwork().getNodeAt(clickPos);
+    const edgeId = edgeLabel ? edgeLabel.edgeId : getNetwork().getEdgeAt(clickPos);
+    const zoneClick = !nodeId && !edgeId && !edgeLabel ? getZoneAtPosition(syntheticEvent) : { zoneIndex: -1, zone: null };
 
     return {
         syntheticEvent,
         nodeId,
         edgeId,
+        edgeLabel,
         zoneClick,
+        edgeLabelResizeHandle,
         resizeHandle: getZoneResizeHandle(syntheticEvent),
         titleClick: getZoneTitleClick(syntheticEvent),
     };
 }
 
 function openContextMenuAtClientPosition(clientX, clientY) {
-    const { nodeId, edgeId, zoneClick } = getCanvasHitState(clientX, clientY);
+    const { nodeId, edgeId, edgeLabel, zoneClick } = getCanvasHitState(clientX, clientY);
     const { canvasPosition } = getCanvasPointer({ clientX, clientY });
 
     hideRadialMenu();
@@ -293,14 +754,25 @@ function openContextMenuAtClientPosition(clientX, clientY) {
         }
         getStore().setSelectedNodeId(isMultiContext ? null : nodeId);
         getStore().setSelectedEdgeId(null);
+        getStore().setSelectedEdgeLabelId(null);
         getStore().setSelectedZoneIndex(-1);
         getNetwork().selectNodes(isMultiContext ? getStore().multiSelection.selectedNodes : [nodeId]);
+    } else if (edgeLabel) {
+        hideSelectionBox();
+        getStore().updateMultiSelection({ selectedNodes: [] });
+        getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+        getStore().setSelectedNodeId(null);
+        getStore().setSelectedEdgeId(null);
+        getStore().setSelectedEdgeLabelId(edgeLabel.edgeId);
+        getStore().setSelectedZoneIndex(-1);
+        getNetwork().redraw();
     } else if (edgeId) {
         hideSelectionBox();
         getStore().updateMultiSelection({ selectedNodes: [] });
         getStore().updateMultiSelection({ selectedZonesForDrag: [] });
         getStore().setSelectedNodeId(null);
-        getStore().setSelectedEdgeId(edgeId);
+        getStore().setSelectedEdgeId(getActualEdgeId(edgeId));
+        getStore().setSelectedEdgeLabelId(null);
         getStore().setSelectedZoneIndex(-1);
     } else if (zoneClick.zone !== null) {
         hideSelectionBox();
@@ -308,12 +780,14 @@ function openContextMenuAtClientPosition(clientX, clientY) {
         getStore().updateMultiSelection({ selectedZonesForDrag: [] });
         getStore().setSelectedNodeId(null);
         getStore().setSelectedEdgeId(null);
+        getStore().setSelectedEdgeLabelId(null);
         getStore().setSelectedZoneIndex(zoneClick.zoneIndex);
         showZoneDeleteButton(zoneClick.zoneIndex);
         getNetwork().redraw();
     } else {
         getStore().setSelectedNodeId(null);
         getStore().setSelectedEdgeId(null);
+        getStore().setSelectedEdgeLabelId(null);
         getStore().setSelectedZoneIndex(-1);
     }
 
@@ -339,6 +813,7 @@ function activateZoneSelection(zoneIndex) {
 
     getStore().setSelectedNodeId(null);
     getStore().setSelectedEdgeId(null);
+    getStore().setSelectedEdgeLabelId(null);
     getStore().setSelectedZoneIndex(zoneIndex);
     showZoneDeleteButton(zoneIndex);
     getNetwork().redraw();
@@ -507,9 +982,43 @@ export function setupCanvasEvents() {
             return;
         }
 
-        if (getStore().isGalleryViewer) {
+        if (isReadOnlyInteractionMode()) {
             pendingSelectionStart = null;
             pendingZoneSelectionIndex = -1;
+            return;
+        }
+
+        const edgeLabelResizeHandle = getEdgeLabelResizeHandleAtPosition(event);
+        if (edgeLabelResizeHandle.edgeId !== null) {
+            event.preventDefault();
+            event.stopPropagation();
+            suppressNextNetworkClick = true;
+            suppressNextNetworkBackgroundClick = true;
+            pendingSelectionStart = null;
+            pendingZoneSelectionIndex = -1;
+            startEdgeLabelResize(
+                event,
+                edgeLabelResizeHandle.edgeId,
+                edgeLabelResizeHandle.handle,
+                edgeLabelResizeHandle.geometry
+            );
+            return;
+        }
+
+        const edgeLabelHit = getEdgeLabelAtPosition(event);
+        if (edgeLabelHit) {
+            event.preventDefault();
+            event.stopPropagation();
+            suppressNextNetworkClick = true;
+            suppressNextNetworkBackgroundClick = true;
+            pendingSelectionStart = null;
+            pendingZoneSelectionIndex = -1;
+
+            if (edgeLabelHit.edgeId === getStore().selectedEdgeLabelId) {
+                startEdgeLabelMove(event, edgeLabelHit.edgeId, edgeLabelHit.geometry);
+            } else {
+                activateEdgeLabelSelection(edgeLabelHit.edgeId);
+            }
             return;
         }
 
@@ -586,6 +1095,8 @@ export function setupCanvasEvents() {
             getNetwork().redraw();
         }
 
+        clearEdgeLabelSelection();
+
         event.preventDefault();
         event.stopPropagation();
         pendingSelectionStart = { clientX: event.clientX, clientY: event.clientY };
@@ -593,6 +1104,22 @@ export function setupCanvasEvents() {
     }, true);
     
     canvas.addEventListener('dblclick', (event) => {
+        const edgeLabelHit = getEdgeLabelAtPosition(event);
+        if (edgeLabelHit) {
+            event.preventDefault();
+            event.stopPropagation();
+            suppressNextNetworkClick = true;
+            suppressNextNetworkBackgroundClick = true;
+            suppressNextNetworkDoubleClick = true;
+            activateEdgeLabelSelection(edgeLabelHit.edgeId);
+            const pointerDOM = getNetwork().canvasToDOM({
+                x: edgeLabelHit.geometry.centerX,
+                y: edgeLabelHit.geometry.centerY
+            });
+            editEdgeLabelInline(edgeLabelHit.edgeId, null, pointerDOM);
+            return;
+        }
+
         // Disable zone title editing in gallery viewer mode
         if (!getStore().connectionMode.active && !getStore().isGalleryViewer) {
             const titleClick = getZoneTitleClick(event);
@@ -631,6 +1158,10 @@ export function setupCanvasEvents() {
             return;
         }
 
+        if (maybeStartEdgeLabelMove(event)) {
+            return;
+        }
+
         if (getStore().zoneMoving.readyToMove) {
             const canvas = getNetwork().canvas.frame.canvas;
             const rect = canvas.getBoundingClientRect();
@@ -658,6 +1189,14 @@ export function setupCanvasEvents() {
             event.preventDefault();
             event.stopPropagation();
             updateZoneMove(event);
+        } else if (getStore().edgeLabelMoving.active) {
+            event.preventDefault();
+            event.stopPropagation();
+            updateEdgeLabelMove(event);
+        } else if (getStore().edgeLabelResizing.active) {
+            event.preventDefault();
+            event.stopPropagation();
+            updateEdgeLabelResize(event);
         } else if (getStore().zoneResizing.active) {
             event.preventDefault();
             event.stopPropagation();
@@ -672,8 +1211,10 @@ export function setupCanvasEvents() {
             updateSelectionBox(event);
         }
         
-        if (!getStore().zoneMoving.active && !getStore().zoneResizing.active && !getStore().multiSelection.active && !getStore().multiSelection.boxDragging && !getStore().connectionMode.active) {
-            updateZoneCursor(event);
+        if (!getStore().zoneMoving.active && !getStore().edgeLabelMoving.active && !getStore().edgeLabelResizing.active && !getStore().zoneResizing.active && !getStore().multiSelection.active && !getStore().multiSelection.boxDragging && !getStore().connectionMode.active) {
+            if (!updateEdgeLabelCursor(event)) {
+                updateZoneCursor(event);
+            }
         }
     }, true);
 
@@ -711,6 +1252,19 @@ export function setupCanvasEvents() {
             }
             getStore().updateZoneMoving({ readyToMove: false });
             getStore().updateZoneMoving({ active: false });
+        } else if (event.button === 0 && (getStore().edgeLabelMoving.active || getStore().edgeLabelMoving.readyToMove)) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (getStore().edgeLabelMoving.active) {
+                endEdgeLabelMove();
+            } else {
+                getStore().resetEdgeLabelMoving();
+                getNetwork().redraw();
+            }
+        } else if (event.button === 0 && getStore().edgeLabelResizing.active) {
+            event.preventDefault();
+            event.stopPropagation();
+            endEdgeLabelResize();
         } else if (event.button === 0 && getStore().zoneResizing.active) {
             event.preventDefault();
             event.stopPropagation();
@@ -726,12 +1280,6 @@ export function setupCanvasEvents() {
         }
     }, true);
     
-    getNetwork().canvas.body.container.addEventListener('mousemove', (event) => {
-        if (!getStore().zoneMoving.active && !getStore().zoneResizing.active && !getStore().multiSelection.active && !getStore().multiSelection.boxDragging && !getStore().connectionMode.active && !getStore().zoneEditing.active) {
-            updateZoneCursor(event);
-        }
-    }, false);
-
     canvas.addEventListener('touchstart', (event) => {
         if (event.touches.length === 2) {
             suppressNextNetworkClick = true;
@@ -766,6 +1314,27 @@ export function setupCanvasEvents() {
             return;
         }
 
+        if (!touchZoneModeActive && hitState.edgeLabelResizeHandle.edgeId !== null) {
+            event.preventDefault();
+            startEdgeLabelResize(
+                hitState.syntheticEvent,
+                hitState.edgeLabelResizeHandle.edgeId,
+                hitState.edgeLabelResizeHandle.handle,
+                hitState.edgeLabelResizeHandle.geometry
+            );
+            suppressNextNetworkClick = true;
+            resetTouchState();
+            return;
+        }
+
+        if (!touchZoneModeActive && hitState.edgeLabel) {
+            event.preventDefault();
+            activateEdgeLabelSelection(hitState.edgeLabel.edgeId);
+            suppressNextNetworkClick = true;
+            resetTouchState();
+            return;
+        }
+
         if (!touchZoneModeActive && hitState.titleClick.zone !== null) {
             event.preventDefault();
             suppressNextNetworkBackgroundClick = true;
@@ -790,6 +1359,8 @@ export function setupCanvasEvents() {
             resetTouchState();
             return;
         }
+
+        clearEdgeLabelSelection();
 
         touchState.active = true;
         touchState.touchId = touch.identifier;
@@ -836,9 +1407,24 @@ export function setupCanvasEvents() {
             return;
         }
 
+        if (getStore().edgeLabelResizing.active) {
+            event.preventDefault();
+            updateEdgeLabelResize(getSyntheticPointerEvent(touch.clientX, touch.clientY));
+            return;
+        }
+
         if (getStore().zoneMoving.readyToMove || getStore().zoneMoving.active) {
             event.preventDefault();
             updateTouchDrivenZoneMove(getSyntheticPointerEvent(touch.clientX, touch.clientY));
+            return;
+        }
+
+        if (getStore().edgeLabelMoving.readyToMove || getStore().edgeLabelMoving.active) {
+            event.preventDefault();
+            const pointerEvent = getSyntheticPointerEvent(touch.clientX, touch.clientY);
+            if (maybeStartEdgeLabelMove(pointerEvent) || getStore().edgeLabelMoving.active) {
+                updateEdgeLabelMove(pointerEvent);
+            }
             return;
         }
 
@@ -913,6 +1499,13 @@ export function setupCanvasEvents() {
             return;
         }
 
+        if (getStore().edgeLabelResizing.active) {
+            event.preventDefault();
+            endEdgeLabelResize();
+            suppressNextNetworkClick = true;
+            return;
+        }
+
         if (getStore().zoneMoving.active || getStore().zoneMoving.readyToMove) {
             event.preventDefault();
 
@@ -922,6 +1515,20 @@ export function setupCanvasEvents() {
 
             getStore().updateZoneMoving({ readyToMove: false });
             getStore().updateZoneMoving({ active: false });
+            suppressNextNetworkClick = true;
+            return;
+        }
+
+        if (getStore().edgeLabelMoving.active || getStore().edgeLabelMoving.readyToMove) {
+            event.preventDefault();
+
+            if (getStore().edgeLabelMoving.active) {
+                endEdgeLabelMove();
+            } else {
+                getStore().resetEdgeLabelMoving();
+                getNetwork().redraw();
+            }
+
             suppressNextNetworkClick = true;
             return;
         }
@@ -940,12 +1547,32 @@ export function setupCanvasEvents() {
             disableTouchZoneCreationMode();
         }
 
+        if (!touchState.longPressTriggered && !touchState.panning && !touchState.selection && isPhoneViewport()) {
+            const touch = event.changedTouches[0];
+            const hitState = touch ? getCanvasHitState(touch.clientX, touch.clientY) : null;
+            if (hitState?.nodeId && hitState.nodeId > 0) {
+                event.preventDefault();
+                armSuppressNextNetworkClick();
+                openRadialMenuForNode(hitState.nodeId);
+            }
+        }
+
         resetTouchState();
     }, { passive: false, capture: true });
 
     canvas.addEventListener('touchcancel', () => {
         resetPinchState();
         clearTouchLongPressTimer();
+
+        if (getStore().edgeLabelResizing.active) {
+            endEdgeLabelResize();
+        }
+
+        if (getStore().edgeLabelMoving.active) {
+            endEdgeLabelMove();
+        } else if (getStore().edgeLabelMoving.readyToMove) {
+            getStore().resetEdgeLabelMoving();
+        }
 
         if (touchState.selection) {
             endSelectionBox();
@@ -966,8 +1593,12 @@ export function setupNetworkEvents() {
             const nodesToUpdate = [];
             Object.keys(getStore().savedNodePositions).forEach(nodeId => {
                 const pos = getStore().savedNodePositions[nodeId];
+                const numericNodeId = parseInt(nodeId, 10);
+                if (!Number.isFinite(numericNodeId) || numericNodeId <= 0) {
+                    return;
+                }
                 nodesToUpdate.push({
-                    id: parseInt(nodeId),
+                    id: numericNodeId,
                     x: pos.x,
                     y: pos.y,
                     fixed: { x: false, y: false }
@@ -976,6 +1607,12 @@ export function setupNetworkEvents() {
             if (nodesToUpdate.length > 0) {
                 getNetwork().body.data.nodes.update(nodesToUpdate);
                 console.log('✓ Applied saved positions to', nodesToUpdate.length, 'nodes');
+
+                syncControlPointNodes();
+                Object.keys(getStore().edgeControlPoints || {}).forEach((edgeId) => {
+                    rebuildEdgeWithControlPoints(parseInt(edgeId, 10));
+                });
+                getNetwork().redraw();
                 
                 setTimeout(() => {
                     if (typeof checkNodeZoneMembership === 'function' && getStore().tagZones.length > 0) {
@@ -998,6 +1635,10 @@ export function setupNetworkEvents() {
     getNetwork().on('click', (params) => {
         if (suppressNextNetworkClick) {
             suppressNextNetworkClick = false;
+            if (suppressNextNetworkClickTimer !== null) {
+                window.clearTimeout(suppressNextNetworkClickTimer);
+                suppressNextNetworkClickTimer = null;
+            }
             return;
         }
 
@@ -1039,6 +1680,7 @@ export function setupNetworkEvents() {
                 if (nextSelectedNodes.length > 0) {
                     syncSelectionBoxToNodes(nextSelectedNodes);
                     getStore().setSelectedNodeId(nextSelectedNodes.length === 1 ? nextSelectedNodes[0] : null);
+                    getStore().setSelectedEdgeLabelId(null);
                 } else {
                     clearHoveredNodeState(true);
                     hideSelectionRadialMenu();
@@ -1046,6 +1688,7 @@ export function setupNetworkEvents() {
                     getStore().updateMultiSelection({ selectedNodes: [] });
                     getStore().updateMultiSelection({ selectedZonesForDrag: [] });
                     getStore().setSelectedNodeId(null);
+                    getStore().setSelectedEdgeLabelId(null);
                     getNetwork().unselectAll();
                 }
                 
@@ -1058,6 +1701,7 @@ export function setupNetworkEvents() {
             // Set selected node ID for keyboard shortcuts
             getStore().setSelectedNodeId(nodeId);
             getStore().setSelectedEdgeId(null);
+            getStore().setSelectedEdgeLabelId(null);
             console.log('✅ Set selectedNodeId to:', getStore().selectedNodeId);
             
             hideSelectionBox();
@@ -1080,11 +1724,7 @@ export function setupNetworkEvents() {
             suppressNextNetworkBackgroundClick = false;
             const edgeId = params.edges[0];
             const now = Date.now();
-            
-            let actualEdgeId = edgeId;
-            if (typeof edgeId === 'string' && edgeId.includes('_seg_')) {
-                actualEdgeId = parseInt(edgeId.split('_seg_')[0]);
-            }
+            const actualEdgeId = getActualEdgeId(edgeId);
             
             if (actualEdgeId === lastEdgeClickId && now - lastEdgeClickTime < 300) {
                 hideEdgeMenu();
@@ -1098,7 +1738,8 @@ export function setupNetworkEvents() {
             lastEdgeClickId = actualEdgeId;
             
             if (!getStore().connectionMode.active) {
-                getStore().setSelectedEdgeId(edgeId);
+                getStore().setSelectedEdgeId(actualEdgeId);
+                getStore().setSelectedEdgeLabelId(null);
                 getStore().setSelectedNodeId(null);
                 
                 hideRadialMenu();
@@ -1114,8 +1755,8 @@ export function setupNetworkEvents() {
                 const container = document.getElementById('graphContainer');
                 const rect = container.getBoundingClientRect();
                 
-                const screenX = rect.left + params.pointer.DOM.x + 30;
-                const screenY = rect.top + params.pointer.DOM.y - 22;
+                const screenX = rect.left + params.pointer.DOM.x;
+                const screenY = rect.top + params.pointer.DOM.y;
                 
                 showEdgeMenu(screenX, screenY, edgeId);
                 
@@ -1142,23 +1783,47 @@ export function setupNetworkEvents() {
             hideSelectionBox();
             getStore().updateMultiSelection({ selectedNodes: [] });
             getStore().updateMultiSelection({ selectedZonesForDrag: [] });
+            getStore().setSelectedEdgeLabelId(null);
             if (getNetwork()) getNetwork().unselectAll();
         }
+    });
+
+    getNetwork().on('doubleClick', (params) => {
+        if (suppressNextNetworkDoubleClick) {
+            suppressNextNetworkDoubleClick = false;
+            return;
+        }
+
+        if (getStore().connectionMode.active || isReadOnlyInteractionMode()) {
+            return;
+        }
+
+        if (params.edges.length === 0) {
+            return;
+        }
+
+        const actualEdgeId = getActualEdgeId(params.edges[0]);
+        hideEdgeMenu();
+        activateEdgeLabelSelection(actualEdgeId);
+        editEdgeLabelInline(actualEdgeId, null, params.pointer.DOM);
+        lastEdgeClickTime = 0;
+        lastEdgeClickId = null;
     });
     
     // Prevent dragging in gallery viewer mode
     getNetwork().on('dragStart', (params) => {
-        if (getStore().isGalleryViewer && params.nodes && params.nodes.length > 0) {
+        if (isReadOnlyInteractionMode() && params.nodes && params.nodes.length > 0) {
             return false;
         }
         // Pause undo history during drag so the whole drag = one undo step
         if (params.nodes && params.nodes.length > 0) {
             pauseHistory();
+            captureDraggedEdgeLabelCenters(params.nodes);
         }
     });
     
     getNetwork().on('dragging', (params) => {
-        if (getStore().isGalleryViewer) {
+        if (isReadOnlyInteractionMode()) {
             return false;
         }
         
@@ -1262,15 +1927,24 @@ export function setupNetworkEvents() {
                 });
             }
         }
+
+        if (params.nodes.length > 0 && preservedDraggedEdgeLabelCenters.size > 0) {
+            getNetwork().redraw();
+        }
     });
     
     getNetwork().on('dragEnd', (params) => {
-        if (getStore().isGalleryViewer) {
+        if (isReadOnlyInteractionMode()) {
+            preservedDraggedEdgeLabelCenters = new Map();
+            clearLockedEdgeLabelCenters();
             return false;
         }
         
         if (params.nodes.length > 0) {
+            preserveDraggedEdgeLabelPositions(params.nodes);
             const draggedZoneIndexes = getStore().multiSelection.selectedZonesForDrag || [];
+            const draggedControlPoints = params.nodes.filter(nodeId => nodeId < 0);
+            const draggedArticleIds = params.nodes.filter(nodeId => nodeId > 0);
             const currentTagZones = getStore().tagZones;
             const finalTagZones = draggedZoneIndexes.length > 0
                 ? currentTagZones.map((zone) => ({ ...zone }))
@@ -1288,7 +1962,36 @@ export function setupNetworkEvents() {
 
             getStore().updateMultiSelection({ zonesDragStart: {} });
             getStore().updateMultiSelection({ nodeDragStart: null });
-            
+            const allPositions = getNetwork().getPositions();
+
+            if (draggedArticleIds.length === 0 && draggedControlPoints.length > 0 && !finalTagZones) {
+                resumeHistory();
+                getStore().commitTrackedGraphState({
+                    savedNodePositions: allPositions,
+                });
+
+                const edgesToRebuild = new Set();
+                for (const edgeId in getStore().edgeControlPoints) {
+                    const controlPoints = getStore().edgeControlPoints[edgeId];
+                    if (controlPoints.some(cpId => draggedControlPoints.includes(cpId))) {
+                        edgesToRebuild.add(edgeId);
+                    }
+                }
+
+                edgesToRebuild.forEach(edgeId => {
+                    if (typeof window.rebuildEdgeWithControlPoints === 'function') {
+                        window.rebuildEdgeWithControlPoints(parseInt(edgeId));
+                    }
+                });
+
+                save(true);
+                getStore().updateMultiSelection({ wasDragging: false });
+                preservedDraggedEdgeLabelCenters = new Map();
+                clearLockedEdgeLabelCenters();
+                getNetwork().redraw();
+                return;
+            }
+
             updateZoneSizes();
             const positions = getNetwork().getPositions(getStore().appData.articles.map((article) => article.id));
             const { articles: finalArticles } = checkNodeZoneMembership({
@@ -1302,13 +2005,11 @@ export function setupNetworkEvents() {
             resumeHistory();
             getStore().commitTrackedGraphState({
                 articles: finalArticles,
-                savedNodePositions: positions,
+                savedNodePositions: allPositions,
                 ...(finalTagZones ? { tagZones: finalTagZones } : {}),
             });
             console.log('Node dragged - positions updated in memory:', Object.keys(positions).length, 'nodes');
-            
-            const draggedControlPoints = params.nodes.filter(nodeId => nodeId < 0);
-            
+
             if (draggedControlPoints.length > 0) {
                 console.log('🎯 Control point(s) moved:', draggedControlPoints);
                 
@@ -1331,6 +2032,8 @@ export function setupNetworkEvents() {
             save(true);
             
             getStore().updateMultiSelection({ wasDragging: false });
+            preservedDraggedEdgeLabelCenters = new Map();
+            clearLockedEdgeLabelCenters();
             
             getNetwork().redraw();
         }
@@ -1373,6 +2076,10 @@ export function setupNetworkEvents() {
         
         // Draw tag zones
         drawTagZones(ctx);
+    });
+
+    getNetwork().on('afterDrawing', (ctx) => {
+        drawEdgeLabels(ctx);
     });
     
     getNetwork().on('hoverNode', (params) => {
@@ -1428,6 +2135,7 @@ export function openRadialMenuForNode(nodeId) {
     
     getStore().setSelectedNodeId(nodeId);
     getStore().setSelectedEdgeId(null);
+    getStore().setSelectedEdgeLabelId(null);
     
     const nodePosition = getNetwork().getPositions([nodeId])[nodeId];
     const canvasPosition = getNetwork().canvasToDOM(nodePosition);
@@ -1440,10 +2148,15 @@ export function openRadialMenuForNode(nodeId) {
     const nodeHeight = node.shape.height || 50;
 
     if (isPhoneViewport()) {
-        const screenX = rect.left + canvasPosition.x;
-        const screenY = rect.top + canvasPosition.y;
-        showRadialMenu(screenX, screenY, nodeId, nodeWidth, nodeHeight);
         showArticlePreview(nodeId);
+        requestAnimationFrame(() => {
+            keepPhoneNodeVisible(nodeId);
+            const adjustedNodePosition = getNetwork().getPositions([nodeId])[nodeId];
+            const adjustedCanvasPosition = getNetwork().canvasToDOM(adjustedNodePosition);
+            const screenX = rect.left + adjustedCanvasPosition.x;
+            const screenY = rect.top + adjustedCanvasPosition.y;
+            showRadialMenu(screenX, screenY, nodeId, nodeWidth, nodeHeight);
+        });
         getNetwork().setOptions({ 
             interaction: { 
                 dragNodes: true,

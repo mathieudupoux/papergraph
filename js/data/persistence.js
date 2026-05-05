@@ -7,6 +7,24 @@ import { showNotification } from '../utils/helpers.js';
 
 const _onSaveCallbacks = [];
 
+function getProjectScopedCacheKey() {
+    const projectId = new URLSearchParams(window.location.search).get('id');
+    if (!projectId) return null;
+    return `papermap_project_${projectId}`;
+}
+
+function getMergedNetworkPositions() {
+    if (!getNetwork()) {
+        return { ...(getStore().savedNodePositions || {}) };
+    }
+
+    const currentPositions = getNetwork().getPositions();
+    return {
+        ...(getStore().savedNodePositions || {}),
+        ...currentPositions,
+    };
+}
+
 /**
  * Save current project state to localStorage and (if enabled) to the cloud.
  * Notifies all onSave subscribers after writing.
@@ -26,7 +44,7 @@ export function save(silent = false) {
 
         // Persist vis.js positions
         if (getNetwork()) {
-            const positions = getNetwork().getPositions();
+            const positions = getMergedNetworkPositions();
             localStorage.setItem('papermap_positions', JSON.stringify(positions));
             getStore().setSavedNodePositions(positions);
         }
@@ -36,6 +54,15 @@ export function save(silent = false) {
         localStorage.setItem('papermap_zones', JSON.stringify(getStore().tagZones));
         localStorage.setItem('papermap_edge_control_points', JSON.stringify(getStore().edgeControlPoints));
         localStorage.setItem('papermap_next_control_point_id', getStore().nextControlPointId.toString());
+
+        const projectCacheKey = getProjectScopedCacheKey();
+        if (projectCacheKey) {
+            localStorage.setItem(`${projectCacheKey}_data`, JSON.stringify(getStore().appData));
+            localStorage.setItem(`${projectCacheKey}_zones`, JSON.stringify(getStore().tagZones));
+            localStorage.setItem(`${projectCacheKey}_positions`, JSON.stringify(getStore().savedNodePositions));
+            localStorage.setItem(`${projectCacheKey}_edge_control_points`, JSON.stringify(getStore().edgeControlPoints));
+            localStorage.setItem(`${projectCacheKey}_next_control_point_id`, getStore().nextControlPointId.toString());
+        }
 
         // Cloud sync (async, non-blocking)
         _syncToCloud();
@@ -151,6 +178,8 @@ function _loadGalleryProject() {
         });
         getStore().setTagZones(galleryData.zones || []);
         getStore().setSavedNodePositions(galleryData.positions || {});
+        getStore().setEdgeControlPoints(galleryData.edgeControlPoints || {});
+        getStore().setNextControlPointId(Number.parseInt(galleryData.nextControlPointId, 10) || -1);
     } else if (galleryData.articles && galleryData.connections) {
         // Editor format (articles/connections)
         getStore().setAppData({
@@ -161,11 +190,9 @@ function _loadGalleryProject() {
         });
         getStore().setTagZones(galleryData.tagZones || galleryData.zones || []);
         getStore().setSavedNodePositions(galleryData.nodePositions || galleryData.positions || {});
+        getStore().setEdgeControlPoints(galleryData.edgeControlPoints || {});
+        getStore().setNextControlPointId(Number.parseInt(galleryData.nextControlPointId, 10) || -1);
     }
-
-    // Initialize control points
-    getStore().setEdgeControlPoints({});
-    getStore().setNextControlPointId(-1);
     } finally {
         resumeHistory();
     }
