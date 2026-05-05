@@ -11,6 +11,12 @@ import { showNotification } from '../utils/helpers.js';
 // Current project ID (from URL parameter)
 let currentProjectId = null;
 let isCloudEnabled = false;
+let currentPreviewImage = null;
+let previewRefreshTimeout = null;
+let previewRefreshInFlight = false;
+let lastPreviewRefreshAt = 0;
+
+const PREVIEW_REFRESH_MIN_INTERVAL_MS = 15000;
 
 function getMergedPersistedPositions() {
     const network = getNetwork();
@@ -30,6 +36,17 @@ function clearCachedProjectState() {
     localStorage.removeItem('papermap_zones');
     localStorage.removeItem('papermap_edge_control_points');
     localStorage.removeItem('papermap_next_control_point_id');
+}
+
+function clearPreviewRefreshState() {
+    currentPreviewImage = null;
+    previewRefreshInFlight = false;
+    lastPreviewRefreshAt = 0;
+
+    if (previewRefreshTimeout !== null) {
+        window.clearTimeout(previewRefreshTimeout);
+        previewRefreshTimeout = null;
+    }
 }
 
 function applyProjectScopedLocalCache(projectId) {
@@ -76,9 +93,92 @@ function resetStoreState() {
         getStore().setIsReadOnly(false);
         getStore().setIsReadOnlyMode(false);
         getStore().setIsGalleryViewer(false);
+        clearPreviewRefreshState();
     } finally {
         resumeHistory();
     }
+}
+
+function buildProjectData({ positions, previewImage = currentPreviewImage } = {}) {
+    return {
+        nodes: getStore().appData?.articles || [],
+        edges: getStore().appData?.connections || [],
+        zones: getStore().tagZones || [],
+        positions: positions || {},
+        edgeControlPoints: getStore().edgeControlPoints || {},
+        nextControlPointId: getStore().nextControlPointId,
+        ...(previewImage ? { previewImage } : {}),
+    };
+}
+
+function getCurrentProjectPositions() {
+    const network = getNetwork();
+    if (network) {
+        return getMergedPersistedPositions();
+    }
+
+    const projectKey = `papermap_project_${currentProjectId}`;
+    const savedPositions = localStorage.getItem(`${projectKey}_positions`);
+    if (savedPositions) {
+        return JSON.parse(savedPositions);
+    }
+
+    return {};
+}
+
+async function refreshPreviewImageNow({ silent = true } = {}) {
+    if (!isCloudEnabled || !currentProjectId || previewRefreshInFlight) {
+        return false;
+    }
+
+    previewRefreshInFlight = true;
+    try {
+        const positions = getCurrentProjectPositions();
+        const nextPreviewImage = await generatePreviewImage();
+
+        if (!nextPreviewImage) {
+            return false;
+        }
+
+        currentPreviewImage = nextPreviewImage;
+        lastPreviewRefreshAt = Date.now();
+
+        await updateProject(currentProjectId, buildProjectData({
+            positions,
+            previewImage: nextPreviewImage,
+        }));
+
+        if (!silent) {
+            console.log('✓ Project preview image refreshed');
+        }
+        return true;
+    } catch (error) {
+        console.error('Error refreshing project preview image:', error);
+        return false;
+    } finally {
+        previewRefreshInFlight = false;
+    }
+}
+
+function schedulePreviewRefresh({ silent = true, immediate = false } = {}) {
+    if (!isCloudEnabled || !currentProjectId) {
+        return;
+    }
+
+    if (previewRefreshTimeout !== null) {
+        window.clearTimeout(previewRefreshTimeout);
+        previewRefreshTimeout = null;
+    }
+
+    const now = Date.now();
+    const delay = immediate
+        ? 0
+        : Math.max(0, PREVIEW_REFRESH_MIN_INTERVAL_MS - (now - lastPreviewRefreshAt));
+
+    previewRefreshTimeout = window.setTimeout(async () => {
+        previewRefreshTimeout = null;
+        await refreshPreviewImageNow({ silent });
+    }, delay);
 }
 
 function loadProjectDataIntoStore(projectData) {
@@ -149,6 +249,7 @@ export async function initCloudStorage() {
     // Handle normal project ID (requires authentication)
     if (currentProjectId && isCloudEnabled) {
         console.log('Cloud storage enabled for project:', currentProjectId);
+        clearPreviewRefreshState();
         clearCachedProjectState();
         resetStoreState();
         
@@ -194,6 +295,7 @@ async function loadProjectFromCloud() {
     
     // Store project name for title input
     localStorage.setItem('currentProjectTitle', project.name);
+    currentPreviewImage = project.data?.previewImage || null;
     
     // Load project data into app state
     if (project.data) {
@@ -246,6 +348,7 @@ async function loadSharedProjectFromCloud(shareToken) {
     }
 
     currentProjectId = project.id;
+    currentPreviewImage = project.data?.previewImage || null;
 
     document.title = `${project.name} - Papergraph Shared`;
 
@@ -337,32 +440,12 @@ export async function saveToCloud(silent = false) {
     }
     
     try {
-        // Get current positions from network or localStorage
-        let positions = {};
-        const network = getNetwork();
-        if (network) {
-            positions = getMergedPersistedPositions();
-        } else {
-            // Fallback to project-specific localStorage if network not available
-            const projectKey = `papermap_project_${currentProjectId}`;
-            const savedPositions = localStorage.getItem(`${projectKey}_positions`);
-            if (savedPositions) {
-                positions = JSON.parse(savedPositions);
-            }
-        }
-        
-        // Gather current state (no preview image during auto-save to avoid flash)
-        const projectData = {
-            nodes: getStore().appData?.articles || [],
-            edges: getStore().appData?.connections || [],
-            zones: getStore().tagZones || [],
-            positions: positions,
-            edgeControlPoints: getStore().edgeControlPoints || {},
-            nextControlPointId: getStore().nextControlPointId,
-        };
+        const positions = getCurrentProjectPositions();
+        const projectData = buildProjectData({ positions });
         
         // Save to cloud with auto-save (throttled)
         autoSaveProject(currentProjectId, projectData);
+        schedulePreviewRefresh({ silent: true, immediate: !currentPreviewImage });
         
         if (!silent) {
             console.log('✓ Project queued for cloud save with', Object.keys(positions).length, 'positions');
@@ -387,32 +470,16 @@ export async function saveToCloudWithPreview(silent = false) {
     }
     
     try {
-        // Get current positions
-        let positions = {};
-        const network = getNetwork();
-        if (network) {
-            positions = getMergedPersistedPositions();
-        } else {
-            const projectKey = `papermap_project_${currentProjectId}`;
-            const savedPositions = localStorage.getItem(`${projectKey}_positions`);
-            if (savedPositions) {
-                positions = JSON.parse(savedPositions);
-            }
-        }
-        
-        // Generate preview image
+        const positions = getCurrentProjectPositions();
         const previewImage = await generatePreviewImage();
-        
-        // Gather current state with preview
-        const projectData = {
-            nodes: getStore().appData?.articles || [],
-            edges: getStore().appData?.connections || [],
-            zones: getStore().tagZones || [],
-            positions: positions,
-            edgeControlPoints: getStore().edgeControlPoints || {},
-            nextControlPointId: getStore().nextControlPointId,
-            previewImage: previewImage
-        };
+        if (previewImage) {
+            currentPreviewImage = previewImage;
+            lastPreviewRefreshAt = Date.now();
+        }
+        const projectData = buildProjectData({
+            positions,
+            previewImage: previewImage || currentPreviewImage,
+        });
         
         // Force immediate save (no throttling)
         await updateProject(currentProjectId, projectData);
@@ -448,29 +515,8 @@ export async function forceSaveToCloud() {
     }
     
     try {
-        // Get current positions
-        let positions = {};
-        const network = getNetwork();
-        if (network) {
-            positions = getMergedPersistedPositions();
-        } else {
-            // Fallback to project-specific localStorage if network not available
-            const projectKey = `papermap_project_${currentProjectId}`;
-            const savedPositions = localStorage.getItem(`${projectKey}_positions`);
-            if (savedPositions) {
-                positions = JSON.parse(savedPositions);
-            }
-        }
-        
-        // No preview image generation during force save (to avoid flash)
-        const projectData = {
-            nodes: getStore().appData?.articles || [],
-            edges: getStore().appData?.connections || [],
-            zones: getStore().tagZones || [],
-            positions: positions,
-            edgeControlPoints: getStore().edgeControlPoints || {},
-            nextControlPointId: getStore().nextControlPointId,
-        };
+        const positions = getCurrentProjectPositions();
+        const projectData = buildProjectData({ positions });
         
         await updateProject(currentProjectId, projectData);
         console.log('✓ Project force-saved to cloud with', Object.keys(positions).length, 'positions');

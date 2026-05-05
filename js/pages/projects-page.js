@@ -220,12 +220,11 @@ function getProjectStats(project) {
     };
 }
 
-// Generate project preview (uses stored PNG or fallback SVG)
+// Generate project preview (uses stored PNG only)
 function generateProjectPreview(project) {
     const data = project.data || {};
     const nodes = data.nodes || [];
     
-    // Check if project has a stored preview image
     if (data.previewImage) {
         return `<img src="${data.previewImage}" alt="Project preview" class="pg-preview-img" />`;
     }
@@ -233,33 +232,8 @@ function generateProjectPreview(project) {
     if (nodes.length === 0) {
         return '<div class="pg-preview-empty">No nodes yet</div>';
     }
-    
-    // Fallback: Create a simple SVG preview
-    const edges = data.edges || [];
-    let svg = '<svg viewBox="0 0 200 150" class="pg-preview-svg">';
-    
-    // Draw edges first (so they appear behind nodes)
-    edges.slice(0, 10).forEach((edge, i) => {
-        const angle = (i / Math.max(edges.length, 1)) * Math.PI * 2;
-        const x1 = 100 + Math.cos(angle) * 40;
-        const y1 = 75 + Math.sin(angle) * 30;
-        const x2 = 100 + Math.cos(angle + 1) * 40;
-        const y2 = 75 + Math.sin(angle + 1) * 30;
-        svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ddd" stroke-width="1.5"/>`;
-    });
-    
-    // Draw nodes
-    nodes.slice(0, 15).forEach((node, i) => {
-        const angle = (i / Math.max(nodes.length, 1)) * Math.PI * 2;
-        const radius = 35 + (i % 3) * 15;
-        const x = 100 + Math.cos(angle) * radius;
-        const y = 75 + Math.sin(angle) * radius;
-        const color = node.tags && node.tags.length > 0 ? '#4a90e2' : '#999';
-        svg += `<circle cx="${x}" cy="${y}" r="4" fill="${color}"/>`;
-    });
-    
-    svg += '</svg>';
-    return svg;
+
+    return '<div class="pg-preview-empty">Preview unavailable</div>';
 }
 
 // Toggle project menu
