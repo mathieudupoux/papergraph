@@ -5,8 +5,12 @@
  * e.g., remyvallot.github.io/beta-papergraph/
  */
 
+function isGitHubPagesHostname(hostname = '') {
+    return hostname === 'github.io' || hostname.endsWith('.github.io');
+}
+
 // Detect if we're on GitHub Pages
-const isGitHubPages = window.location.hostname.includes('github.io');
+const isGitHubPages = isGitHubPagesHostname(window.location.hostname);
 
 // Extract base path from current URL
 // Example: /beta.papergraph/index.html -> /beta.papergraph/

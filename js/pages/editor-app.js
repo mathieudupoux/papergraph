@@ -3,6 +3,9 @@
 
 // Store is initialized on first import via appStore.js (imported by other modules)
 
+// Vendor/runtime dependencies that legacy modules expect as globals
+import '../vendor/runtime-deps.js';
+
 // Utilities
 import '../utils/helpers.js';
 import '../utils/load-footer.js';

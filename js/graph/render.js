@@ -1,8 +1,10 @@
-import { getStore, getNetwork, appStore } from '../store/appStore.js';
+import { DataSet } from 'vis-network/standalone';
+import { getStore, getNetwork, appStore, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { getArticleZones, getDefaultEdgeFont, getNodeAppearanceForZones } from '../utils/helpers.js';
 import { getNodeLabel } from './selection.js';
 import { rebuildEdgeWithControlPoints, syncControlPointNodes } from './connections.js';
 import { initializeGraph } from './init.js';
+import { checkNodeZoneMembership } from './zones.js';
 import { icon } from '../ui/icons.js';
 
 // ===== GRAPH RENDERING & DATA =====
@@ -71,10 +73,64 @@ function scheduleDeferredControlPointRebuild(edgeIds) {
     });
 }
 
+function getFinitePosition(position) {
+    if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+        return null;
+    }
+
+    return { x: position.x, y: position.y };
+}
+
+function syncZoneMembershipForNewNodes(network, articles, addedNodes, tagZones) {
+    if (!network || !Array.isArray(addedNodes) || addedNodes.length === 0 || tagZones.length === 0) {
+        return;
+    }
+
+    const addedNodeIds = addedNodes
+        .map((node) => node.id)
+        .filter((nodeId) => Number.isFinite(nodeId) && nodeId > 0);
+    const addedNodeIdSet = new Set(addedNodeIds);
+
+    if (addedNodeIds.length === 0) {
+        return;
+    }
+
+    const livePositions = network.getPositions(addedNodeIds);
+    const positions = {};
+
+    addedNodes.forEach((node) => {
+        if (!addedNodeIdSet.has(node.id)) {
+            return;
+        }
+
+        const resolvedPosition = getFinitePosition(livePositions[node.id]) || getFinitePosition(node);
+        if (resolvedPosition) {
+            positions[node.id] = resolvedPosition;
+        }
+    });
+
+    if (Object.keys(positions).length === 0) {
+        return;
+    }
+
+    pauseHistory();
+    try {
+        checkNodeZoneMembership({
+            positions,
+            tagZones,
+            articles,
+            persistToStore: true,
+            saveChanges: false,
+        });
+    } finally {
+        resumeHistory();
+    }
+}
+
 export function getGraphData() {
     const { appData, tagZones, savedNodePositions, edgeControlPoints } = getStore();
 
-    const nodes = new vis.DataSet(appData.articles.map((article) => {
+    const nodes = new DataSet(appData.articles.map((article) => {
         const { color: nodeColor, font } = getNodeAppearanceForZones(getArticleZones(article, tagZones));
 
         const labelFormat = localStorage.getItem('nodeLabelFormat') || 'bibtexId';
@@ -102,7 +158,7 @@ export function getGraphData() {
 
     const articleIds = new Set(appData.articles.map((article) => article.id));
 
-    const edges = new vis.DataSet(appData.connections
+    const edges = new DataSet(appData.connections
         .filter((conn) => {
             if (!articleIds.has(conn.from) || !articleIds.has(conn.to)) return false;
             if (hasManagedControlPoints(edgeControlPoints, conn.id)) return false;
@@ -265,7 +321,7 @@ export function updateGraph() {
     try {
         searchHighlightedNodes = [];
 
-        const { appData, savedNodePositions, edgeControlPoints } = getStore();
+        const { appData, savedNodePositions, edgeControlPoints, tagZones } = getStore();
         const viewPosition = network.getViewPosition();
         const scale = network.getScale();
 
@@ -280,6 +336,8 @@ export function updateGraph() {
         if (nodesToRemove.length > 0) network.body.data.nodes.remove(nodesToRemove);
         if (nodesToAdd.length > 0)    network.body.data.nodes.add(nodesToAdd);
         if (nodesToUpdate.length > 0) network.body.data.nodes.update(nodesToUpdate);
+
+        syncZoneMembershipForNewNodes(network, appData.articles, nodesToAdd, tagZones);
 
         // ── Edge diffs ──
         const { toAdd: edgesToAdd, toRemove: edgesToRemove, toUpdate: edgesToUpdate } =

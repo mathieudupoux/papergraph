@@ -75,13 +75,23 @@ export function escapeBibTeX(text) {
  */
 export function escapeLatex(text) {
     if (!text) return '';
-    return String(text)
-        .replace(/\\/g, '\\textbackslash{}')
-        .replace(/[&%$#_{}]/g, '\\$&')
-        .replace(/~/g, '\\textasciitilde{}')
-        .replace(/\^/g, '\\textasciicircum{}')
-        .replace(/</g, '\\textless{}')
-        .replace(/>/g, '\\textgreater{}');
+
+    const latexEscapeMap = {
+        '\\': '\\textbackslash{}',
+        '&': '\\&',
+        '%': '\\%',
+        '$': '\\$',
+        '#': '\\#',
+        '_': '\\_',
+        '{': '\\{',
+        '}': '\\}',
+        '~': '\\textasciitilde{}',
+        '^': '\\textasciicircum{}',
+        '<': '\\textless{}',
+        '>': '\\textgreater{}',
+    };
+
+    return String(text).replace(/[\\&%$#_{}~^<>]/g, (char) => latexEscapeMap[char] || char);
 }
 
 /**

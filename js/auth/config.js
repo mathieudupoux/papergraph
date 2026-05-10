@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-js';
+
 /**
  * Supabase Configuration
  * 
@@ -29,8 +31,12 @@ const BASE_URL = isDevelopment ? window.location.origin : PRODUCTION_BASE_URL;
 const SUPABASE_URL = "https://lqbcatqdfsgvbwenqupq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxYmNhdHFkZnNndmJ3ZW5xdXBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwMzIzNzcsImV4cCI6MjA3NzYwODM3N30.Ub5dYZG_N9MScPugiYlwNlKhDl_Y6L9F4YMFsXtgvp8";
 
+function isGitHubPagesHostname(hostname = '') {
+    return hostname === 'github.io' || hostname.endsWith('.github.io');
+}
+
 // Detect GitHub Pages base path
-const isGitHubPages = window.location.hostname.includes('github.io');
+const isGitHubPages = isGitHubPagesHostname(window.location.hostname);
 
 // Extract base path: /beta.papergraph/ or /
 function getBasePath() {
@@ -46,7 +52,7 @@ function getBasePath() {
 const basePath = getBasePath();
 
 // Initialize Supabase client
-export const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Configuration constants
 export const config = {

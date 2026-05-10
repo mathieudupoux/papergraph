@@ -1,7 +1,7 @@
 // ===== IMPORT FUNCTIONS =====
-// DOI, arXiv, and PDF import functionality
+// DOI, arXiv, and BibTeX import functionality
 
-import { getStore, getNetwork } from '../store/appStore.js';
+import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
 import { isBibTeXFormat, parseBibTeXEntry, parseMultipleBibTeXEntries } from './bibtex-parser.js';
 import { save } from './persistence.js';
@@ -39,12 +39,10 @@ export function setupImportZone() {
             const file = files[0];
             const fileName = file.name.toLowerCase();
             
-            if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
-                handlePdfFile(file);
-            } else if (fileName.endsWith('.bib') || fileName.endsWith('.bibtex')) {
+            if (fileName.endsWith('.bib') || fileName.endsWith('.bibtex')) {
                 handleBibFile(file);
             } else {
-                showImportStatus('Please drop a PDF or .bib file', 'error');
+                showImportStatus('Please drop a .bib file', 'error');
             }
         }
     });
@@ -60,12 +58,10 @@ export function setupImportZone() {
                 const file = e.target.files[0];
                 const fileName = file.name.toLowerCase();
                 
-                if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
-                    handlePdfFile(file);
-                } else if (fileName.endsWith('.bib') || fileName.endsWith('.bibtex')) {
+                if (fileName.endsWith('.bib') || fileName.endsWith('.bibtex')) {
                     handleBibFile(file);
                 } else {
-                    showImportStatus('Please select a PDF or .bib file', 'error');
+                    showImportStatus('Please select a .bib file', 'error');
                 }
             }
         });
@@ -190,16 +186,103 @@ function autoResizeQuickImport() {
     quickImport.style.height = `${Math.min(quickImport.scrollHeight, 180)}px`;
 }
 
+const DOI_IN_TEXT_PATTERN = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i;
+const DOI_EXACT_PATTERN = /^10\.\d{4,9}\/[-._;()/:A-Z0-9]+$/i;
+
+function normalizeDoiIdentifier(value = '') {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return null;
+
+    let normalizedValue = trimmedValue;
+
+    if (/^doi:\s*/i.test(normalizedValue)) {
+        normalizedValue = normalizedValue.replace(/^doi:\s*/i, '');
+    }
+
+    normalizedValue = normalizedValue.replace(/[.,;:!?]+$/, '');
+
+    const doiMatch = normalizedValue.match(DOI_IN_TEXT_PATTERN);
+    if (!doiMatch) {
+        return null;
+    }
+
+    const doi = doiMatch[0].replace(/[.,;:!?]+$/, '');
+    return DOI_EXACT_PATTERN.test(doi) ? doi : null;
+}
+
+function safeDecodeURIComponent(value = '') {
+    try {
+        return decodeURIComponent(value);
+    } catch (_) {
+        return value;
+    }
+}
+
+function extractDoiFromUrl(value = '') {
+    const urlCandidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(value)
+        ? value
+        : /^[^/\s?#]+\.[^/\s?#]+/.test(value)
+            ? `https://${value}`
+            : null;
+
+    if (!urlCandidate) {
+        return null;
+    }
+
+    try {
+        const parsedUrl = new URL(urlCandidate);
+        const candidates = [
+            parsedUrl.pathname,
+            parsedUrl.search,
+            parsedUrl.hash,
+            `${parsedUrl.pathname}${parsedUrl.search}`,
+            `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`,
+        ]
+            .map((candidate) => safeDecodeURIComponent(candidate))
+            .map((candidate) => candidate.replace(/^\/+/, ''))
+            .filter(Boolean);
+
+        for (const candidate of candidates) {
+            const doi = normalizeDoiIdentifier(candidate);
+            if (doi) {
+                return doi;
+            }
+        }
+
+        return null;
+    } catch (_) {
+        return null;
+    }
+}
+
+function buildCrossrefWorksUrl(doi, includeBibtexTransform = false) {
+    const normalizedDoi = normalizeDoiIdentifier(doi);
+    if (!normalizedDoi) {
+        throw new Error('DOI invalide');
+    }
+
+    const url = new URL(`https://api.crossref.org/works/${encodeURIComponent(normalizedDoi)}`);
+    if (includeBibtexTransform) {
+        url.pathname += '/transform/application/x-bibtex';
+    }
+
+    return url.toString();
+}
+
 function extractDoiFromText(value = '') {
     const trimmedValue = value.trim();
     if (!trimmedValue) return null;
 
-    if (!trimmedValue.includes('doi.org') && !(trimmedValue.includes('10.') && trimmedValue.includes('/'))) {
+    const doiFromUrl = extractDoiFromUrl(trimmedValue);
+    if (doiFromUrl) {
+        return doiFromUrl;
+    }
+
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmedValue)) {
         return null;
     }
 
-    const doiMatch = trimmedValue.match(/10\.\d{4,}(?:\.\d+)?\/[A-Za-z0-9.\-_\(\)\/]+/);
-    return doiMatch ? doiMatch[0].replace(/[.,;:!?]+$/, '') : null;
+    return normalizeDoiIdentifier(trimmedValue);
 }
 
 function extractArxivIdFromText(value = '') {
@@ -309,13 +392,18 @@ function addImportedArticlesToGraph(articles, position = null) {
     setTimeout(() => {
         if (!getNetwork()) return;
 
-        if (getStore().savedNodePositions) {
-            const positions = getNetwork().getPositions();
-            getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
-        }
+        pauseHistory();
+        try {
+            if (getStore().savedNodePositions) {
+                const positions = getNetwork().getPositions();
+                getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
+            }
 
-        if (typeof checkNodeZoneMembership === 'function') {
-            checkNodeZoneMembership();
+            if (typeof checkNodeZoneMembership === 'function') {
+                checkNodeZoneMembership();
+            }
+        } finally {
+            resumeHistory();
         }
 
         save(true);
@@ -462,12 +550,6 @@ export async function processBibTeXImport() {
                 : { x: 0, y: 0 };
             
             articles.forEach((article, index) => {
-                const _nextId = getStore().appData.nextArticleId;
-
-                getStore().setNextArticleId(_nextId + 1);
-
-                article.id = _nextId;
-                
                 // Calculate column and row position
                 const columnIndex = Math.floor(index / maxPerColumn);
                 const rowIndex = index % maxPerColumn;
@@ -477,7 +559,7 @@ export async function processBibTeXImport() {
                 article.x = viewCenter.x + (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
                 article.y = viewCenter.y + (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
                 
-                getStore().addArticle(article);
+                getStore().createArticle(article);
             });
             
             save();
@@ -486,27 +568,32 @@ export async function processBibTeXImport() {
             // Save initial positions to ensure they persist
             setTimeout(() => {
                 if (getNetwork() && getStore().savedNodePositions) {
-                    const positions = getNetwork().getPositions();
-                    getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
-                    console.log('Saved positions for newly imported articles');
-                    
-                    // Check node zone membership to update colors after positions are set
-                    if (typeof checkNodeZoneMembership === 'function') {
-                        console.log('Checking zone membership for imported nodes...');
-                        checkNodeZoneMembership();
-                        console.log('Applied zone colors to imported nodes');
+                    pauseHistory();
+                    try {
+                        const positions = getNetwork().getPositions();
+                        getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
+                        console.log('Saved positions for newly imported articles');
                         
-                        // Force graph update to reflect new colors
-                        const currentView = getNetwork().getViewPosition();
-                        const currentScale = getNetwork().getScale();
-                        updateGraph();
-                        // Restore view position
-                        getNetwork().moveTo({
-                            position: currentView,
-                            scale: currentScale,
-                            animation: false
-                        });
-                        console.log('Graph updated with correct colors');
+                        // Check node zone membership to update colors after positions are set
+                        if (typeof checkNodeZoneMembership === 'function') {
+                            console.log('Checking zone membership for imported nodes...');
+                            checkNodeZoneMembership();
+                            console.log('Applied zone colors to imported nodes');
+                            
+                            // Force graph update to reflect new colors
+                            const currentView = getNetwork().getViewPosition();
+                            const currentScale = getNetwork().getScale();
+                            updateGraph();
+                            // Restore view position
+                            getNetwork().moveTo({
+                                position: currentView,
+                                scale: currentScale,
+                                animation: false
+                            });
+                            console.log('Graph updated with correct colors');
+                        }
+                    } finally {
+                        resumeHistory();
                     }
                     
                     save(true); // Silent save after all updates
@@ -576,87 +663,18 @@ export async function handleBibFile(file) {
     }
 }
 
-// ===== PDF HANDLING =====
-
-export async function handlePdfFile(file) {
-    showImportStatus('Extracting PDF metadata...', 'loading');
-    
-    try {
-        // Use PDF.js library if available, otherwise extract basic info
-        if (typeof pdfjsLib !== 'undefined') {
-            await extractPdfMetadata(file);
-        } else {
-            // Fallback: just use filename
-            const filename = file.name.replace('.pdf', '');
-            const titleField = document.getElementById('articleTitle');
-            const pdfField = document.getElementById('articlePdf');
-            
-            if (titleField) titleField.value = filename;
-            
-            // Create local URL
-            const pdfUrl = URL.createObjectURL(file);
-            if (pdfField) pdfField.value = pdfUrl;
-            
-            // Try to extract DOI from filename
-            const doiMatch = filename.match(/10\.\d{4,}[^\s]*/);
-            if (doiMatch) {
-                const doiField = document.getElementById('articleDoi');
-                if (doiField) doiField.value = doiMatch[0];
-                showImportStatus('PDF loaded. Attempting import via found DOI...', 'loading');
-                await importFromDoi(doiMatch[0]);
-            } else {
-                showImportStatus('PDF loaded. Press Send to add it or keep refining.', 'success');
-                toggleManualForm(true);
-                updatePromptActionState('save');
-            }
-        }
-    } catch (error) {
-        console.error('PDF processing error:', error);
-        showImportStatus('Error processing PDF', 'error');
-    }
-}
-
-export async function extractPdfMetadata(file) {
-    // This would use PDF.js to extract metadata from PDF
-    const arrayBuffer = await file.arrayBuffer();
-    
-    // Try to find DOI in PDF content (basic search)
-    const text = await extractTextFromPdf(arrayBuffer);
-    const doiMatch = text.match(/10\.\d{4,}\/[^\s\n]+/);
-    
-    if (doiMatch) {
-        const doi = doiMatch[0].replace(/[.,;]$/, ''); // Remove trailing punctuation
-        showImportStatus('DOI found in PDF, importing...', 'loading');
-        await importFromDoi(doi);
-    } else {
-        const filename = file.name.replace('.pdf', '');
-        const titleField = document.getElementById('articleTitle');
-        const pdfField = document.getElementById('articlePdf');
-        
-        if (titleField) titleField.value = filename;
-        const pdfUrl = URL.createObjectURL(file);
-        if (pdfField) pdfField.value = pdfUrl;
-        
-        showImportStatus('PDF loaded. Press Send to add it or keep refining.', 'success');
-        toggleManualForm(true);
-        updatePromptActionState('save');
-    }
-}
-
-export async function extractTextFromPdf(arrayBuffer) {
-    // Simple text extraction - would need PDF.js for full implementation
-    const uint8Array = new Uint8Array(arrayBuffer);
-    const text = new TextDecoder().decode(uint8Array);
-    return text;
-}
-
 // ===== DOI IMPORT =====
 
 async function fetchArticleFromDoi(doi) {
+    const normalizedDoi = normalizeDoiIdentifier(doi);
+    if (!normalizedDoi) {
+        throw new Error('DOI invalide');
+    }
+
     let bibtexData = null;
 
     try {
-        const bibtexResponse = await fetch(`https://api.crossref.org/works/${doi}/transform/application/x-bibtex`);
+        const bibtexResponse = await fetch(buildCrossrefWorksUrl(normalizedDoi, true));
         if (bibtexResponse.ok) {
             const bibtexText = await bibtexResponse.text();
             bibtexData = await parseBibTeXEntry(bibtexText);
@@ -665,7 +683,7 @@ async function fetchArticleFromDoi(doi) {
         console.log('BibTeX fetch failed, falling back to CrossRef JSON:', error);
     }
 
-    const response = await fetch(`https://api.crossref.org/works/${doi}`);
+    const response = await fetch(buildCrossrefWorksUrl(normalizedDoi));
     if (!response.ok) {
         throw new Error(`DOI non trouvé (status ${response.status})`);
     }
@@ -686,7 +704,7 @@ async function fetchArticleFromDoi(doi) {
         title: (bibtexData?.title || work.title?.[0] || 'Imported article').replace(/[{}]/g, ''),
         authors,
         abstract: work.abstract || bibtexData?.abstract || '',
-        doi,
+        doi: normalizedDoi,
         year: year ? String(year) : '',
         journal: work['container-title']?.[0] || bibtexData?.journal || bibtexData?.booktitle || '',
         volume: work.volume || bibtexData?.volume || '',
@@ -713,14 +731,18 @@ export async function importFromDoi(doi) {
         const input = document.getElementById('quickImport');
         if (input) doi = input.value.trim();
     }
-    
-    if (!doi) {
+
+    const normalizedDoi = normalizeDoiIdentifier(doi || '');
+    if (!normalizedDoi) {
         showImportStatus('Please enter a DOI', 'error');
         return;
     }
     
     // Check if DOI already exists
-    const existingArticle = getStore().appData.articles.find(a => a.doi && a.doi.toLowerCase() === doi.toLowerCase());
+    const existingArticle = getStore().appData.articles.find((a) => {
+        const articleDoi = normalizeDoiIdentifier(a.doi || '');
+        return articleDoi && articleDoi.toLowerCase() === normalizedDoi.toLowerCase();
+    });
     if (existingArticle) {
         const confirmImport = confirm(
             `⚠️ Warning: An article with this DOI already exists:\n\n` +
@@ -736,11 +758,11 @@ export async function importFromDoi(doi) {
         }
     }
     
-    console.log('📚 Importing DOI:', doi);
+    console.log('📚 Importing DOI:', normalizedDoi);
     showImportStatus('Fetching metadata...', 'loading');
     
     try {
-        const article = await fetchArticleFromDoi(doi);
+        const article = await fetchArticleFromDoi(normalizedDoi);
         getStore().setPendingImportArticle(article);
         fillFormWithArticleData(article);
         
@@ -1121,12 +1143,6 @@ export async function importBibtexFile(event) {
             : { x: 0, y: 0 };
         
         articles.forEach((article, index) => {
-            const _nextId = getStore().appData.nextArticleId;
-
-            getStore().setNextArticleId(_nextId + 1);
-
-            article.id = _nextId;
-            
             // Calculate column and row position
             const columnIndex = Math.floor(index / maxPerColumn);
             const rowIndex = index % maxPerColumn;
@@ -1136,7 +1152,7 @@ export async function importBibtexFile(event) {
             article.x = viewCenter.x + (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
             article.y = viewCenter.y + (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
             
-            getStore().addArticle(article);
+            getStore().createArticle(article);
         });
         
         save();
@@ -1145,27 +1161,32 @@ export async function importBibtexFile(event) {
         // Save initial positions to ensure they persist
         setTimeout(() => {
             if (getNetwork() && getStore().savedNodePositions) {
-                const positions = getNetwork().getPositions();
-                getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
-                console.log('Saved positions for newly imported articles from .bib file');
-                
-                // Check node zone membership to update colors after positions are set
-                if (typeof checkNodeZoneMembership === 'function') {
-                    console.log('Checking zone membership for imported nodes from .bib file...');
-                    checkNodeZoneMembership();
-                    console.log('Applied zone colors to imported nodes from .bib file');
+                pauseHistory();
+                try {
+                    const positions = getNetwork().getPositions();
+                    getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
+                    console.log('Saved positions for newly imported articles from .bib file');
                     
-                    // Force graph update to reflect new colors
-                    const currentView = getNetwork().getViewPosition();
-                    const currentScale = getNetwork().getScale();
-                    updateGraph();
-                    // Restore view position
-                    getNetwork().moveTo({
-                        position: currentView,
-                        scale: currentScale,
-                        animation: false
-                    });
-                    console.log('Graph updated with correct colors');
+                    // Check node zone membership to update colors after positions are set
+                    if (typeof checkNodeZoneMembership === 'function') {
+                        console.log('Checking zone membership for imported nodes from .bib file...');
+                        checkNodeZoneMembership();
+                        console.log('Applied zone colors to imported nodes from .bib file');
+                        
+                        // Force graph update to reflect new colors
+                        const currentView = getNetwork().getViewPosition();
+                        const currentScale = getNetwork().getScale();
+                        updateGraph();
+                        // Restore view position
+                        getNetwork().moveTo({
+                            position: currentView,
+                            scale: currentScale,
+                            animation: false
+                        });
+                        console.log('Graph updated with correct colors');
+                    }
+                } finally {
+                    resumeHistory();
                 }
                 
                 save(true); // Silent save after all updates
