@@ -24,6 +24,7 @@ export default defineConfig({
         gallery: resolve(__dirname, 'gallery.html'),
         projects: resolve(__dirname, 'projects.html'),
         privacy: resolve(__dirname, 'privacy.html'),
+        terms: resolve(__dirname, 'terms.html'),
       },
     },
   },

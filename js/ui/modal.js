@@ -144,7 +144,6 @@ export function saveArticle(e) {
     } else {
         // Create new article
         const newArticle = {
-            id: (() => { const _id = getStore().appData.nextArticleId; getStore().setNextArticleId(_id + 1); return _id; })(),
             title,
             authors,
             year,
@@ -206,7 +205,7 @@ export function saveArticle(e) {
             newArticle.y = viewCenter.y;
         }
         
-        getStore().addArticle(newArticle);
+        getStore().createArticle(newArticle);
         
     }
     

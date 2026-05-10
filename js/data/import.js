@@ -1,7 +1,7 @@
 // ===== IMPORT FUNCTIONS =====
 // DOI, arXiv, and PDF import functionality
 
-import { getStore, getNetwork } from '../store/appStore.js';
+import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
 import { isBibTeXFormat, parseBibTeXEntry, parseMultipleBibTeXEntries } from './bibtex-parser.js';
 import { save } from './persistence.js';
@@ -309,13 +309,18 @@ function addImportedArticlesToGraph(articles, position = null) {
     setTimeout(() => {
         if (!getNetwork()) return;
 
-        if (getStore().savedNodePositions) {
-            const positions = getNetwork().getPositions();
-            getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
-        }
+        pauseHistory();
+        try {
+            if (getStore().savedNodePositions) {
+                const positions = getNetwork().getPositions();
+                getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
+            }
 
-        if (typeof checkNodeZoneMembership === 'function') {
-            checkNodeZoneMembership();
+            if (typeof checkNodeZoneMembership === 'function') {
+                checkNodeZoneMembership();
+            }
+        } finally {
+            resumeHistory();
         }
 
         save(true);
@@ -462,12 +467,6 @@ export async function processBibTeXImport() {
                 : { x: 0, y: 0 };
             
             articles.forEach((article, index) => {
-                const _nextId = getStore().appData.nextArticleId;
-
-                getStore().setNextArticleId(_nextId + 1);
-
-                article.id = _nextId;
-                
                 // Calculate column and row position
                 const columnIndex = Math.floor(index / maxPerColumn);
                 const rowIndex = index % maxPerColumn;
@@ -477,7 +476,7 @@ export async function processBibTeXImport() {
                 article.x = viewCenter.x + (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
                 article.y = viewCenter.y + (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
                 
-                getStore().addArticle(article);
+                getStore().createArticle(article);
             });
             
             save();
@@ -486,27 +485,32 @@ export async function processBibTeXImport() {
             // Save initial positions to ensure they persist
             setTimeout(() => {
                 if (getNetwork() && getStore().savedNodePositions) {
-                    const positions = getNetwork().getPositions();
-                    getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
-                    console.log('Saved positions for newly imported articles');
-                    
-                    // Check node zone membership to update colors after positions are set
-                    if (typeof checkNodeZoneMembership === 'function') {
-                        console.log('Checking zone membership for imported nodes...');
-                        checkNodeZoneMembership();
-                        console.log('Applied zone colors to imported nodes');
+                    pauseHistory();
+                    try {
+                        const positions = getNetwork().getPositions();
+                        getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
+                        console.log('Saved positions for newly imported articles');
                         
-                        // Force graph update to reflect new colors
-                        const currentView = getNetwork().getViewPosition();
-                        const currentScale = getNetwork().getScale();
-                        updateGraph();
-                        // Restore view position
-                        getNetwork().moveTo({
-                            position: currentView,
-                            scale: currentScale,
-                            animation: false
-                        });
-                        console.log('Graph updated with correct colors');
+                        // Check node zone membership to update colors after positions are set
+                        if (typeof checkNodeZoneMembership === 'function') {
+                            console.log('Checking zone membership for imported nodes...');
+                            checkNodeZoneMembership();
+                            console.log('Applied zone colors to imported nodes');
+                            
+                            // Force graph update to reflect new colors
+                            const currentView = getNetwork().getViewPosition();
+                            const currentScale = getNetwork().getScale();
+                            updateGraph();
+                            // Restore view position
+                            getNetwork().moveTo({
+                                position: currentView,
+                                scale: currentScale,
+                                animation: false
+                            });
+                            console.log('Graph updated with correct colors');
+                        }
+                    } finally {
+                        resumeHistory();
                     }
                     
                     save(true); // Silent save after all updates
@@ -1121,12 +1125,6 @@ export async function importBibtexFile(event) {
             : { x: 0, y: 0 };
         
         articles.forEach((article, index) => {
-            const _nextId = getStore().appData.nextArticleId;
-
-            getStore().setNextArticleId(_nextId + 1);
-
-            article.id = _nextId;
-            
             // Calculate column and row position
             const columnIndex = Math.floor(index / maxPerColumn);
             const rowIndex = index % maxPerColumn;
@@ -1136,7 +1134,7 @@ export async function importBibtexFile(event) {
             article.x = viewCenter.x + (columnIndex - (numColumns - 1) / 2) * horizontalSpacing;
             article.y = viewCenter.y + (rowIndex - (articlesInColumn - 1) / 2) * verticalSpacing;
             
-            getStore().addArticle(article);
+            getStore().createArticle(article);
         });
         
         save();
@@ -1145,27 +1143,32 @@ export async function importBibtexFile(event) {
         // Save initial positions to ensure they persist
         setTimeout(() => {
             if (getNetwork() && getStore().savedNodePositions) {
-                const positions = getNetwork().getPositions();
-                getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
-                console.log('Saved positions for newly imported articles from .bib file');
-                
-                // Check node zone membership to update colors after positions are set
-                if (typeof checkNodeZoneMembership === 'function') {
-                    console.log('Checking zone membership for imported nodes from .bib file...');
-                    checkNodeZoneMembership();
-                    console.log('Applied zone colors to imported nodes from .bib file');
+                pauseHistory();
+                try {
+                    const positions = getNetwork().getPositions();
+                    getStore().setSavedNodePositions({ ...getStore().savedNodePositions, ...positions });
+                    console.log('Saved positions for newly imported articles from .bib file');
                     
-                    // Force graph update to reflect new colors
-                    const currentView = getNetwork().getViewPosition();
-                    const currentScale = getNetwork().getScale();
-                    updateGraph();
-                    // Restore view position
-                    getNetwork().moveTo({
-                        position: currentView,
-                        scale: currentScale,
-                        animation: false
-                    });
-                    console.log('Graph updated with correct colors');
+                    // Check node zone membership to update colors after positions are set
+                    if (typeof checkNodeZoneMembership === 'function') {
+                        console.log('Checking zone membership for imported nodes from .bib file...');
+                        checkNodeZoneMembership();
+                        console.log('Applied zone colors to imported nodes from .bib file');
+                        
+                        // Force graph update to reflect new colors
+                        const currentView = getNetwork().getViewPosition();
+                        const currentScale = getNetwork().getScale();
+                        updateGraph();
+                        // Restore view position
+                        getNetwork().moveTo({
+                            position: currentView,
+                            scale: currentScale,
+                            animation: false
+                        });
+                        console.log('Graph updated with correct colors');
+                    }
+                } finally {
+                    resumeHistory();
                 }
                 
                 save(true); // Silent save after all updates
