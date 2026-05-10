@@ -1,6 +1,7 @@
 // ===== GRAPH INITIALIZATION =====
 // Network creation, options, and graph setup
 
+import { Network } from 'vis-network/standalone';
 import { getStore, getNetwork, setNetwork } from '../store/appStore.js';
 import { getGraphData } from './render.js';
 import { setupCanvasEvents, setupNetworkEvents } from './events.js';
@@ -155,7 +156,7 @@ export function initializeGraph() {
         }
     };
     
-    setNetwork(new vis.Network(container, graphData, options));
+    setNetwork(new Network(container, graphData, options));
     
     // Force disable node dragging in gallery viewer mode
     if (getStore().isGalleryViewer) {

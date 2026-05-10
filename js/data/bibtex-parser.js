@@ -133,7 +133,7 @@ export async function parseBibTeXEntry(bibtexString) {
     const urlField = fields.url || '';
     
     // If no abstract but has arXiv URL, try to fetch from arXiv
-    if (!fields.abstract && urlField.includes('arxiv.org')) {
+    if (!fields.abstract && isArxivUrl(urlField)) {
         try {
             const arxivId = extractArxivId(urlField);
             if (arxivId) {
@@ -330,9 +330,37 @@ export async function parseMultipleBibTeXEntries(text) {
  * @param {string} url - URL containing arXiv ID
  * @returns {string|null} arXiv ID or null
  */
+function isArxivHostname(hostname = '') {
+    const normalizedHostname = hostname.toLowerCase();
+    return normalizedHostname === 'arxiv.org' || normalizedHostname.endsWith('.arxiv.org');
+}
+
+function isArxivUrl(value = '') {
+    try {
+        const parsedUrl = new URL(value);
+        return isArxivHostname(parsedUrl.hostname);
+    } catch (_) {
+        return false;
+    }
+}
+
 export function extractArxivId(url) {
-    const match = url.match(/arxiv\.org\/abs\/(\d+\.\d+)/);
-    return match ? match[1] : null;
+    if (!isArxivUrl(url)) {
+        return null;
+    }
+
+    try {
+        const parsedUrl = new URL(url);
+        const absMatch = parsedUrl.pathname.match(/\/abs\/(\d+\.\d+)(?:v\d+)?/i);
+        if (absMatch) {
+            return absMatch[1];
+        }
+
+        const legacyMatch = parsedUrl.pathname.match(/\/abs\/([a-z\-]+\/\d{7})(?:v\d+)?/i);
+        return legacyMatch ? legacyMatch[1] : null;
+    } catch (_) {
+        return null;
+    }
 }
 
 /**

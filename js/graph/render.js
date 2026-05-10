@@ -1,3 +1,4 @@
+import { DataSet } from 'vis-network/standalone';
 import { getStore, getNetwork, appStore, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { getArticleZones, getDefaultEdgeFont, getNodeAppearanceForZones } from '../utils/helpers.js';
 import { getNodeLabel } from './selection.js';
@@ -129,7 +130,7 @@ function syncZoneMembershipForNewNodes(network, articles, addedNodes, tagZones) 
 export function getGraphData() {
     const { appData, tagZones, savedNodePositions, edgeControlPoints } = getStore();
 
-    const nodes = new vis.DataSet(appData.articles.map((article) => {
+    const nodes = new DataSet(appData.articles.map((article) => {
         const { color: nodeColor, font } = getNodeAppearanceForZones(getArticleZones(article, tagZones));
 
         const labelFormat = localStorage.getItem('nodeLabelFormat') || 'bibtexId';
@@ -157,7 +158,7 @@ export function getGraphData() {
 
     const articleIds = new Set(appData.articles.map((article) => article.id));
 
-    const edges = new vis.DataSet(appData.connections
+    const edges = new DataSet(appData.connections
         .filter((conn) => {
             if (!articleIds.has(conn.from) || !articleIds.has(conn.to)) return false;
             if (hasManagedControlPoints(edgeControlPoints, conn.id)) return false;

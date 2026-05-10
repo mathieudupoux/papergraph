@@ -1,5 +1,5 @@
 // ===== IMPORT FUNCTIONS =====
-// DOI, arXiv, and PDF import functionality
+// DOI, arXiv, and BibTeX import functionality
 
 import { getStore, getNetwork, pauseHistory, resumeHistory } from '../store/appStore.js';
 import { showNotification } from '../utils/helpers.js';
@@ -39,12 +39,10 @@ export function setupImportZone() {
             const file = files[0];
             const fileName = file.name.toLowerCase();
             
-            if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
-                handlePdfFile(file);
-            } else if (fileName.endsWith('.bib') || fileName.endsWith('.bibtex')) {
+            if (fileName.endsWith('.bib') || fileName.endsWith('.bibtex')) {
                 handleBibFile(file);
             } else {
-                showImportStatus('Please drop a PDF or .bib file', 'error');
+                showImportStatus('Please drop a .bib file', 'error');
             }
         }
     });
@@ -60,12 +58,10 @@ export function setupImportZone() {
                 const file = e.target.files[0];
                 const fileName = file.name.toLowerCase();
                 
-                if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
-                    handlePdfFile(file);
-                } else if (fileName.endsWith('.bib') || fileName.endsWith('.bibtex')) {
+                if (fileName.endsWith('.bib') || fileName.endsWith('.bibtex')) {
                     handleBibFile(file);
                 } else {
-                    showImportStatus('Please select a PDF or .bib file', 'error');
+                    showImportStatus('Please select a .bib file', 'error');
                 }
             }
         });
@@ -665,80 +661,6 @@ export async function handleBibFile(file) {
         console.error('Error reading .bib file:', error);
         showImportStatus('Error reading .bib file', 'error');
     }
-}
-
-// ===== PDF HANDLING =====
-
-export async function handlePdfFile(file) {
-    showImportStatus('Extracting PDF metadata...', 'loading');
-    
-    try {
-        // Use PDF.js library if available, otherwise extract basic info
-        if (typeof pdfjsLib !== 'undefined') {
-            await extractPdfMetadata(file);
-        } else {
-            // Fallback: just use filename
-            const filename = file.name.replace('.pdf', '');
-            const titleField = document.getElementById('articleTitle');
-            const pdfField = document.getElementById('articlePdf');
-            
-            if (titleField) titleField.value = filename;
-            
-            // Create local URL
-            const pdfUrl = URL.createObjectURL(file);
-            if (pdfField) pdfField.value = pdfUrl;
-            
-            // Try to extract DOI from filename
-            const doiMatch = filename.match(/10\.\d{4,}[^\s]*/);
-            if (doiMatch) {
-                const doiField = document.getElementById('articleDoi');
-                if (doiField) doiField.value = doiMatch[0];
-                showImportStatus('PDF loaded. Attempting import via found DOI...', 'loading');
-                await importFromDoi(doiMatch[0]);
-            } else {
-                showImportStatus('PDF loaded. Press Send to add it or keep refining.', 'success');
-                toggleManualForm(true);
-                updatePromptActionState('save');
-            }
-        }
-    } catch (error) {
-        console.error('PDF processing error:', error);
-        showImportStatus('Error processing PDF', 'error');
-    }
-}
-
-export async function extractPdfMetadata(file) {
-    // This would use PDF.js to extract metadata from PDF
-    const arrayBuffer = await file.arrayBuffer();
-    
-    // Try to find DOI in PDF content (basic search)
-    const text = await extractTextFromPdf(arrayBuffer);
-    const doiMatch = text.match(/10\.\d{4,}\/[^\s\n]+/);
-    
-    if (doiMatch) {
-        const doi = doiMatch[0].replace(/[.,;]$/, ''); // Remove trailing punctuation
-        showImportStatus('DOI found in PDF, importing...', 'loading');
-        await importFromDoi(doi);
-    } else {
-        const filename = file.name.replace('.pdf', '');
-        const titleField = document.getElementById('articleTitle');
-        const pdfField = document.getElementById('articlePdf');
-        
-        if (titleField) titleField.value = filename;
-        const pdfUrl = URL.createObjectURL(file);
-        if (pdfField) pdfField.value = pdfUrl;
-        
-        showImportStatus('PDF loaded. Press Send to add it or keep refining.', 'success');
-        toggleManualForm(true);
-        updatePromptActionState('save');
-    }
-}
-
-export async function extractTextFromPdf(arrayBuffer) {
-    // Simple text extraction - would need PDF.js for full implementation
-    const uint8Array = new Uint8Array(arrayBuffer);
-    const text = new TextDecoder().decode(uint8Array);
-    return text;
 }
 
 // ===== DOI IMPORT =====
