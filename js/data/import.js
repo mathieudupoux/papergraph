@@ -190,16 +190,103 @@ function autoResizeQuickImport() {
     quickImport.style.height = `${Math.min(quickImport.scrollHeight, 180)}px`;
 }
 
+const DOI_IN_TEXT_PATTERN = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i;
+const DOI_EXACT_PATTERN = /^10\.\d{4,9}\/[-._;()/:A-Z0-9]+$/i;
+
+function normalizeDoiIdentifier(value = '') {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return null;
+
+    let normalizedValue = trimmedValue;
+
+    if (/^doi:\s*/i.test(normalizedValue)) {
+        normalizedValue = normalizedValue.replace(/^doi:\s*/i, '');
+    }
+
+    normalizedValue = normalizedValue.replace(/[.,;:!?]+$/, '');
+
+    const doiMatch = normalizedValue.match(DOI_IN_TEXT_PATTERN);
+    if (!doiMatch) {
+        return null;
+    }
+
+    const doi = doiMatch[0].replace(/[.,;:!?]+$/, '');
+    return DOI_EXACT_PATTERN.test(doi) ? doi : null;
+}
+
+function safeDecodeURIComponent(value = '') {
+    try {
+        return decodeURIComponent(value);
+    } catch (_) {
+        return value;
+    }
+}
+
+function extractDoiFromUrl(value = '') {
+    const urlCandidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(value)
+        ? value
+        : /^[^/\s?#]+\.[^/\s?#]+/.test(value)
+            ? `https://${value}`
+            : null;
+
+    if (!urlCandidate) {
+        return null;
+    }
+
+    try {
+        const parsedUrl = new URL(urlCandidate);
+        const candidates = [
+            parsedUrl.pathname,
+            parsedUrl.search,
+            parsedUrl.hash,
+            `${parsedUrl.pathname}${parsedUrl.search}`,
+            `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`,
+        ]
+            .map((candidate) => safeDecodeURIComponent(candidate))
+            .map((candidate) => candidate.replace(/^\/+/, ''))
+            .filter(Boolean);
+
+        for (const candidate of candidates) {
+            const doi = normalizeDoiIdentifier(candidate);
+            if (doi) {
+                return doi;
+            }
+        }
+
+        return null;
+    } catch (_) {
+        return null;
+    }
+}
+
+function buildCrossrefWorksUrl(doi, includeBibtexTransform = false) {
+    const normalizedDoi = normalizeDoiIdentifier(doi);
+    if (!normalizedDoi) {
+        throw new Error('DOI invalide');
+    }
+
+    const url = new URL(`https://api.crossref.org/works/${encodeURIComponent(normalizedDoi)}`);
+    if (includeBibtexTransform) {
+        url.pathname += '/transform/application/x-bibtex';
+    }
+
+    return url.toString();
+}
+
 function extractDoiFromText(value = '') {
     const trimmedValue = value.trim();
     if (!trimmedValue) return null;
 
-    if (!trimmedValue.includes('doi.org') && !(trimmedValue.includes('10.') && trimmedValue.includes('/'))) {
+    const doiFromUrl = extractDoiFromUrl(trimmedValue);
+    if (doiFromUrl) {
+        return doiFromUrl;
+    }
+
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmedValue)) {
         return null;
     }
 
-    const doiMatch = trimmedValue.match(/10\.\d{4,}(?:\.\d+)?\/[A-Za-z0-9.\-_\(\)\/]+/);
-    return doiMatch ? doiMatch[0].replace(/[.,;:!?]+$/, '') : null;
+    return normalizeDoiIdentifier(trimmedValue);
 }
 
 function extractArxivIdFromText(value = '') {
@@ -657,10 +744,15 @@ export async function extractTextFromPdf(arrayBuffer) {
 // ===== DOI IMPORT =====
 
 async function fetchArticleFromDoi(doi) {
+    const normalizedDoi = normalizeDoiIdentifier(doi);
+    if (!normalizedDoi) {
+        throw new Error('DOI invalide');
+    }
+
     let bibtexData = null;
 
     try {
-        const bibtexResponse = await fetch(`https://api.crossref.org/works/${doi}/transform/application/x-bibtex`);
+        const bibtexResponse = await fetch(buildCrossrefWorksUrl(normalizedDoi, true));
         if (bibtexResponse.ok) {
             const bibtexText = await bibtexResponse.text();
             bibtexData = await parseBibTeXEntry(bibtexText);
@@ -669,7 +761,7 @@ async function fetchArticleFromDoi(doi) {
         console.log('BibTeX fetch failed, falling back to CrossRef JSON:', error);
     }
 
-    const response = await fetch(`https://api.crossref.org/works/${doi}`);
+    const response = await fetch(buildCrossrefWorksUrl(normalizedDoi));
     if (!response.ok) {
         throw new Error(`DOI non trouvé (status ${response.status})`);
     }
@@ -690,7 +782,7 @@ async function fetchArticleFromDoi(doi) {
         title: (bibtexData?.title || work.title?.[0] || 'Imported article').replace(/[{}]/g, ''),
         authors,
         abstract: work.abstract || bibtexData?.abstract || '',
-        doi,
+        doi: normalizedDoi,
         year: year ? String(year) : '',
         journal: work['container-title']?.[0] || bibtexData?.journal || bibtexData?.booktitle || '',
         volume: work.volume || bibtexData?.volume || '',
@@ -717,14 +809,18 @@ export async function importFromDoi(doi) {
         const input = document.getElementById('quickImport');
         if (input) doi = input.value.trim();
     }
-    
-    if (!doi) {
+
+    const normalizedDoi = normalizeDoiIdentifier(doi || '');
+    if (!normalizedDoi) {
         showImportStatus('Please enter a DOI', 'error');
         return;
     }
     
     // Check if DOI already exists
-    const existingArticle = getStore().appData.articles.find(a => a.doi && a.doi.toLowerCase() === doi.toLowerCase());
+    const existingArticle = getStore().appData.articles.find((a) => {
+        const articleDoi = normalizeDoiIdentifier(a.doi || '');
+        return articleDoi && articleDoi.toLowerCase() === normalizedDoi.toLowerCase();
+    });
     if (existingArticle) {
         const confirmImport = confirm(
             `⚠️ Warning: An article with this DOI already exists:\n\n` +
@@ -740,11 +836,11 @@ export async function importFromDoi(doi) {
         }
     }
     
-    console.log('📚 Importing DOI:', doi);
+    console.log('📚 Importing DOI:', normalizedDoi);
     showImportStatus('Fetching metadata...', 'loading');
     
     try {
-        const article = await fetchArticleFromDoi(doi);
+        const article = await fetchArticleFromDoi(normalizedDoi);
         getStore().setPendingImportArticle(article);
         fillFormWithArticleData(article);
         
